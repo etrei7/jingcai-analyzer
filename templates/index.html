@@ -80,6 +80,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .odds-btn .val{font-weight:700;font-size:0.9rem}
 .odds-section-label{font-size:0.62rem;color:var(--text-muted);margin-bottom:0;text-transform:uppercase;letter-spacing:0.5px}
 .market-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.hcp-pick{margin-top:5px;font-size:0.72rem;background:var(--card-stripe);border:1px dashed var(--border);border-radius:6px;padding:5px 8px}
 .market-bar-wrap{display:flex;align-items:center;gap:3px;flex:1;min-width:60px}
 .market-bar-label{font-size:0.62rem;color:var(--text-muted);width:14px;text-align:center}
 .market-bar{flex:1;height:4px;background:var(--bar-track);border-radius:3px;overflow:hidden}
@@ -705,11 +706,12 @@ function renderMatchesInternal(matches) {
             ${renderOddsBtn(m,'平',m.draw_odds,'spf')}
             ${renderOddsBtn(m,'负',m.lose_odds,'spf')}
           </div>
-          ${hcp !== null && hcp !== 0 ? `<div class="odds-section-label" style="margin-top:4px">${hLabel}</div><div class="odds-row">
+          ${hcp !== null ? `<div class="odds-section-label" style="margin-top:4px">${hLabel}</div><div class="odds-row">
             ${renderOddsBtn(m,'让胜',m.handicap_win_odds,'hcp')}
             ${renderOddsBtn(m,'让平',m.handicap_draw_odds,'hcp')}
             ${renderOddsBtn(m,'让负',m.handicap_lose_odds,'hcp')}
-          </div>` : ''}
+          </div>
+          ${m.hcp_pick?`<div class="hcp-pick" title="${m.hcp_reason||''}">&#128161; 让球推荐: <strong style="color:var(--home)">${m.hcp_pick.option}</strong> @${m.hcp_pick.odds} <span style="color:var(--text-muted)">(概率${m.hcp_pick.prob}%)</span></div>`:''}` : ''}
           <div class="market-row">
             <div class="market-bar-wrap"><span class="market-bar-label">主</span><div class="market-bar"><div class="market-bar-fill win" style="width:${m.market_win_pct||0}%"></div></div><span class="market-bar-pct">${m.market_win_pct||0}%</span></div>
             <div class="market-bar-wrap"><span class="market-bar-label">平</span><div class="market-bar"><div class="market-bar-fill draw" style="width:${m.market_draw_pct||0}%"></div></div><span class="market-bar-pct">${m.market_draw_pct||0}%</span></div>

@@ -142,56 +142,80 @@ def _simulate_h2h(home_exp, away_exp, num=5):
     }
 
 
-def _compute_handicap(match, prediction):
-    """Compute 让球 recommendation from odds and predictions.
-    Returns handicap line and estimated odds for 让球胜/平/负."""
+def _compute_handicap(match, prediction=None, home_state=0.5, away_state=0.5, h_inj=0, a_inj=0, h_rank=None, a_rank=None):
+    """Compute 让球 recommendation from odds + team state.
+    基于盘口隐含实力 + 球队状态/伤病修正，计算让球线与让球后各选项概率，
+    每场都给出让球推荐（含不让球 0 盘）。"""
     win_odds = match['win_odds']
     draw_odds = match['draw_odds']
     lose_odds = match['lose_odds']
 
-    # Determine handicap direction: negative = home gives ball, positive = home gets ball
-    if win_odds > 0 and lose_odds > 0:
-        if win_odds < lose_odds * 0.6:
-            line = -1    # home team strong favorite
-        elif lose_odds < win_odds * 0.6:
-            line = +1    # away team strong favorite
-        else:
-            line = 0     # balanced
+    # 盘口驱动：隐含实力差
+    imp_w = 1.0 / win_odds if win_odds > 0 else 0.33
+    imp_d = 1.0 / draw_odds if draw_odds > 0 else 0.33
+    imp_l = 1.0 / lose_odds if lose_odds > 0 else 0.33
+    total_imp = imp_w + imp_d + imp_l
+    home_str = imp_w / total_imp if total_imp > 0 else 0.33
+    away_str = imp_l / total_imp if total_imp > 0 else 0.33
+
+    # 球队数据修正：状态分高增强，伤停削弱
+    h_adj = (home_state - 0.5) * 0.6 - 0.08 * h_inj
+    a_adj = (away_state - 0.5) * 0.6 - 0.08 * a_inj
+    if h_rank and a_rank:
+        rank_diff = (a_rank - h_rank) * 0.02   # 排名差：主队排名更优则微增
+        h_adj += max(-0.2, min(0.2, rank_diff))
+
+    home_exp = max(0.2, 1.15 + home_str * 1.0 + h_adj)
+    away_exp = max(0.2, 0.75 + away_str * 1.0 + a_adj)
+
+    # 选择让球线：期望净胜球
+    net = home_exp - away_exp
+    if net >= 0.75:
+        line = -1
+        direction = '主让'
+    elif net <= -0.75:
+        line = +1
+        direction = '客让'
     else:
         line = 0
+        direction = '平手'
 
-    # Estimate handicap odds from Poisson difference probabilities
-    pred = prediction or {}
-    home_exp = float(pred.get('expected_home_goals', 0) or 0)
-    away_exp = float(pred.get('expected_away_goals', 0) or 0)
+    # Skellam 计算让球后胜平负概率
+    def _probs_for_line(ln):
+        if ln == -1:  # 主让1球: 主队净胜2+ / 净胜1 / 平或负
+            ph = sum(_skellam_prob(d, home_exp, away_exp) for d in range(2, 11))
+            pd = _skellam_prob(1, home_exp, away_exp)
+            pl = 1 - ph - pd
+        elif ln == +1:  # 客让1球: 客队净胜2+ / 净胜1 / 平或负
+            ph = sum(_skellam_prob(d, away_exp, home_exp) for d in range(2, 11))
+            pd = _skellam_prob(1, away_exp, home_exp)
+            pl = 1 - ph - pd
+        else:  # 平手盘
+            ph = sum(_skellam_prob(d, home_exp, away_exp) for d in range(1, 11))
+            pd = _skellam_prob(0, home_exp, away_exp)
+            pl = 1 - ph - pd
+        return ph, pd, pl
 
-    if home_exp <= 0 or away_exp <= 0:
-        imp = 1.0 / win_odds if win_odds > 0 else 0.35
-        home_exp = imp * 5.0
-        away_exp = (1 - imp) * 5.0
+    ph, pd, pl = _probs_for_line(line)
+    # 保险下限，避免赔率爆炸
+    odds_win = round(1.0 / max(ph, 0.03), 2)
+    odds_draw = round(1.0 / max(pd, 0.03), 2)
+    odds_lose = round(1.0 / max(pl, 0.03), 2)
 
-    # For handicap line = -1: home must win by 2+, draw if win by 1, away wins if home doesn't win
-    # Skellam: P(home - away >= 2), P(home - away == 1), P(home - away <= 0)
-    if line == -1:
-        prob_hg_win = sum(_skellam_prob(d, home_exp, away_exp) for d in range(2, 11))
-        prob_hg_draw = _skellam_prob(1, home_exp, away_exp)
-        prob_hg_lose = 1 - prob_hg_win - prob_hg_draw
-        odds_win = round(1.0 / max(prob_hg_win, 0.02), 2)
-        odds_draw = round(1.0 / max(prob_hg_draw, 0.02), 2)
-        odds_lose = round(1.0 / max(prob_hg_lose, 0.02), 2)
-    elif line == +1:
-        prob_hg_win = sum(_skellam_prob(d, away_exp, home_exp) for d in range(2, 11))
-        prob_hg_draw = _skellam_prob(1, away_exp, home_exp)
-        prob_hg_lose = 1 - prob_hg_win - prob_hg_draw
-        odds_win = round(1.0 / max(prob_hg_win, 0.02), 2)
-        odds_draw = round(1.0 / max(prob_hg_draw, 0.02), 2)
-        odds_lose = round(1.0 / max(prob_hg_lose, 0.02), 2)
-    else:  # line == 0, same as 1x2
-        odds_win = win_odds
-        odds_draw = draw_odds
-        odds_lose = lose_odds
-        
     label = f'让球{line:+d}' if line != 0 else '不让球'
+    pick_side = max([('让胜', ph, odds_win), ('让平', pd, odds_draw), ('让负', pl, odds_lose)],
+                    key=lambda x: x[1])
+    pick_label = f'{pick_side[0]}({direction})' if line != 0 else f'{pick_side[0]}'
+
+    # 推荐理由
+    reasons = []
+    reasons.append(f'盘口隐含实力 {direction}' if line != 0 else '盘口判断双方实力接近')
+    if h_inj or a_inj:
+        reasons.append(f'伤停主{h_inj}人/客{a_inj}人')
+    if home_state > 0.62 or away_state > 0.62:
+        reasons.append('状态占优')
+    reasons.append(f'让胜概率{round(ph*100)}%/让平{round(pd*100)}%/让负{round(pl*100)}%')
+    reason_str = '，'.join(reasons)
 
     return {
         'handicap_line': line,
@@ -199,6 +223,10 @@ def _compute_handicap(match, prediction):
         'handicap_win_odds': odds_win,
         'handicap_draw_odds': odds_draw,
         'handicap_lose_odds': odds_lose,
+        'hcp_pick': {'option': pick_label, 'prob': round(pick_side[1] * 100, 1),
+                     'odds': pick_side[2], 'side': pick_side[0], 'line': line, 'direction': direction},
+        'hcp_reason': reason_str,
+        'hcp_net': round(net, 2),
     }
 
 
@@ -393,8 +421,9 @@ def analyze_single_match(match, standings=None, prediction=None):
     over25_prob = tg['over25_prob']
     top3_goals = tg['top3_goals']
 
-    # 7. 让球分析
-    handicap = _compute_handicap(match, prediction)
+    # 7. 让球分析（结合球队状态/伤病/排名）
+    handicap = _compute_handicap(match, prediction, home_confidence / 10.0, away_confidence / 10.0,
+                                 h_inj, a_inj, home_rank, away_rank)
 
     # 7.5 球队身价估算（基于联赛等级+排名+赔率强度）
     league_quality_ord = LEAGUE_QUALITY.get(league, 0.65)
@@ -470,6 +499,9 @@ def analyze_single_match(match, standings=None, prediction=None):
     result['handicap_win_odds'] = handicap['handicap_win_odds']
     result['handicap_draw_odds'] = handicap['handicap_draw_odds']
     result['handicap_lose_odds'] = handicap['handicap_lose_odds']
+    result['hcp_pick'] = handicap['hcp_pick']
+    result['hcp_reason'] = handicap['hcp_reason']
+    result['hcp_net'] = handicap['hcp_net']
 
     # Total goals fields
     result['expected_total'] = expected
