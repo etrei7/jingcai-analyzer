@@ -27,6 +27,9 @@ LEAGUE_NAME_MAP = {
     'Coppa Italia': '意杯', 'DFB Pokal': '德国杯', 'Copa do Brasil': '巴西杯',
     'Champions League': '欧冠', 'Europa League': '欧联', 'Conference League': '欧协联',
     'Europa Conference League': '欧协联',
+    # 竞彩常开杯赛
+    'AFC Champions League': '亚冠', 'AFC Champions League Elite': '亚冠',
+    'Copa Libertadores': '解放者杯', 'UEFA Super Cup': '欧超杯',
     # 以下联赛竞彩不开，全部排除
     'Club Friendlies': None,
     'NWSL': None,

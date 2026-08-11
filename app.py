@@ -43,10 +43,22 @@ def get_data():
 
     if matches and len(matches) >= 5:
         logging.info('[API] 使用 Bzzoiro 真实数据')
+
+        # 竞彩官单匹配：从 500.com 获取今日竞彩场次编号，过滤非竞彩场次
+        try:
+            from jingcai_scraper import fetch_jingcai_match_ids, filter_by_jingcai
+            jc_list = fetch_jingcai_match_ids()
+            if jc_list:
+                matches = filter_by_jingcai(matches, jc_list)
+                source = 'Bzzoiro + 竞彩官方场单'
+            else:
+                source = 'Bzzoiro API (竞彩官单刮取失败，显示所有可用场次)'
+        except Exception:
+            source = 'Bzzoiro API (竞彩官单刮取失败)'
+
         standings = fetch_standings_for_matches(matches)
         predictions = fetch_predictions()
         odds_movement = fetch_odds_movement_for_matches(matches)
-        source = 'Bzzoiro API + 本站分析'
     else:
         logging.info('[API] 真实数据不足，降级为模拟数据')
         matches = generate_mock_matches(12)
