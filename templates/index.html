@@ -268,9 +268,70 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 </div>
 
 <script>
+const BZZOIRO_API_KEY = "{{ api_key }}";
+const BZZOIRO_BASE_URL = "https://sports.bzzoiro.com/api";
+
 let currentMatches = [];
 let parlaySelections = {};
 let autoRefreshTimer = null;
+
+async function fetchBzzoiroEvents(limit) {
+  limit = limit || 15;
+  const today = new Date().toISOString().slice(0, 10);
+  const dt = new Date(Date.now() + 2 * 86400000);
+  const twoDays = dt.toISOString().slice(0, 10);
+  const url = BZZOIRO_BASE_URL + '/events/?date_from=' + today + '&date_to=' + twoDays + '&status=notstarted&limit=' + limit;
+  const resp = await fetch(url, { headers: { 'Authorization': 'Token ' + BZZOIRO_API_KEY } });
+  if (!resp.ok) throw new Error('Bzzoiro events ' + resp.status);
+  const data = await resp.json();
+  return (data.results || []).slice(0, limit);
+}
+
+async function fetchBzzoiroPredictions() {
+  const url = BZZOIRO_BASE_URL + '/predictions/?upcoming=true';
+  const resp = await fetch(url, { headers: { 'Authorization': 'Token ' + BZZOIRO_API_KEY } });
+  if (!resp.ok) { console.warn('Bzzoiro predictions ' + resp.status); return []; }
+  const data = await resp.json();
+  return data.results || [];
+}
+
+async function fetchJingcaiList() {
+  var proxies = [
+    'https://corsproxy.io/?url=',
+    'https://api.allorigins.win/raw?url='
+  ];
+  for (var pi = 0; pi < proxies.length; pi++) {
+    try {
+      var proxyUrl = proxies[pi] + encodeURIComponent('https://trade.500.com/jczq/');
+      var resp = await fetch(proxyUrl);
+      if (!resp.ok) continue;
+      var buffer = await resp.arrayBuffer();
+      var html;
+      try { html = new TextDecoder('gbk').decode(buffer); }
+      catch(d) { html = new TextDecoder('utf-8').decode(buffer); }
+      var parts = html.split(/(\u5468[\u4e00-\u9fa5]\d{3})/);
+      var seen = {};
+      var blacklist = ['\u624b\u673a\u7248','\u767b\u5f55','\u6ce8\u518c','\u6b22\u8fce\u60a8','\u7ea2\u5305','\u4f59\u989d','\u9690\u85cf','\u641c\u7d22','\u7ade\u5f69\u8db3\u7403','\u6295\u6ce8\u8be6\u60c5','\u626b\u63cf\u4e8c\u7ef4\u7801\u4e0b\u8f7d','\u7acb\u5373\u6295\u6ce8','\u9009\u53f7','\u6e05\u7a7a','\u80c6\u7801','\u6bd4\u5206','\u8d5b\u4e8b\u7c7b\u578b','\u5168\u90e8','\u8fc7\u5173\u65b9\u5f0f','\u5355\u5173','\u6df7\u5408\u8fc7\u5173','\u81ea\u7531\u8fc7\u5173','\u5956\u91d1\u4f18\u5316','\u6bd4\u8d5b\u5386\u53f2'];
+      for (var i = 1; i < parts.length - 1; i += 2) {
+        var mid = parts[i];
+        var segment = parts[i + 1].substring(0, 500);
+        var leagueMatch = segment.match(/>([\u4e00-\u9fff]{2,6})</g);
+        var league = '\u672a\u77e5';
+        if (leagueMatch) {
+          for (var j = 0; j < leagueMatch.length; j++) {
+            var name = leagueMatch[j].replace(/[><]/g, '');
+            if (blacklist.indexOf(name) === -1) { league = name; break; }
+          }
+        }
+        if (seen[mid]) { if (seen[mid] === '\u672a\u77e5' && league !== '\u672a\u77e5') seen[mid] = league; }
+        else { seen[mid] = league; }
+      }
+      var result = Object.keys(seen).filter(function(mid){ return seen[mid] !== '\u672a\u77e5'; }).map(function(mid){ return [mid, seen[mid]]; });
+      if (result.length > 0) return result;
+    } catch(e) { console.warn('Jingcai proxy ' + pi + ' failed: ' + e.message); }
+  }
+  return [];
+}
 
 async function fetchData() {
   const resp = await fetch('/api/data');
@@ -641,7 +702,27 @@ async function refreshData(){
     document.getElementById('matchesContainer').innerHTML='<div class="loading"><div class="spinner"></div><p style="margin-top:10px">刷新数据…</p></div>';
     document.getElementById('recContainer').innerHTML='<div class="loading">生成推荐方案…</div>';
     document.getElementById('tgContainer').innerHTML='<div class="loading">分析总进球…</div>';
-    const data=await fetchData();
+
+    var data;
+
+    if (BZZOIRO_API_KEY) {
+      document.getElementById('matchesContainer').innerHTML='<div class="loading"><div class="spinner"></div><p style="margin-top:10px">正在拉取Bzzoiro实时数据…</p></div>';
+      var events = await fetchBzzoiroEvents(15);
+      document.getElementById('matchesContainer').innerHTML='<div class="loading"><div class="spinner"></div><p style="margin-top:10px">正在拉取AI预测数据…</p></div>';
+      var preds = await fetchBzzoiroPredictions();
+      document.getElementById('matchesContainer').innerHTML='<div class="loading"><div class="spinner"></div><p style="margin-top:10px">正在匹配竞彩官方场单…</p></div>';
+      var jcList = await fetchJingcaiList();
+      var resp = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ events: events, predictions: preds, jingcai_list: jcList })
+      });
+      if (!resp.ok) throw new Error('Analyze error ' + resp.status);
+      data = await resp.json();
+    } else {
+      data = await fetchData();
+    }
+
     document.getElementById('updateTime').textContent=data.stats.update_time;
     document.getElementById('totalMatches').textContent=data.stats.total_matches;
     document.getElementById('dataSource').textContent=data.stats.source;
@@ -651,7 +732,7 @@ async function refreshData(){
     renderHistoryPanel(data.history_stats);
     renderParlay();
   }catch(err){
-    document.getElementById('matchesContainer').innerHTML='<div class="loading" style="color:var(--low)">数据加载失败，请稍后重试</div>';
+    document.getElementById('matchesContainer').innerHTML='<div class="loading" style="color:var(--low)">数据加载失败: '+err.message+'</div>';
   }
 }
 
