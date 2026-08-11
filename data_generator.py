@@ -1,9 +1,13 @@
 import random
+from datetime import datetime, timedelta, timezone
 
 LEAGUES = [
     '英超', '西甲', '德甲', '意甲', '法甲',
     '中超', '日职', '韩K联', '澳超', '挪超'
 ]
+
+CST = timezone(timedelta(hours=8))
+DAY_NAMES = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
 
 TEAMS = {
     '英超': ['曼城', '利物浦', '阿森纳', '曼联', '切尔西', '热刺', '纽卡斯尔', '布莱顿', '阿斯顿维拉', '西汉姆联'],
@@ -59,17 +63,51 @@ def generate_single_match():
     home_strength = random.uniform(0.25, 0.75)
     win_odds, draw_odds, lose_odds, handicap = _random_odds(home_strength)
 
+    now_cst = datetime.now(CST)
+    mock_date = now_cst.strftime('%Y-%m-%dT%H:%M:%SZ')
+
     return {
         'match_id': match_id,
+        'raw_event_id': match_id,
         'league': league,
+        'league_id': None,
         'match_time': match_time,
         'home_team': home_team,
         'away_team': away_team,
+        'home_team_id': None,
+        'away_team_id': None,
         'win_odds': win_odds,
         'draw_odds': draw_odds,
         'lose_odds': lose_odds,
         'handicap': handicap,
-        'home_strength': round(home_strength, 4)
+        'handicap_line': 0,
+        'handicap_win_odds': 0,
+        'handicap_draw_odds': 0,
+        'handicap_lose_odds': 0,
+        'home_strength': round(home_strength, 4),
+        'injuries': {'home': [], 'away': [], 'home_count': 0, 'away_count': 0},
+        'referee': {'name': '待定', 'strictness': '未知', 'avg_yellows': 0, 'avg_reds': 0, 'games': 0},
+        'weather': {'code': None, 'desc': '未知', 'temp': None, 'wind': None, 'impact': '无明显影响'},
+        'travel_distance_km': random.randint(0, 800),
+        'is_derby': random.random() < 0.1,
+        'venue_name': '',
+        'venue_city': '',
+        'venue_capacity': None,
+        'home_coach': '',
+        'away_coach': '',
+        'ai_preview': '',
+        'home_rank': None,
+        'away_rank': None,
+        'home_form': '',
+        'away_form': '',
+        'home_xgd': None,
+        'away_xgd': None,
+        'home_confidence': 0,
+        'away_confidence': 0,
+        'home_breakdown': {},
+        'away_breakdown': {},
+        'expected_total': 0,
+        'top3_goals': [],
     }
 
 

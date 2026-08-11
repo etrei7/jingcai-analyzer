@@ -1,5 +1,6 @@
 import os, logging, requests, math
 from datetime import datetime, timedelta, timezone
+from collections import OrderedDict
 from team_names import TEAM_NAME_CN
 
 logger = logging.getLogger(__name__)
@@ -28,12 +29,14 @@ LEAGUE_NAME_MAP = {
     'Coppa Italia': '意杯', 'DFB Pokal': '德国杯', 'Copa do Brasil': '巴西杯',
     'Champions League': '欧冠', 'Europa League': '欧联', 'Conference League': '欧协联',
     'Europa Conference League': '欧协联',
-    'Club Friendlies': '友谊赛', 'NPL Queensland': '澳NPL',
-    'USL Championship': '美冠', 'Parva Liga': '保甲', 'Super League': '瑞士超',
+    'Club Friendlies': None,
+    'NPL Queensland': '澳NPL', 'USL Championship': '美冠', 'Parva Liga': '保甲',
     'Copa Colombia': '哥伦杯', 'Puchar Polski': '波兰杯',
     'Liga 3': '葡甲', 'Liga Portugal Betclic': '葡超',
     'NWSL': None,
 }
+
+JINGCAI_EXCLUDED = {None}
 
 WEATHER_MAP = {
     0: '晴', 1: '晴', 2: '多云', 3: '阴', 45: '雾', 48: '霜雾',
@@ -155,6 +158,36 @@ def _weather_impact(code, wind, temp):
     return '; '.join(parts) if parts else '无明显影响'
 
 
+CST = timezone(timedelta(hours=8))
+DAY_NAMES = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+
+
+def _format_time_cst(event_date_str):
+    try:
+        dt = datetime.fromisoformat(event_date_str.replace('Z', '+00:00'))
+        cst_dt = dt.astimezone(CST)
+        return cst_dt.strftime('%H:%M')
+    except Exception:
+        return event_date_str
+
+
+def _assign_match_ids(matches):
+    grouped = OrderedDict()
+    for m in matches:
+        try:
+            dt = datetime.fromisoformat(m['_raw_date'].replace('Z', '+00:00'))
+            cst_dt = dt.astimezone(CST)
+            day_key = cst_dt.weekday()
+        except Exception:
+            day_key = -1
+        grouped.setdefault(day_key, []).append(m)
+    
+    for day_key, group in grouped.items():
+        for i, m in enumerate(group):
+            weekday_name = DAY_NAMES[day_key] if 0 <= day_key <= 6 else '周?'
+            m['match_id'] = f'{weekday_name}{i+1:03d}'
+
+
 def _parse_event_to_match(event):
     league = event.get('league', {})
     league_name = league.get('name', '') if isinstance(league, dict) else str(league)
@@ -171,12 +204,17 @@ def _parse_event_to_match(event):
     away_en = event.get('away_team', '')
     home_cn = TEAM_NAME_CN.get(home_en, home_en)
     away_cn = TEAM_NAME_CN.get(away_en, away_en)
+    
+    event_date = event.get('event_date', '')
 
     return {
-        'match_id': str(event.get('id', '')),
+        'match_id': '',                             # filled by _assign_match_ids after grouping
+        'raw_event_id': str(event.get('id', '')),   # original Bzzoiro ID for prediction lookup
+        '_raw_date': event_date,
+        'event_date_raw': event_date,
         'league': _map_league(league_name),
         'league_id': league_id,
-        'match_time': _format_time(event.get('event_date', '')),
+        'match_time': _format_time_cst(event_date),
         'home_team': home_cn,
         'away_team': away_cn,
         'home_team_id': event.get('home_team_obj', {}).get('id') if isinstance(event.get('home_team_obj'), dict) else None,
@@ -235,6 +273,7 @@ def fetch_events(date_from=None, date_to=None, limit=15):
                 continue
             matches.append(m)
 
+        _assign_match_ids(matches)
         logger.info(f'[Bzzoiro] {len(matches)} 场')
         return matches[:limit]
     except Exception as e:
@@ -293,6 +332,8 @@ def fetch_predictions():
                     'prob_home_win': p.get('prob_home_win'),
                     'prob_draw': p.get('prob_draw'),
                     'prob_away_win': p.get('prob_away_win'),
+                    'expected_home_goals': p.get('expected_home_goals', 0) or 0,
+                    'expected_away_goals': p.get('expected_away_goals', 0) or 0,
                     'expected_goals': (p.get('expected_home_goals', 0) or 0) + (p.get('expected_away_goals', 0) or 0),
                     'confidence': p.get('confidence'),
                     'predicted_result': p.get('predicted_result'),

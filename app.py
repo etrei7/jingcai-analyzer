@@ -8,7 +8,7 @@ from flask import Flask, jsonify, render_template
 from config import Config
 from models import db
 from data_generator import generate_matches as generate_mock_matches
-from analysis import analyze_matches, generate_parlay_recommendations
+from analysis import analyze_matches, generate_parlay_recommendations, generate_total_goals_recommendations
 from scheduler import init_scheduler
 
 logging.basicConfig(level=logging.INFO)
@@ -52,14 +52,14 @@ def get_data():
 
     analyzed = analyze_matches(matches, standings, predictions)
     recommendations = generate_parlay_recommendations(analyzed)
-    hit_rate = random.randint(65, 85)
+    total_goals_recs = generate_total_goals_recommendations(analyzed)
 
     return jsonify({
         'matches': analyzed,
         'recommendations': recommendations,
+        'total_goals_recs': total_goals_recs,
         'stats': {
             'total_matches': len(analyzed),
-            'hit_rate': f'{hit_rate}%',
             'update_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             'source': source
         }
