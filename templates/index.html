@@ -375,6 +375,11 @@ async function fetchJingcaiList() {
           win_odds: hOdds,
           draw_odds: dOdds,
           lose_odds: aOdds,
+          // 官方让球数据 hhad：goalLine 让球线 + h/d/a 让球赔率
+          hhad_goal_line: (m.hhad && m.hhad.goalLine) ? parseFloat(m.hhad.goalLine) : 0,
+          hhad_win: (m.hhad && m.hhad.h) ? parseFloat(m.hhad.h) : 0,
+          hhad_draw: (m.hhad && m.hhad.d) ? parseFloat(m.hhad.d) : 0,
+          hhad_lose: (m.hhad && m.hhad.a) ? parseFloat(m.hhad.a) : 0,
           raw_event_id: (group.weekday || '') + num3,
           date: group.businessDate || '',
           source: '竞彩官方'
