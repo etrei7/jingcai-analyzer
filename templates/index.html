@@ -832,35 +832,27 @@ async function refreshData(){
 
     var data = null;
 
-    // 优先：服务端 Bzzoiro 快速加载
-    try {
-      var resp = await fetch('/api/data');
-      if (resp.ok) data = await resp.json();
-    } catch(e) { console.warn('服务端失败: ' + e.message); }
-
-    // 后台异步：浏览器竞彩官单 + 服务端 Bzzoiro 双源合并
+    // 1. 浏览器端取竞彩官单（快，2-3秒）
     if (BZZOIRO_API_KEY) {
-      (async function(){
-        try {
-          var jcMatches = await fetchJingcaiList();
-          if (jcMatches && jcMatches.length >= 3) {
-            var resp2 = await fetch('/api/analyze', {
-              method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ jingcai_matches: jcMatches, client_time: new Date().toISOString() })
-            });
-            if (resp2.ok) {
-              var newData = await resp2.json();
-              if (newData && newData.matches) {
-                data = newData;
-                document.getElementById('updateTime').textContent=data.stats.update_time;
-                document.getElementById('totalMatches').textContent=data.stats.total_matches;
-                document.getElementById('dataSource').textContent=data.stats.source;
-                renderMatches(data.matches);
-                renderRecommendations(data.recommendations);
-                renderTotalGoals(data.total_goals_recs);
-                renderHistoryPanel(data.history_stats);
-                console.log('竞彩官方编号已匹配: ' + data.stats.source);
-              }
+      try {
+        var jc = await fetchJingcaiList();
+        if (jc && jc.length >= 3) {
+          var resp = await fetch('/api/analyze', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ jingcai_matches: jc, client_time: new Date().toISOString() })
+          });
+          if (resp.ok) data = await resp.json();
+        }
+      } catch(e) { console.warn('竞彩: ' + e.message); }
+    }
+
+    // 2. 竞彩失败时走服务端 Bzzoiro
+    if (!data) {
+      try {
+        var resp = await fetch('/api/data');
+        if (resp.ok) data = await resp.json();
+      } catch(e) { console.warn('服务端: ' + e.message); }
+    }
             }
           }
         } catch(e) { console.warn('竞彩更新失败: ' + e.message); }
