@@ -153,23 +153,22 @@ def analyze_data():
             m.setdefault('expected_total', 0); m.setdefault('top3_goals', [])
             m.setdefault('handicap_line', 0); m.setdefault('handicap_win_odds', 0); m.setdefault('handicap_draw_odds', 0); m.setdefault('handicap_lose_odds', 0)
 
-        # 服务端 Bzzoiro 富化（通过白名单）+ 只保留重合比赛
+        # 服务端 Bzzoiro 富化（通过白名单）— 有就补，没有不丢
         bz_predictions = {}
-        matched_matches = []  # 只保留竞彩+Bzzoiro都有的
         try:
             from bizzoiro_client import fetch_events, fetch_predictions
             from team_names import TEAM_NAME_CN
             bz_matches = fetch_events(limit=25)
             if bz_matches:
                 bz_preds = fetch_predictions()
+                enriched = 0
                 for jm in matches:
                     jh, ja = jm.get('home_team', ''), jm.get('away_team', '')
-                    found = False
                     for bz in bz_matches:
                         bzh = TEAM_NAME_CN.get(bz.get('home_team', ''), bz.get('home_team', ''))
                         bza = TEAM_NAME_CN.get(bz.get('away_team', ''), bz.get('away_team', ''))
                         if bzh == jh and bza == ja:
-                            found = True
+                            enriched += 1
                             ij = bz.get('injuries')
                             if ij and (ij.get('home_count', 0) > 0 or ij.get('away_count', 0) > 0):
                                 jm['injuries'] = ij
@@ -188,10 +187,7 @@ def analyze_data():
                                     'predicted_result': p.get('predicted_result'),
                                 }
                             break
-                    if found:
-                        matched_matches.append(jm)
-                matches = matched_matches
-                source = '竞彩官方 + Bzzoiro' if matched_matches else '竞彩官方'
+                source = f'竞彩官方 + Bzzoiro({enriched}/{len(matches)})' if enriched > 0 else '竞彩官方'
         except Exception:
             source = '竞彩官方'
 
