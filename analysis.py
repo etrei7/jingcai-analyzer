@@ -46,8 +46,10 @@ def _team_confidence_10(form_str=None, rank=None, xgd=None,
     breakdown = {'状态': 0.0, '历史交手': 0.0, '伤病': 0.0, '首发轮换': 0.0}
     reasons = {'状态': '', '历史交手': '', '伤病': '', '首发轮换': ''}
 
-    # 1. 状态 (0-3分): 近5场 W/D/L + 排名加成
-    form_score = 1.5
+    # odds_ratio = 1/赔率 = 隐含胜率。越高越强
+    imp = odds_ratio if odds_ratio else 0.5
+
+    # 1. 状态 (0-3分)
     w = l = 0
     if form_str:
         w = sum(1 for ch in form_str[-5:] if ch in 'Ww')
@@ -55,33 +57,36 @@ def _team_confidence_10(form_str=None, rank=None, xgd=None,
         form_score = 1.5 + w * 0.5 - l * 0.4
         reasons['状态'] = f'近5场{w}胜{5-w-l}平{l}负'
     else:
-        reasons['状态'] = '无近期战绩'
-    if rank and rank <= 3: form_score += 0.5; reasons['状态'] += f', 排名前3(+0.5)'
-    elif rank and rank <= 6: form_score += 0.2; reasons['状态'] += f', 排名前6(+0.2)'
+        if imp > 0.60: form_score = 3.0; reasons['状态'] = f'大热方(胜率{round(imp*100)}%)'
+        elif imp > 0.45: form_score = 2.3; reasons['状态'] = f'偏强方(胜率{round(imp*100)}%)'
+        elif imp > 0.35: form_score = 1.7; reasons['状态'] = f'均衡方(胜率{round(imp*100)}%)'
+        elif imp > 0.25: form_score = 1.2; reasons['状态'] = f'偏弱方(胜率{round(imp*100)}%)'
+        else: form_score = 0.5; reasons['状态'] = f'冷门方(胜率{round(imp*100)}%)'
+
+    if rank and rank <= 3: form_score += 0.5; reasons['状态'] += ', 排名前3(+0.5)'
+    elif rank and rank <= 6: form_score += 0.2; reasons['状态'] += ', 排名前6(+0.2)'
     if xgd:
-        if xgd > 5: form_score += 0.2; reasons['状态'] += f', xGD优势(+0.2)'
-        elif xgd < -5: form_score -= 0.2; reasons['状态'] += f', xGD劣势(-0.2)'
+        if xgd > 5: form_score += 0.2; reasons['状态'] += ', xGD优势'
+        elif xgd < -5: form_score -= 0.2; reasons['状态'] += ', xGD劣势'
     breakdown['状态'] = round(max(0, min(3, form_score)), 1)
 
-    # 2. 历史交手 (0-2分): 基于赔率强弱（大热=H2H占优）
-    h2h_score = 1.0
-    if odds_ratio is not None and odds_ratio > 0:
-        if odds_ratio < 0.6:  h2h_score = 2.0; reasons['历史交手'] = '极强方(赔率<0.6)'
-        elif odds_ratio < 0.8: h2h_score = 1.5; reasons['历史交手'] = '较强方(赔率0.6-0.8)'
-        elif odds_ratio > 1.6: h2h_score = 0.3; reasons['历史交手'] = '大冷方(赔率>1.6)'
-        elif odds_ratio > 1.2: h2h_score = 0.7; reasons['历史交手'] = '弱方(赔率1.2-1.6)'
-        else: h2h_score = 1.0; reasons['历史交手'] = '实力均衡'
+    # 2. 历史交手 (0-2分): 隐含胜率越高, H2H越占优
+    if imp > 0.55: h2h_score = 2.0; reasons['历史交手'] = f'胜率{round(imp*100)}% 大概率H2H占优'
+    elif imp > 0.40: h2h_score = 1.5; reasons['历史交手'] = f'胜率{round(imp*100)}% 可能H2H占优'
+    elif imp > 0.30: h2h_score = 1.0; reasons['历史交手'] = f'胜率{round(imp*100)}% 约五五开'
+    elif imp > 0.20: h2h_score = 0.5; reasons['历史交手'] = f'胜率{round(imp*100)}% 大概率处于下风'
+    else: h2h_score = 0.1; reasons['历史交手'] = f'胜率{round(imp*100)}% 历史交手劣势'
     breakdown['历史交手'] = round(h2h_score, 1)
 
     # 3. 伤病 (0-3分)
     inj_score = max(0, 3.0 - injuries_count * 0.6)
-    if injuries_count == 0: reasons['伤病'] = '无伤停(-0.0)'
+    if injuries_count == 0: reasons['伤病'] = '无伤停(满分)'
     else: reasons['伤病'] = f'{injuries_count}人伤停(-{round(injuries_count*0.6,1)})'
     breakdown['伤病'] = round(inj_score, 1)
 
     # 4. 首发轮换 (0-2分)
     lineup_score = max(0, 2.0 - unavailable_count * 0.4)
-    if unavailable_count == 0: reasons['首发轮换'] = '阵容完整(-0.0)'
+    if unavailable_count == 0: reasons['首发轮换'] = '阵容完整(满分)'
     else: reasons['首发轮换'] = f'{unavailable_count}人缺席(-{round(unavailable_count*0.4,1)})'
     breakdown['首发轮换'] = round(lineup_score, 1)
 
