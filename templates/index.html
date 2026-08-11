@@ -758,7 +758,8 @@ function renderParlay() {
   const items=Object.values(parlaySelections);count.textContent=items.length;
   if(!items.length){list.innerHTML='<div class="parlay-empty">点击比赛中的赔率按钮添加至串关<br>至少选择2场比赛后生成方案</div>';comboEl.textContent='--';btnGen.disabled=true}
   else{list.innerHTML=items.map(i=>`<div class="parlay-item"><div class="info"><div class="match-teams-small">${i.home_team} vs ${i.away_team}</div><div class="option-info">#${i.match_id} ${i.league} | ${i.option} @${i.odds} ${i.mode==='hcp'?'[让]':''}</div></div><button class="parlay-remove" onclick="removeParlayItem('${i.key}')">&times;</button></div>`).join('');comboEl.textContent=items.reduce((a,i)=>a*i.odds,1).toFixed(2);btnGen.disabled=items.length<2}
-  if(currentMatches.length) renderMatches(currentMatches);
+  // 不覆盖 allMatches，直接重新渲染当前筛选结果
+  applyFilters();
 }
 
 function toggleOdds(mid,opt,odds,ht,at,lg,mt,mode){
