@@ -832,10 +832,13 @@ async function refreshData(){
 
     var data = null;
 
-    // 1. 浏览器端取竞彩官单（快，2-3秒）
+    // 1. 浏览器端取竞彩官单（2-3秒，8秒超时）
     if (BZZOIRO_API_KEY) {
       try {
-        var jc = await fetchJingcaiList();
+        var jc = await Promise.race([
+          fetchJingcaiList(),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000))
+        ]);
         if (jc && jc.length >= 3) {
           var resp = await fetch('/api/analyze', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
