@@ -97,6 +97,7 @@ def analyze_data():
     data = request.get_json(silent=True) or {}
     raw_events = data.get('events', [])
     raw_predictions = data.get('predictions', [])
+    jc_list = data.get('jingcai_list', [])
 
     if not raw_events:
         return jsonify({'error': 'no events provided'}), 400
@@ -121,7 +122,14 @@ def analyze_data():
         source = '模拟数据 (真实比赛不足3场)'
     else:
         _assign_match_ids(matches)
-        source = 'Bzzoiro API (前端加载)'
+        if jc_list:
+            matches, jc_applied = _filter_by_jingcai(matches, jc_list)
+            if jc_applied:
+                source = 'Bzzoiro + 竞彩官方场单'
+            else:
+                source = 'Bzzoiro API (竞彩场单匹配失败)'
+        else:
+            source = 'Bzzoiro API (未获取竞彩场单)'
 
     pred_map = {}
     for p in raw_predictions:
@@ -162,6 +170,39 @@ def analyze_data():
             'source': source
         }
     })
+
+
+def _filter_by_jingcai(matches, jc_list):
+    """将 Bzzoiro 场次匹配到竞彩官单，过滤非竞彩场次并覆盖 match_id"""
+    if not jc_list:
+        return matches, False
+
+    bz_by_league = {}
+    for m in matches:
+        league_cn = m.get('league', '')
+        bz_by_league.setdefault(league_cn, []).append(m)
+
+    jc_by_league = {}
+    for item in jc_list:
+        if isinstance(item, list) and len(item) >= 2:
+            jid, jleague = item[0], item[1]
+            jc_by_league.setdefault(jleague, []).append(jid)
+
+    matched = []
+    for jleague, jids in jc_by_league.items():
+        bz_list = bz_by_league.get(jleague, [])
+        if not bz_list:
+            continue
+        bz_list.sort(key=lambda m: m.get('match_time', '99:99'))
+        for idx, jid in enumerate(jids):
+            if idx < len(bz_list):
+                m = bz_list[idx]
+                m['match_id'] = jid
+                matched.append(m)
+
+    if matched:
+        return matched, True
+    return matches, False
 
 
 if __name__ == '__main__':
