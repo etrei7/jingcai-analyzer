@@ -457,7 +457,6 @@ function renderPredictionBadge(m) {
   if (!po && !mt) return '';
   const best = po || (mt==='主胜'?'胜':mt==='客胜'?'负':mt==='平局'?'平':'');
   if (!best || best==='均衡') return '';
-  const bg = best==='胜'?'var(--home)':'best==='平'?'#9ca3af':'var(--away)';
   const bgColor = best === '胜' ? 'var(--home)' : (best === '平' ? '#9ca3af' : 'var(--away)');
   const txtColor = '#fff';
   return `<span style="background:${bgColor};color:${txtColor};padding:3px 12px;border-radius:6px;font-size:0.78rem;font-weight:700;margin-left:auto;white-space:nowrap">
