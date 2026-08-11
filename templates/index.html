@@ -714,9 +714,9 @@ async function refreshData(){
       console.warn('服务端请求失败: ' + e.message);
     }
 
-    // 2. 判断是否需要客户端补刮竞彩场单
+    // 2. 判断是否需要客户端补刮竞彩场单（仅当完全无数据或模拟数据时）
     var src = data && data.stats ? (data.stats.source || '') : '';
-    needJingcai = !data || src.indexOf('模拟') >= 0 || src.indexOf('竞彩') < 0;
+    needJingcai = !data || (src.indexOf('模拟') >= 0 && src.indexOf('建议') < 0);
 
     if (needJingcai && BZZOIRO_API_KEY) {
       document.getElementById('matchesContainer').innerHTML='<div class="loading"><div class="spinner"></div><p style="margin-top:10px">通过浏览器加载实时数据并匹配竞彩场单…</p></div>';
