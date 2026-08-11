@@ -221,7 +221,8 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 <div class="header">
   <div class="logo">竞彩足球智能分析</div>
   <div class="stats">
-    <div class="stat-item"><span class="dot"></span>更新：<span id="updateTime">--</span></div>
+    <div class="stat-item"><span class="dot"></span><span id="liveClock">--:--</span></div>
+    <div class="stat-item" style="font-size:0.62rem;color:var(--text-light)">数据：<span id="updateTime">--</span></div>
     <div class="stat-item">赛事：<span id="totalMatches">0</span> 场</div>
     <div class="stat-item" id="sourceTag" style="font-size:0.68rem;color:var(--text-light)">源：<span id="dataSource">--</span></div>
     <div class="stat-item" id="priorityTag" style="display:none"></div>
@@ -853,9 +854,20 @@ function toggleTheme() {
   const saved = localStorage.getItem('theme');
   if(saved) document.documentElement.setAttribute('data-theme', saved);
 })();
-function startAutoRefresh(){if(autoRefreshTimer)clearInterval(autoRefreshTimer);autoRefreshTimer=setInterval(refreshData,120000)}
+function startAutoRefresh(){if(autoRefreshTimer)clearInterval(autoRefreshTimer);autoRefreshTimer=setInterval(refreshData,60000)}
+function startLiveClock(){
+  function tick(){
+    var now=new Date();
+    var h=('0'+now.getHours()).slice(-2);
+    var m=('0'+now.getMinutes()).slice(-2);
+    var s=('0'+now.getSeconds()).slice(-2);
+    document.getElementById('liveClock').textContent=h+':'+m+':'+s;
+  }
+  tick(); setInterval(tick,1000);
+}
 document.addEventListener('keydown',function(e){if(e.key==='Escape')document.getElementById('modalOverlay').style.display='none'});
 refreshData().then(startAutoRefresh);
+startLiveClock();
 </script>
 </body>
 </html>
