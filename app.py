@@ -45,18 +45,8 @@ def get_data():
         logging.info('[API] Bzzoiro 获取 %d 场', len(matches))
         try:
             from bizzoiro_client import fetch_standings_for_matches, fetch_predictions
-            from concurrent.futures import ThreadPoolExecutor, as_completed
-            standings = {}
-            predictions = {}
-            with ThreadPoolExecutor(max_workers=2) as ex:
-                f1 = ex.submit(fetch_standings_for_matches, matches)
-                f2 = ex.submit(fetch_predictions)
-                for f in as_completed([f1, f2]):
-                    try:
-                        if f == f1: standings = f.result()
-                        elif f == f2: predictions = f.result()
-                    except Exception:
-                        pass
+            standings = fetch_standings_for_matches(matches)
+            predictions = fetch_predictions()
             source = 'Bzzoiro API'
         except Exception:
             standings = {}
