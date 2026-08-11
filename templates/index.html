@@ -296,42 +296,45 @@ async function fetchBzzoiroPredictions() {
 }
 
 async function fetchJingcaiList() {
-  var proxies = [
-    'https://corsproxy.io/?url=',
-    'https://api.allorigins.win/raw?url='
-  ];
-  for (var pi = 0; pi < proxies.length; pi++) {
-    try {
-      var proxyUrl = proxies[pi] + encodeURIComponent('https://trade.500.com/jczq/');
-      var resp = await fetch(proxyUrl);
-      if (!resp.ok) continue;
-      var buffer = await resp.arrayBuffer();
-      var html;
-      try { html = new TextDecoder('gbk').decode(buffer); }
-      catch(d) { html = new TextDecoder('utf-8').decode(buffer); }
-      var parts = html.split(/(\u5468[\u4e00-\u9fa5]\d{3})/);
-      var seen = {};
-      var blacklist = ['\u624b\u673a\u7248','\u767b\u5f55','\u6ce8\u518c','\u6b22\u8fce\u60a8','\u7ea2\u5305','\u4f59\u989d','\u9690\u85cf','\u641c\u7d22','\u7ade\u5f69\u8db3\u7403','\u6295\u6ce8\u8be6\u60c5','\u626b\u63cf\u4e8c\u7ef4\u7801\u4e0b\u8f7d','\u7acb\u5373\u6295\u6ce8','\u9009\u53f7','\u6e05\u7a7a','\u80c6\u7801','\u6bd4\u5206','\u8d5b\u4e8b\u7c7b\u578b','\u5168\u90e8','\u8fc7\u5173\u65b9\u5f0f','\u5355\u5173','\u6df7\u5408\u8fc7\u5173','\u81ea\u7531\u8fc7\u5173','\u5956\u91d1\u4f18\u5316','\u6bd4\u8d5b\u5386\u53f2'];
-      for (var i = 1; i < parts.length - 1; i += 2) {
-        var mid = parts[i];
-        var segment = parts[i + 1].substring(0, 500);
-        var leagueMatch = segment.match(/>([\u4e00-\u9fff]{2,6})</g);
-        var league = '\u672a\u77e5';
-        if (leagueMatch) {
-          for (var j = 0; j < leagueMatch.length; j++) {
-            var name = leagueMatch[j].replace(/[><]/g, '');
-            if (blacklist.indexOf(name) === -1) { league = name; break; }
-          }
-        }
-        if (seen[mid]) { if (seen[mid] === '\u672a\u77e5' && league !== '\u672a\u77e5') seen[mid] = league; }
-        else { seen[mid] = league; }
+  // 浏览器端直连竞彩官方 API（绕过 PythonAnywhere 代理限制）
+  var TOKEN = 'C3C11C6B-A1A8-4C6C-A080-7214090C78A5';
+  var url = 'https://webapi.sporttery.cn/gateway/uniform/football/getMatchCalculatorV1.qry?channel=c&share_token=' + TOKEN;
+  try {
+    var resp = await fetch(url, { headers: { 'Referer': 'https://m.sporttery.cn/' } });
+    if (!resp.ok) return [];
+    var data = await resp.json();
+    var value = data.value || {};
+    var matchList = value.matchInfoList || [];
+    var result = [];
+    for (var gi = 0; gi < matchList.length; gi++) {
+      var group = matchList[gi];
+      var subs = group.subMatchList || [];
+      for (var si = 0; si < subs.length; si++) {
+        var m = subs[si];
+        var had = m.had || {};
+        result.push({
+          match_id: (group.weekday || '') + (m.matchNum || ''),
+          home_team: m.homeTeamAllName || m.homeTeamAbbName || '',
+          away_team: m.awayTeamAllName || m.awayTeamAbbName || '',
+          league: m.leagueName || m.leagueAbbName || '',
+          time: (m.matchTime || '').substring(0, 5),
+          win_odds: parseFloat(had.h || 0),
+          draw_odds: parseFloat(had.d || 0),
+          lose_odds: parseFloat(had.a || 0),
+          raw_event_id: (group.weekday || '') + (m.matchNum || ''),
+          date: group.businessDate || '',
+          source: '竞彩官方'
+        });
       }
-      var result = Object.keys(seen).filter(function(mid){ return seen[mid] !== '\u672a\u77e5'; }).map(function(mid){ return [mid, seen[mid]]; });
-      if (result.length > 0) return result;
-    } catch(e) { console.warn('Jingcai proxy ' + pi + ' failed: ' + e.message); }
+    }
+    console.log('竞彩官方API: ' + result.length + ' 场');
+    return result;
+  } catch(e) {
+    console.warn('竞彩官方API失败: ' + e.message);
+    return [];
   }
-  return [];
 }
+
 
 async function fetchData() {
   const resp = await fetch('/api/data');
@@ -704,31 +707,28 @@ async function refreshData(){
 
     var data = null;
 
-    // 服务端优先加载
-    try {
-      var resp = await fetch('/api/data');
-      if (resp.ok) data = await resp.json();
-    } catch(e) {
-      console.warn('服务端请求失败: ' + e.message);
-    }
-
-    // 如果没有数据，尝试客户端直连
-    if (!data && BZZOIRO_API_KEY) {
-      document.getElementById('matchesContainer').innerHTML='<div class="loading"><div class="spinner"></div><p style="margin-top:10px">通过浏览器加载实时数据…</p></div>';
+    // 优先：浏览器直连竞彩官方 + Bzzoiro
+    if (BZZOIRO_API_KEY) {
       try {
-        var events = await fetchBzzoiroEvents(15);
-        if (events && events.length >= 3) {
-          var preds = await fetchBzzoiroPredictions();
-          var resp2 = await fetch('/api/analyze', {
+        var jcMatches = await fetchJingcaiList();
+        if (jcMatches && jcMatches.length >= 3) {
+          // 竞彩官方数据直接用，不需要 Bzzoiro
+          var resp = await fetch('/api/analyze', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ events: events, predictions: preds, jingcai_list: [] })
+            body: JSON.stringify({ jingcai_matches: jcMatches })
           });
-          if (resp2.ok) data = await resp2.json();
+          if (resp.ok) data = await resp.json();
         }
-      } catch(e2) {
-        console.warn('客户端加载失败: ' + e2.message);
-      }
+      } catch(e) { console.warn('竞彩加载失败: ' + e.message); }
+    }
+
+    // 备选：服务端 Bzzoiro
+    if (!data) {
+      try {
+        var resp = await fetch('/api/data');
+        if (resp.ok) data = await resp.json();
+      } catch(e) { console.warn('服务端失败: ' + e.message); }
     }
 
     document.getElementById('updateTime').textContent=data.stats.update_time;

@@ -98,6 +98,48 @@ def get_data():
 @app.route('/api/analyze', methods=['POST'])
 def analyze_data():
     data = request.get_json(silent=True) or {}
+
+    # 路径1：竞彩官方数据直接分析
+    jc_matches = data.get('jingcai_matches', [])
+    if jc_matches:
+        matches = jc_matches
+        # 补充缺失字段
+        for m in matches:
+            m.setdefault('handicap', '0')
+            m.setdefault('league_id', None)
+            m.setdefault('home_team_id', None)
+            m.setdefault('away_team_id', None)
+            m.setdefault('match_time', m.get('time', '')[:5])
+            m.setdefault('raw_event_id', m.get('match_id', ''))
+            m.setdefault('injuries', {'home': [], 'away': [], 'home_count': 0, 'away_count': 0})
+            m.setdefault('referee', {'name': '待定', 'strictness': '未知', 'avg_yellows': 0, 'avg_reds': 0, 'games': 0})
+            m.setdefault('weather', {'code': None, 'desc': '未知', 'temp': None, 'wind': None, 'impact': '无明显影响'})
+            m.setdefault('travel_distance_km', None)
+            m.setdefault('is_derby', False)
+            m.setdefault('venue_name', ''); m.setdefault('venue_city', ''); m.setdefault('venue_capacity', None)
+            m.setdefault('home_coach', ''); m.setdefault('away_coach', '')
+            m.setdefault('ai_preview', '')
+            m.setdefault('home_rank', None); m.setdefault('away_rank', None)
+            m.setdefault('home_form', ''); m.setdefault('away_form', '')
+            m.setdefault('home_xgd', None); m.setdefault('away_xgd', None)
+            m.setdefault('home_confidence', 0); m.setdefault('away_confidence', 0)
+            m.setdefault('home_breakdown', {}); m.setdefault('away_breakdown', {})
+            m.setdefault('expected_total', 0); m.setdefault('top3_goals', [])
+            m.setdefault('handicap_line', 0); m.setdefault('handicap_win_odds', 0); m.setdefault('handicap_draw_odds', 0); m.setdefault('handicap_lose_odds', 0)
+        source = '竞彩官方'
+        analyzed = analyze_matches(matches, None, {})
+        recommendations = generate_parlay_recommendations(analyzed)
+        total_goals_recs = generate_total_goals_recommendations(analyzed)
+        try: save_predictions(analyzed)
+        except Exception: pass
+        return jsonify({
+            'matches': analyzed, 'recommendations': recommendations,
+            'total_goals_recs': total_goals_recs, 'history_stats': get_stats(),
+            'stats': {'total_matches': len(analyzed),
+                       'update_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'source': source}
+        })
+
+    # 路径2：Bzzoiro 原始数据 + 竞彩场单匹配
     raw_events = data.get('events', [])
     raw_predictions = data.get('predictions', [])
     jc_list = data.get('jingcai_list', [])
