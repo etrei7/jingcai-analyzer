@@ -121,8 +121,11 @@ def analyze_data():
     jc_matches = data.get('jingcai_matches', [])
     if jc_matches:
         client_time = data.get('client_time', '')
+        odds_time = data.get('odds_time', '')
         fetch_ts = datetime.now().strftime('%H:%M:%S')
-        if client_time:
+        if odds_time:
+            fetch_ts = f'{odds_time[:5]}'
+        elif client_time:
             try:
                 ct = datetime.fromisoformat(client_time.replace('Z', '+00:00'))
                 fetch_ts = ct.astimezone().strftime('%H:%M:%S')

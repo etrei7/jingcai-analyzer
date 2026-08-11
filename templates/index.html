@@ -318,6 +318,7 @@ async function fetchBzzoiroPredictions() {
 }
 
 var JINGCAI_TOKEN = '';
+var JINGCAI_ODDS_TIME = '';
 
 async function fetchJingcaiList() {
   // 1. 从竞彩页面自动获取最新 token（若存在则带上，不存在直接调API）
@@ -338,23 +339,26 @@ async function fetchJingcaiList() {
     } catch(e) { console.warn('Token页无法访问'); }
   }
   
-  // 2. 调竞彩官方 API（channel=c 即可，token 可选）
-  var url = 'https://webapi.sporttery.cn/gateway/uniform/football/getMatchCalculatorV1.qry?channel=c';
+  // 2. 调竞彩官方 API（channel=c 即可，token 可选；加时间戳+禁缓存保证实时赔率）
+  var url = 'https://webapi.sporttery.cn/gateway/uniform/football/getMatchCalculatorV1.qry?channel=c&_t=' + Date.now();
   if (JINGCAI_TOKEN) url += '&share_token=' + encodeURIComponent(JINGCAI_TOKEN);
   try {
-    var resp = await fetch(url, { headers: { 'Referer': 'https://m.sporttery.cn/' } });
+    var resp = await fetch(url, { cache: 'no-store', headers: { 'Referer': 'https://m.sporttery.cn/' } });
     if (!resp.ok) { JINGCAI_TOKEN = ''; return []; }
     var data = await resp.json();
     if (!data.success) { console.warn('竞彩API: success=false'); return []; }
     var value = data.value || {};
     var matchList = value.matchInfoList || [];
     var result = [];
+    JINGCAI_ODDS_TIME = '';
     for (var gi = 0; gi < matchList.length; gi++) {
       var group = matchList[gi];
       var subs = group.subMatchList || [];
       for (var si = 0; si < subs.length; si++) {
         var m = subs[si];
         var had = m.had || {};
+        // 记录最新赔率更新时间
+        if (had.updateTime && had.updateTime > (JINGCAI_ODDS_TIME || '')) JINGCAI_ODDS_TIME = had.updateTime;
         // 过滤未开盘场次：matchStatus 非 Selling 或 赔率全为0
         var ms = String(m.matchStatus || '');
         var hOdds = parseFloat(had.h || 0), dOdds = parseFloat(had.d || 0), aOdds = parseFloat(had.a || 0);
@@ -845,7 +849,7 @@ async function refreshData(){
     // 竞彩优先：官方场单+赔率（2-5秒），失败则 Bzzoiro 兜底
     var jcResp = fetchJingcaiList().then(async function(jc){
       if(jc&&jc.length>=3){
-        var r=await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({jingcai_matches:jc,client_time:new Date().toISOString()})});
+        var r=await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({jingcai_matches:jc,client_time:new Date().toISOString(),odds_time:JINGCAI_ODDS_TIME})});
         return r.ok?r.json():null;
       }
       return null;
