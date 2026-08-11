@@ -154,25 +154,7 @@ def analyze_data():
             m.setdefault('home_confidence', 0); m.setdefault('away_confidence', 0)
             m.setdefault('home_breakdown', {}); m.setdefault('away_breakdown', {})
             m.setdefault('expected_total', 0); m.setdefault('top3_goals', [])
-            # 官方让球数据（hhad）
-            m.setdefault('official_hcp_line', None)
-            m.setdefault('official_hcp_win', None)
-            m.setdefault('official_hcp_draw', None)
-            m.setdefault('official_hcp_lose', None)
-
-        # 提取官方让球数据（若前端已传）
-        for m in matches:
-            line = m.get('hhad_goal_line')
-            w = m.get('hhad_win')
-            d = m.get('hhad_draw')
-            l = m.get('hhad_lose')
-            if w or d or l:
-                m['official_hcp_line'] = line
-                m['official_hcp_win'] = w
-                m['official_hcp_draw'] = d
-                m['official_hcp_lose'] = l
-            m.pop('hhad_goal_line', None); m.pop('hhad_win', None)
-            m.pop('hhad_draw', None); m.pop('hhad_lose', None)
+            m.setdefault('handicap_line', 0); m.setdefault('handicap_win_odds', 0); m.setdefault('handicap_draw_odds', 0); m.setdefault('handicap_lose_odds', 0)
 
         # Bzzoiro 富化：伤病/裁判/天气/球队状态（不改编号赔率）
         try:
