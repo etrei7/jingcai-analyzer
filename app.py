@@ -104,6 +104,15 @@ def get_data():
     # /api/data end
 
 
+@app.route('/api/jingcai-token')
+def get_jingcai_token():
+    from jingcai_scraper import refresh_jingcai_token
+    token = refresh_jingcai_token()
+    if token:
+        return jsonify({'token': token, 'success': True})
+    return jsonify({'token': None, 'success': False})
+
+
 @app.route('/api/analyze', methods=['POST'])
 def analyze_data():
     data = request.get_json(silent=True) or {}

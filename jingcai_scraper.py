@@ -10,20 +10,39 @@ CST = timezone(timedelta(hours=8))
 API_URL = 'https://webapi.sporttery.cn/gateway/uniform/football/getMatchCalculatorV1.qry'
 
 
-def _get_share_token():
-    """从 sporttery.cn 页面获取 share_token"""
-    # 方法1：从页面抓取
+# 全局 token 缓存
+_cached_token = None
+
+
+def refresh_jingcai_token():
+    """从 sporttery.cn 获取最新 share_token"""
+    global _cached_token
     try:
         r = requests.get('https://m.sporttery.cn/mjc/jsq/zqspf/', timeout=10,
                          headers={'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148'})
         tokens = re.findall(r'share_token[=:]\s*["\']?([A-Fa-f0-9\-]{30,50})', r.text)
         if tokens:
-            return tokens[0]
-    except Exception:
-        pass
-    
-    # 方法2：备用 token（可能过期，每几天需更新）
+            _cached_token = tokens[0]
+            logger.info(f'[竞彩] 获取新 token: {_cached_token[:20]}...')
+            return _cached_token
+    except Exception as e:
+        logger.warning(f'[竞彩] token刷新失败: {e}')
+    return None
+
+
+def _get_share_token():
+    global _cached_token
+    if _cached_token:
+        return _cached_token
+
+    # 方法1：从页面抓取
+    token = refresh_jingcai_token()
+    if token:
+        return token
+
+    # 方法2：备用 token
     FALLBACK_TOKEN = 'C3C11C6B-A1A8-4C6C-A080-7214090C78A5'
+    _cached_token = FALLBACK_TOKEN
     logger.info('[竞彩] 使用备用share_token')
     return FALLBACK_TOKEN
 

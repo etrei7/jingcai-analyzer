@@ -43,6 +43,10 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .main-container{display:flex;gap:20px;padding:18px 24px;max-width:1400px;margin:0 auto}
 .content-area{flex:1;min-width:0;margin-right:340px}
 .section-title{font-size:1rem;font-weight:700;margin-bottom:12px;padding-left:10px;border-left:3px solid var(--home)}
+.filter-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px;padding:10px 14px;background:var(--card-bg);border:1px solid var(--border);border-radius:8px}
+.filter-btn{background:var(--btn-bg);color:var(--text-muted);border:1px solid var(--border);padding:4px 12px;border-radius:6px;cursor:pointer;font-size:0.72rem;transition:all .15s;white-space:nowrap}
+.filter-btn:hover,.filter-btn.active{background:var(--home);color:#fff;border-color:var(--home)}
+.filter-select{background:var(--btn-bg);color:var(--text);border:1px solid var(--border);padding:4px 8px;border-radius:6px;font-size:0.72rem;cursor:pointer}
 .match-card{background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:14px 18px;margin-bottom:12px;box-shadow:var(--shadow);transition:all .15s}
 .match-card:hover{box-shadow:0 4px 12px rgba(0,0,0,.08)}
 .match-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:10px}
@@ -229,6 +233,21 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 <div class="main-container">
   <div class="content-area">
     <div class="section-title">赛事数据看板</div>
+    <div class="filter-bar" id="filterBar">
+      <span style="font-size:0.68rem;color:var(--text-muted);margin-right:4px">筛选:</span>
+      <button class="filter-btn active" onclick="setFilter('all')">全部</button>
+      <button class="filter-btn" onclick="setFilter('high')">高信心</button>
+      <button class="filter-btn" onclick="setFilter('high_odds')">热门方</button>
+      <select class="filter-select" id="leagueFilter" onchange="setLeagueFilter(this.value)">
+        <option value="all">全部联赛</option>
+      </select>
+      <select class="filter-select" id="sortBy" onchange="setSort(this.value)">
+        <option value="time">按时间</option>
+        <option value="confidence">按信心</option>
+        <option value="odds">按赔率</option>
+      </select>
+      <span style="font-size:0.65rem;color:var(--text-muted);margin-left:auto" id="filterCount"></span>
+    </div>
     <div id="matchesContainer"><div class="loading"><div class="spinner"></div><p style="margin-top:10px">加载赛事数据…</p></div></div>
     <div class="tg-section">
       <div class="section-title">单关总进球推荐</div>
@@ -296,13 +315,24 @@ async function fetchBzzoiroPredictions() {
   return data.results || [];
 }
 
+var JINGCAI_TOKEN = 'C3C11C6B-A1A8-4C6C-A080-7214090C78A5';
+
 async function fetchJingcaiList() {
   // 浏览器端直连竞彩官方 API（绕过 PythonAnywhere 代理限制）
-  var TOKEN = 'C3C11C6B-A1A8-4C6C-A080-7214090C78A5';
-  var url = 'https://webapi.sporttery.cn/gateway/uniform/football/getMatchCalculatorV1.qry?channel=c&share_token=' + TOKEN;
+  var url = 'https://webapi.sporttery.cn/gateway/uniform/football/getMatchCalculatorV1.qry?channel=c&share_token=' + JINGCAI_TOKEN;
   try {
     var resp = await fetch(url, { headers: { 'Referer': 'https://m.sporttery.cn/' } });
-    if (!resp.ok) return [];
+    if (!resp.ok) {
+      // Token 过期，尝试服务端刷新
+      try {
+        var tokenResp = await fetch('/api/jingcai-token');
+        if (tokenResp.ok) {
+          var td = await tokenResp.json();
+          if (td.token) { JINGCAI_TOKEN = td.token; console.log('Token已刷新'); return fetchJingcaiList(); }
+        }
+      } catch(e) {}
+      return [];
+    }
     var data = await resp.json();
     var value = data.value || {};
     var matchList = value.matchInfoList || [];
@@ -540,7 +570,50 @@ function renderPressureTag(m) {
   return `<div class="tag-row"><span class="tag ${cls}">&#128176; ${ps}</span></div>`;
 }
 
+// --- 筛选 & 排序 ---
+let currentFilter = 'all';
+let currentLeague = 'all';
+let currentSort = 'time';
+let allMatches = [];
+
+function setFilter(f) { currentFilter=f; updateFilterButtons(); applyFilters(); }
+function setLeagueFilter(v) { currentLeague=v; applyFilters(); }
+function setSort(v) { currentSort=v; applyFilters(); }
+
+function updateFilterButtons(){
+  document.querySelectorAll('.filter-btn').forEach(b=>{
+    var f=b.textContent;
+    var key=f==='全部'?'all':f==='高信心'?'high':'high_odds';
+    b.classList.toggle('active', key===currentFilter);
+  });
+}
+
+function applyFilters(){
+  var filtered=allMatches.slice();
+  if(currentFilter==='high') filtered=filtered.filter(m=>m.confidence_level==='高');
+  if(currentFilter==='high_odds') filtered=filtered.filter(m=>m.hotness_label==='适度热门'||m.hotness_label==='极端热门');
+  if(currentLeague!=='all') filtered=filtered.filter(m=>m.league===currentLeague);
+  if(currentSort==='confidence') filtered.sort((a,b)=>(b.home_confidence+b.away_confidence)/2-(a.home_confidence+a.away_confidence)/2);
+  else if(currentSort==='odds') filtered.sort((a,b)=>Math.min(a.win_odds,a.draw_odds,a.lose_odds)-Math.min(b.win_odds,b.draw_odds,b.lose_odds));
+  else filtered.sort((a,b)=>(a.match_time||'99:99').localeCompare(b.match_time||'99:99'));
+  document.getElementById('filterCount').textContent=filtered.length+'/'+allMatches.length+' 场';
+  renderMatchesInternal(filtered);
+}
+
+function updateLeagueOptions(){
+  var leagues=new Set(allMatches.map(m=>m.league));
+  var sel=document.getElementById('leagueFilter');
+  sel.innerHTML='<option value="all">全部联赛</option>';
+  leagues.forEach(l=>{ var o=document.createElement('option'); o.value=l; o.textContent=l; sel.appendChild(o); });
+}
+
 function renderMatches(matches) {
+  allMatches = matches;
+  updateLeagueOptions();
+  applyFilters();
+}
+
+function renderMatchesInternal(matches) {
   currentMatches = matches;
   const c = document.getElementById('matchesContainer');
   if(!matches.length){
