@@ -316,24 +316,33 @@ async function fetchBzzoiroPredictions() {
   return data.results || [];
 }
 
-var JINGCAI_TOKEN = 'C3C11C6B-A1A8-4C6C-A080-7214090C78A5';
+var JINGCAI_TOKEN = '';
 
 async function fetchJingcaiList() {
-  // 浏览器端直连竞彩官方 API（绕过 PythonAnywhere 代理限制）
+  // 1. 从竞彩页面自动获取最新 token
+  if (!JINGCAI_TOKEN) {
+    try {
+      var pageResp = await fetch('https://m.sporttery.cn/mjc/jsq/zqspf/', {
+        headers: { 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148' }
+      });
+      if (pageResp.ok) {
+        var html = await pageResp.text();
+        var m = html.match(/share_token[=:]\s*["\']?([A-Fa-f0-9\-]{30,50})/);
+        if (m) { JINGCAI_TOKEN = m[1]; console.log('Token获取成功'); }
+        if (!JINGCAI_TOKEN) {
+          var m2 = html.match(/token\s*=\s*["\']([A-Fa-f0-9\-]{30,50})/);
+          if (m2) JINGCAI_TOKEN = m2[1];
+        }
+      }
+    } catch(e) { console.warn('Token页无法访问'); }
+  }
+  if (!JINGCAI_TOKEN) return [];
+  
+  // 2. 调竞彩官方 API
   var url = 'https://webapi.sporttery.cn/gateway/uniform/football/getMatchCalculatorV1.qry?channel=c&share_token=' + JINGCAI_TOKEN;
   try {
     var resp = await fetch(url, { headers: { 'Referer': 'https://m.sporttery.cn/' } });
-    if (!resp.ok) {
-      // Token 过期，尝试服务端刷新
-      try {
-        var tokenResp = await fetch('/api/jingcai-token');
-        if (tokenResp.ok) {
-          var td = await tokenResp.json();
-          if (td.token) { JINGCAI_TOKEN = td.token; console.log('Token已刷新'); return fetchJingcaiList(); }
-        }
-      } catch(e) {}
-      return [];
-    }
+    if (!resp.ok) { JINGCAI_TOKEN = ''; return []; }  // token过期，下次重新获取
     var data = await resp.json();
     var value = data.value || {};
     var matchList = value.matchInfoList || [];
@@ -822,30 +831,41 @@ async function refreshData(){
 
     var data = null;
 
-    // 优先：浏览器直连竞彩官方 + Bzzoiro 双源数据
-    if (BZZOIRO_API_KEY) {
-      try {
-        var jcMatches = await fetchJingcaiList();
-        if (jcMatches && jcMatches.length >= 3) {
-          // 浏览器端同时拉 Bzzoiro 数据（快速，不受PA限制）
-          var bzEvents = await fetchBzzoiroEvents(20);
-          var bzPreds = await fetchBzzoiroPredictions();
-          var resp = await fetch('/api/analyze', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ jingcai_matches: jcMatches, bz_events: bzEvents, bz_predictions: bzPreds, client_time: new Date().toISOString() })
-          });
-          if (resp.ok) data = await resp.json();
-        }
-      } catch(e) { console.warn('竞彩加载失败: ' + e.message); }
-    }
+    // 优先：服务端 Bzzoiro 快速加载
+    try {
+      var resp = await fetch('/api/data');
+      if (resp.ok) data = await resp.json();
+    } catch(e) { console.warn('服务端失败: ' + e.message); }
 
-    // 备选：服务端 Bzzoiro
-    if (!data) {
-      try {
-        var resp = await fetch('/api/data');
-        if (resp.ok) data = await resp.json();
-      } catch(e) { console.warn('服务端失败: ' + e.message); }
+    // 后台异步：浏览器直连竞彩官方 + Bzzoiro 双源合并（覆盖服务端数据）
+    if (BZZOIRO_API_KEY) {
+      (async function(){
+        try {
+          var jcMatches = await fetchJingcaiList();
+          if (jcMatches && jcMatches.length >= 3) {
+            var bzEvents = await fetchBzzoiroEvents(20);
+            var bzPreds = await fetchBzzoiroPredictions();
+            var resp2 = await fetch('/api/analyze', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ jingcai_matches: jcMatches, bz_events: bzEvents, bz_predictions: bzPreds, client_time: new Date().toISOString() })
+            });
+            if (resp2.ok) {
+              var newData = await resp2.json();
+              if (newData && newData.matches) {
+                data = newData;
+                document.getElementById('updateTime').textContent=data.stats.update_time;
+                document.getElementById('totalMatches').textContent=data.stats.total_matches;
+                document.getElementById('dataSource').textContent=data.stats.source;
+                renderMatches(data.matches);
+                renderRecommendations(data.recommendations);
+                renderTotalGoals(data.total_goals_recs);
+                renderHistoryPanel(data.history_stats);
+                console.log('双源合并完成: ' + data.stats.source);
+              }
+            }
+          }
+        } catch(e) { console.warn('双源更新失败: ' + e.message); }
+      })();
     }
 
     document.getElementById('updateTime').textContent=data.stats.update_time;
