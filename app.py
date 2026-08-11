@@ -136,6 +136,25 @@ def analyze_data():
             m.setdefault('expected_total', 0); m.setdefault('top3_goals', [])
             m.setdefault('handicap_line', 0); m.setdefault('handicap_win_odds', 0); m.setdefault('handicap_draw_odds', 0); m.setdefault('handicap_lose_odds', 0)
         source = '竞彩官方'
+        # Bzzoiro 数据富化：补伤停/裁判/天气
+        try:
+            from bizzoiro_client import fetch_events
+            bz_matches = fetch_events(limit=20)
+            if bz_matches:
+                for m in matches:
+                    hteam = m.get('home_team', '')
+                    ateam = m.get('away_team', '')
+                    for bz in bz_matches:
+                        if bz.get('home_team', '') == hteam or bz.get('away_team', '') == ateam:
+                            if bz.get('injuries'): m['injuries'] = bz['injuries']
+                            if bz.get('referee') and bz['referee'].get('name', '待定') != '待定': m['referee'] = bz['referee']
+                            if bz.get('weather') and bz['weather'].get('desc', '未知') != '未知': m['weather'] = bz['weather']
+                            if bz.get('venue_name'): m['venue_name'] = bz['venue_name']
+                            if bz.get('travel_distance_km'): m['travel_distance_km'] = bz['travel_distance_km']
+                source = '竞彩官方 + Bzzoiro'
+        except Exception:
+            pass
+
         analyzed = analyze_matches(matches, None, {})
         recommendations = generate_parlay_recommendations(analyzed)
         total_goals_recs = generate_total_goals_recommendations(analyzed)

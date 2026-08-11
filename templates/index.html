@@ -422,26 +422,21 @@ function renderDetailPanel(m) {
 
   return `
   <div class="detail-grid">
-    ${hasInjuries ? `
     <div class="detail-section">
       <h4>&#9877; 伤停报告</h4>
-      ${renderInjuries(inj)}
-      ${m.injury_impact && m.injury_impact !== '无影响' ? `<div style="margin-top:4px;font-size:0.7rem;color:${m.injury_impact.includes('重大')?'var(--low)':'var(--medium)'}">&#9888; 综合影响评估：${m.injury_impact}</div>` : ''}
-    </div>` : ''}
-    ${canRenderRef ? `
+      ${hasInjuries ? renderInjuries(inj) : '<div style="font-size:0.72rem;color:var(--text-light)">暂无伤停报告 — 数据持续接入中</div>'}
+      ${m.injury_impact && m.injury_impact !== '无影响' ? `<div style="margin-top:4px;font-size:0.7rem;color:${m.injury_impact.includes('重大')?'var(--low)':'var(--medium)'}">&#9888; ${m.injury_impact}</div>` : ''}
+    </div>
     <div class="detail-section">
       <h4>&#9917; 裁判分析</h4>
       ${renderReferee(ref)}
       ${m.ref_impact ? `<div style="margin-top:3px;font-size:0.68rem;color:var(--text-muted)">&#9432; ${m.ref_impact}</div>` : ''}
-    </div>` : ''}
-    ${hasWeather ? `
+    </div>
     <div class="detail-section">
       <h4>&#127788; 天气与场地</h4>
       <div style="font-size:0.72rem">${renderWeather(weather, derby, travel)}</div>
-      <div style="font-size:0.7rem;color:var(--text-muted);margin-top:3px">
-        场地：${m.venue_name||'未知'} ${m.venue_city?'('+m.venue_city+')':''} ${m.venue_capacity?' | 容量 '+m.venue_capacity.toLocaleString():''}
-      </div>
-    </div>` : ''}
+      ${m.venue_name ? `<div style="font-size:0.7rem;color:var(--text-muted);margin-top:3px">场地：${m.venue_name} ${m.venue_city?'('+m.venue_city+')':''} ${m.venue_capacity?' | 容量 '+m.venue_capacity.toLocaleString():''}</div>` : ''}
+    </div>
     <div class="detail-section">
       <h4>&#128200; 泊松进球概率分布</h4>
       <div>预期总进球：<strong>${m.expected_goals||'?'} 球</strong> | 大2.5概率：<strong>${m.over25_prob||0}%</strong></div>
