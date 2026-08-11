@@ -152,9 +152,48 @@ def analyze_data():
             m.setdefault('home_breakdown', {}); m.setdefault('away_breakdown', {})
             m.setdefault('expected_total', 0); m.setdefault('top3_goals', [])
             m.setdefault('handicap_line', 0); m.setdefault('handicap_win_odds', 0); m.setdefault('handicap_draw_odds', 0); m.setdefault('handicap_lose_odds', 0)
-        source = '竞彩官方'
 
-        analyzed = analyze_matches(matches, None, {})
+        # Bzzoiro 双源富化（客户端传数据，按队名匹配）
+        bz_events = data.get('bz_events', [])
+        bz_predictions = {}
+        if bz_events:
+            bz_preds_raw = data.get('bz_predictions', [])
+            bz_pred_map = {}
+            for p in bz_preds_raw:
+                ev = p.get('event', {})
+                eid = str(ev.get('id', '')) if isinstance(ev, dict) else str(p.get('event', ''))
+                if eid: bz_pred_map[eid] = p
+            for jm in matches:
+                jh, ja = jm.get('home_team', ''), jm.get('away_team', '')
+                for bz in bz_events:
+                    if bz.get('home_team', '') == jh and bz.get('away_team', '') == ja:
+                        ua = bz.get('unavailable_players') or {}
+                        hl, al = ua.get('home', []), ua.get('away', [])
+                        if hl or al:
+                            jm['injuries'] = {'home': hl, 'away': al, 'home_count': len(hl), 'away_count': len(al)}
+                        ref = bz.get('referee') or {}
+                        if ref.get('name') and ref['name'] != '待定':
+                            jm['referee'] = ref
+                        wc = bz.get('weather_code')
+                        if wc is not None:
+                            jm['weather'] = {'code': wc, 'desc': str(wc), 'temp': bz.get('temperature_c'), 'wind': bz.get('wind_speed')}
+                        eid = str(bz.get('id', ''))
+                        if eid in bz_pred_map:
+                            p = bz_pred_map[eid]
+                            bz_predictions[jm['match_id']] = {
+                                'prob_home_win': p.get('prob_home_win'), 'prob_draw': p.get('prob_draw'),
+                                'prob_away_win': p.get('prob_away_win'),
+                                'expected_home_goals': p.get('expected_home_goals', 0) or 0,
+                                'expected_away_goals': p.get('expected_away_goals', 0) or 0,
+                                'expected_goals': (p.get('expected_home_goals', 0) or 0) + (p.get('expected_away_goals', 0) or 0),
+                                'confidence': p.get('confidence'), 'predicted_result': p.get('predicted_result'),
+                            }
+                        break
+            source = '竞彩官方 + Bzzoiro' if bz_predictions else '竞彩官方 (Bzzoiro未匹配)'
+        else:
+            source = '竞彩官方'
+
+        analyzed = analyze_matches(matches, None, bz_predictions)
         recommendations = generate_parlay_recommendations(analyzed)
         total_goals_recs = generate_total_goals_recommendations(analyzed)
         try: save_predictions(analyzed)

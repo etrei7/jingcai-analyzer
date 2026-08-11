@@ -812,16 +812,18 @@ async function refreshData(){
 
     var data = null;
 
-    // 优先：浏览器直连竞彩官方 + Bzzoiro
+    // 优先：浏览器直连竞彩官方 + Bzzoiro 双源数据
     if (BZZOIRO_API_KEY) {
       try {
         var jcMatches = await fetchJingcaiList();
         if (jcMatches && jcMatches.length >= 3) {
-          // 竞彩官方数据直接用，不需要 Bzzoiro
+          // 浏览器端同时拉 Bzzoiro 数据（快速，不受PA限制）
+          var bzEvents = await fetchBzzoiroEvents(20);
+          var bzPreds = await fetchBzzoiroPredictions();
           var resp = await fetch('/api/analyze', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ jingcai_matches: jcMatches, client_time: new Date().toISOString() })
+            body: JSON.stringify({ jingcai_matches: jcMatches, bz_events: bzEvents, bz_predictions: bzPreds, client_time: new Date().toISOString() })
           });
           if (resp.ok) data = await resp.json();
         }
