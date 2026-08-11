@@ -594,9 +594,23 @@ function applyFilters(){
   if(currentFilter==='high') filtered=filtered.filter(m=>m.confidence_level==='高');
   if(currentFilter==='high_odds') filtered=filtered.filter(m=>m.hotness_label==='适度热门'||m.hotness_label==='极端热门');
   if(currentLeague!=='all') filtered=filtered.filter(m=>m.league===currentLeague);
-  if(currentSort==='confidence') filtered.sort((a,b)=>(b.home_confidence+b.away_confidence)/2-(a.home_confidence+a.away_confidence)/2);
-  else if(currentSort==='odds') filtered.sort((a,b)=>Math.min(a.win_odds,a.draw_odds,a.lose_odds)-Math.min(b.win_odds,b.draw_odds,b.lose_odds));
-  else filtered.sort((a,b)=>(a.match_time||'99:99').localeCompare(b.match_time||'99:99'));
+  if(currentSort==='time'){
+    // 按时间排序：处理跨天情况 (date字段优先)
+    filtered.sort((a,b)=>{
+      var da=a.date||'', db=b.date||'';
+      if(da!==db) return da.localeCompare(db);
+      return (a.match_time||'99:99').localeCompare(b.match_time||'99:99');
+    });
+  } else if(currentSort==='confidence'){
+    filtered.sort((a,b)=>(b.home_confidence+b.away_confidence)/2-(a.home_confidence+a.away_confidence)/2);
+  } else if(currentSort==='odds'){
+    // 按最低赔率升序（热门在前）
+    filtered.sort((a,b)=>{
+      var ma=Math.min(a.win_odds||99,a.draw_odds||99,a.lose_odds||99);
+      var mb=Math.min(b.win_odds||99,b.draw_odds||99,b.lose_odds||99);
+      return ma-mb;
+    });
+  }
   document.getElementById('filterCount').textContent=filtered.length+'/'+allMatches.length+' 场';
   renderMatchesInternal(filtered);
 }
