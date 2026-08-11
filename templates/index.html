@@ -148,9 +148,19 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .tg-pick .tg-key{font-weight:700;font-size:0.82rem;color:var(--home)}
 .tg-pick .tg-prob{font-size:0.62rem;color:var(--text-muted)}
 .parlay-panel{position:fixed;right:20px;top:80px;width:300px;max-height:calc(100vh - 120px);background:var(--panel-bg);border:1px solid var(--border);border-radius:12px;display:flex;flex-direction:column;z-index:200;box-shadow:var(--shadow-lg)}
+.parlay-panel.collapsed .parlay-list,.parlay-panel.collapsed .parlay-footer{display:none}
+.parlay-panel.collapsed{width:auto;min-width:160px}
 .parlay-header{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
 .parlay-title{font-weight:700;font-size:0.9rem}
 .parlay-badge{background:var(--home);color:#fff;font-size:0.68rem;padding:2px 9px;border-radius:10px;min-width:20px;text-align:center}
+.parlay-toggle{background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:0.85rem;padding:0 3px;line-height:1}
+.parlay-toggle:hover{color:var(--text)}
+.parlay-close{display:none;background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1rem;padding:0 3px;line-height:1}
+.parlay-close:hover{color:var(--low)}
+@media(max-width:900px){
+  .parlay-close{display:inline-block}
+  .parlay-panel{transition:transform .3s}
+}
 .parlay-list{flex:1;overflow-y:auto;padding:6px 12px;max-height:300px}
 .parlay-empty{text-align:center;color:var(--text-muted);padding:20px 0;font-size:0.75rem;line-height:1.5}
 .parlay-item{background:var(--card-stripe);border-radius:6px;padding:8px 10px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center;font-size:0.75rem}
@@ -231,7 +241,12 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 </div>
 
 <div class="parlay-panel" id="parlayPanel">
-  <div class="parlay-header"><span class="parlay-title">我的串关</span><span class="parlay-badge" id="parlayCount">0</span></div>
+  <div class="parlay-header">
+    <span class="parlay-title">我的串关</span>
+    <span class="parlay-badge" id="parlayCount">0</span>
+    <button class="parlay-toggle" onclick="toggleParlayPanel()" title="收起/展开">&#9660;</button>
+    <button class="parlay-close" onclick="closeParlayPanel()" title="关闭面板">&times;</button>
+  </div>
   <div class="parlay-list" id="parlayList"><div class="parlay-empty">点击比赛中的赔率按钮添加至串关<br>至少选择2场比赛后生成方案</div></div>
   <div class="parlay-footer">
     <div class="parlay-combo"><div class="val" id="comboOdds">--</div><div class="label">组合赔率</div></div>
@@ -325,6 +340,10 @@ function renderDetailPanel(m) {
   const dist = m.goal_distribution || {};
   const derby = m.is_derby;
   const travel = m.travel_distance_km;
+  const hv = m.home_value || {};
+  const av = m.away_value || {};
+  const h2h = m.h2h || {};
+  const h2hResults = h2h.results || [];
 
   return `
   <div class="detail-grid">
@@ -349,6 +368,18 @@ function renderDetailPanel(m) {
       <h4>&#128200; 泊松进球概率分布</h4>
       <div>预期总进球：<strong>${m.expected_goals||'?'} 球</strong> | 大2.5概率：<strong>${m.over25_prob||0}%</strong></div>
       ${renderGoalDist(dist)}
+    </div>
+    <div class="detail-section">
+      <h4>&#128176; 球队身价 & 历史交手</h4>
+      <div style="font-size:0.72rem;margin-bottom:6px">
+        <span style="color:var(--home);font-weight:600">${m.home_team}</span> 估值：<strong>${hv.display||'?'}</strong> |
+        <span style="color:var(--away);font-weight:600">${m.away_team}</span> 估值：<strong>${av.display||'?'}</strong>
+      </div>
+      <div style="font-size:0.68rem;color:var(--text-muted)">&#9877; 历史交手 (模拟近5场)：</div>
+      <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:3px">
+        ${h2hResults.map((r,i)=>`<span style="background:var(--card-stripe);padding:2px 6px;border-radius:3px;font-size:0.68rem;font-family:monospace">${r}</span>`).join('')}
+      </div>
+      <div style="font-size:0.65rem;color:var(--text-muted);margin-top:3px">${h2h.summary||''}</div>
     </div>
     <div class="detail-section">
       <h4>&#127922; 球队信心详情 (10分制)</h4>
@@ -544,6 +575,27 @@ function generatePlan(){
   document.getElementById('modalOverlay').style.display='flex';
 }
 function closeModal(event){if(event&&event.target!==event.currentTarget)return;document.getElementById('modalOverlay').style.display='none'}
+
+function toggleParlayPanel(){
+  document.getElementById('parlayPanel').classList.toggle('collapsed');
+}
+function closeParlayPanel(){
+  document.getElementById('parlayPanel').style.display='none';
+  let btn=document.getElementById('parlayReopen');
+  if(!btn){
+    btn=document.createElement('button');
+    btn.id='parlayReopen';
+    btn.className='btn-refresh';
+    btn.style.cssText='position:fixed;bottom:16px;right:16px;z-index:250;border-radius:50%;width:44px;height:44px;font-size:1.2rem;padding:0';
+    btn.innerHTML='&#127922;';
+    btn.title='打开串关面板';
+    btn.onclick=function(){
+      document.getElementById('parlayPanel').style.display='flex';
+      btn.remove();
+    };
+    document.body.appendChild(btn);
+  }
+}
 
 async function refreshData(){
   try{

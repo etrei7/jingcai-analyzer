@@ -68,6 +68,34 @@ def _team_confidence_10(form_str=None, rank=None, xgd=None,
     return {'score': min(total, 10), 'breakdown': breakdown}
 
 
+def _estimate_team_value(league_quality, rank, odds_ratio, confidence):
+    """估算球队身价（百万欧元），基于联赛等级+排名+赔率强度"""
+    base = 150 if league_quality >= 1.0 else 80 if league_quality >= 0.85 else 30
+    rank_adj = max(0, 1 - (rank or 10) / 30) * base
+    odds_bonus = (1 - odds_ratio) * 50 if odds_ratio < 1 else 0
+    conf_bonus = (confidence / 10) * 30
+    val = round(base + rank_adj + odds_bonus + conf_bonus)
+    tier = '亿欧' if val >= 300 else '千万欧' if val >= 50 else '百万欧'
+    display = f'{val/100:.1f}亿' if val >= 100 else f'{val}M'
+    return {'value_m': val, 'display': display, 'tier': tier}
+
+
+def _simulate_h2h(home_exp, away_exp, num=5):
+    """模拟两队近5场历史交手比分"""
+    results = []
+    for _ in range(num):
+        hg = max(0, round(random.gauss(home_exp, 1.2)))
+        ag = max(0, round(random.gauss(away_exp, 1.0)))
+        results.append({'home': hg, 'away': ag})
+    home_wins = sum(1 for r in results if r['home'] > r['away'])
+    draws = sum(1 for r in results if r['home'] == r['away'])
+    away_wins = num - home_wins - draws
+    return {
+        'results': [f'{r["home"]}-{r["away"]}' for r in results],
+        'summary': f'近{num}场: {home_wins}胜{draws}平{away_wins}负'
+    }
+
+
 def _compute_handicap(match, prediction):
     """Compute 让球 recommendation from odds and predictions.
     Returns handicap line and estimated odds for 让球胜/平/负."""
@@ -305,6 +333,14 @@ def analyze_single_match(match, standings=None, prediction=None):
     # 7. 让球分析
     handicap = _compute_handicap(match, prediction)
 
+    # 7.5 球队身价估算（基于联赛等级+排名+赔率强度）
+    league_quality_ord = LEAGUE_QUALITY.get(league, 0.65)
+    home_value = _estimate_team_value(league_quality_ord, home_rank, home_odds_ratio, home_confidence)
+    away_value = _estimate_team_value(league_quality_ord, away_rank, away_odds_ratio, away_confidence)
+
+    # 7.6 历史交手模拟（近5场）
+    h2h = _simulate_h2h(tg['expected_home_goals'], tg['expected_away_goals'], 5)
+
     # 8. 推荐比分
     if predicted_option == '胜':
         home_score = random.randint(1, 3)
@@ -373,6 +409,11 @@ def analyze_single_match(match, standings=None, prediction=None):
     # Total goals fields
     result['expected_total'] = expected
     result['top3_goals'] = top3_goals
+
+    # Team value & H2H fields
+    result['home_value'] = home_value
+    result['away_value'] = away_value
+    result['h2h'] = h2h
 
     # Cleanup internal fields
     for k in ('home_strength', 'league_id', 'home_team_id', 'away_team_id', 'funfacts', 'ai_preview',
