@@ -36,7 +36,8 @@ def get_data():
 
     # 尝试获取真实数据
     from bizzoiro_client import (
-        fetch_events, fetch_standings_for_matches, fetch_predictions
+        fetch_events, fetch_standings_for_matches, fetch_predictions,
+        fetch_odds_movement_for_matches
     )
     matches = fetch_events(limit=15)
 
@@ -44,15 +45,23 @@ def get_data():
         logging.info('[API] 使用 Bzzoiro 真实数据')
         standings = fetch_standings_for_matches(matches)
         predictions = fetch_predictions()
-        source = 'Bzzoiro API'
+        odds_movement = fetch_odds_movement_for_matches(matches)
+        source = 'Bzzoiro API + 本站分析'
     else:
         logging.info('[API] 真实数据不足，降级为模拟数据')
         matches = generate_mock_matches(12)
-        source = '模拟数据'
+        source = '模拟数据 (Bzzoiro API 可用时切换为真实数据)'
+        odds_movement = {}
 
     analyzed = analyze_matches(matches, standings, predictions)
     recommendations = generate_parlay_recommendations(analyzed)
     total_goals_recs = generate_total_goals_recommendations(analyzed)
+
+    # 附加赔率变动数据（仅真实数据模式有）
+    for m in analyzed:
+        eid = m.get('raw_event_id', '')
+        if eid and eid in odds_movement:
+            m['odds_movement'] = odds_movement[eid]
 
     return jsonify({
         'matches': analyzed,

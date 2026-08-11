@@ -371,6 +371,32 @@ function renderOddsBtn(match, option, odds, mode) {
   return `<div class="${cls}${isSel?' selected':''}" onclick="toggleOdds('${match.match_id}','${option}',${odds},'${match.home_team}','${match.away_team}','${match.league}','${match.match_time}','${mode}')"><span class="label">${option}</span><span class="val">${odds}</span></div>`;
 }
 
+function renderOddsMove(m) {
+  const om = m.odds_movement;
+  if (!om || !om.trend) return '';
+  const t = om.trend;
+  const homeMove = t.home||0, drawMove = t.draw||0, awayMove = t.away||0;
+  const total = t.total||0;
+  if (total < 3) return '';
+  const dominant = Math.max(Math.abs(homeMove),Math.abs(drawMove),Math.abs(awayMove));
+  if (dominant <= 1) return '<span class="extras-item" title="多家博彩公司赔率稳定，无显著变动">赔率→稳</span>';
+  let dir = '';
+  if (Math.abs(homeMove) === dominant) dir = homeMove>0?'主跌':'主升';
+  else if (Math.abs(drawMove) === dominant) dir = drawMove>0?'平跌':'平升';
+  else dir = awayMove>0?'客跌':'客升';
+  const cls = dir.includes('跌')?'extras-item':'extras-item';
+  return `<span class="${cls}" title="初赔→即赔变动趋势：${t.home>0?'主降'+t.home+'家 ':'主升'+(-t.home)+'家 '} ${t.draw>0?'平降'+t.draw+'家 ':'平升'+(-t.draw)+'家 '} ${t.away>0?'客降'+t.away+'家 ':'客升'+(-t.away)+'家 '}">赔率→${dir}</span>`;
+}
+
+function renderPressureTag(m) {
+  const om = m.odds_movement;
+  if (!om || !om.pressure_side) return '';
+  const ps = om.pressure_side;
+  if (ps === '资金均衡') return '';
+  const cls = ps.includes('主')?'tag-medium':'tag-low';
+  return `<div class="tag-row"><span class="tag ${cls}">&#128176; ${ps}</span></div>`;
+}
+
 function renderMatches(matches) {
   currentMatches = matches;
   const c = document.getElementById('matchesContainer');
@@ -431,7 +457,8 @@ function renderMatches(matches) {
           </div>
           <div class="match-extras">
             <span class="extras-item">推荐 ${m.recommended_score}</span>
-            <span class="extras-item">溢价 ${m.overround}%</span>
+            <span class="extras-item" title="返奖率=1/(1+溢价)，越低返奖越少。正数=机构抽水，负数=赔率异常">&#9432; 溢价 ${m.overround}%</span>
+            ${renderOddsMove(m)}
             ${ref.name && ref.name!=='待定' ? `<span class="extras-item ref" title="裁判">&#9877; ${ref.name}</span>` : `<span class="extras-item na">裁判暂无</span>`}
             ${weather.desc && weather.desc!=='未知' ? `<span class="extras-item weather" title="天气">&#9728; ${weather.desc} ${weather.temp!=null?weather.temp+'°C':''}</span>` : `<span class="extras-item na">天气暂无</span>`}
           </div>
@@ -439,6 +466,7 @@ function renderMatches(matches) {
         <div class="match-right">
           <div class="tag-row"><span class="tag ${confCls}">${m.confidence_level}信心</span><span class="tag ${ouCls}">${m.over_under_tendency}</span></div>
           <div class="tag-row"><span class="tag ${hotCls}">${m.hotness_label}</span><span class="tag" style="background:var(--tag-bg);color:var(--text-muted)">${m.bookmaker_intent}</span></div>
+          ${renderPressureTag(m)}
           <div class="tag-row"><span class="tag" style="background:var(--tag-bg);color:var(--text-muted);font-weight:400">预期 ${m.expected_goals} 球 | 大2.5 ${m.over25_prob||0}%</span></div>
         </div>
       </div>
