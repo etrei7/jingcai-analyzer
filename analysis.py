@@ -202,7 +202,7 @@ def _compute_handicap(match, prediction):
     }
 
 
-def _compute_total_goals(match, prediction):
+def _compute_total_goals(match, prediction, home_state=0.5, away_state=0.5, h_inj=0, a_inj=0):
     expected = 2.4
     pred = prediction or {}
 
@@ -212,16 +212,16 @@ def _compute_total_goals(match, prediction):
     if home_exp > 0 and away_exp > 0:
         expected = home_exp + away_exp
     else:
-        # 确定性推算：基于赔率隐含概率
+        # 盘口驱动：基于赔率隐含概率 + 球队状态/伤病实时修正
         imp_w = 1.0 / match['win_odds'] if match['win_odds'] > 0 else 0.33
         imp_d = 1.0 / match['draw_odds'] if match['draw_odds'] > 0 else 0.33
         imp_l = 1.0 / match['lose_odds'] if match['lose_odds'] > 0 else 0.33
         total_imp = imp_w + imp_d + imp_l
         home_str = imp_w / total_imp if total_imp > 0 else 0.33
         away_str = imp_l / total_imp if total_imp > 0 else 0.33
-        # 强队预期进球更高
-        home_exp = 1.0 + home_str * 2.0
-        away_exp = 0.8 + away_str * 1.8
+        # 强队预期进球更高，状态分越高进球越多，伤员越多进球越少
+        home_exp = (1.0 + home_str * 2.0) * (0.85 + home_state * 0.35) - 0.12 * h_inj
+        away_exp = (0.8 + away_str * 1.8) * (0.85 + away_state * 0.35) - 0.12 * a_inj
         expected = home_exp + away_exp
 
     expected = round(expected * 2) / 2
@@ -379,8 +379,8 @@ def analyze_single_match(match, standings=None, prediction=None):
     home_breakdown = home_conf_result['breakdown']
     away_breakdown = away_conf_result['breakdown']
 
-    # 6. 总进球分析
-    tg = _compute_total_goals(match, prediction)
+    # 6. 总进球分析（盘口+球队状态驱动）
+    tg = _compute_total_goals(match, prediction, home_confidence / 10.0, away_confidence / 10.0, h_inj, a_inj)
     expected = tg['expected']
     goal_range = tg['goal_range']
     tendency = tg['tendency']
@@ -399,23 +399,19 @@ def analyze_single_match(match, standings=None, prediction=None):
     # 7.6 历史交手模拟（近5场）
     h2h = _simulate_h2h(tg['expected_home_goals'], tg['expected_away_goals'], 5)
 
-    # 8. 推荐比分（确定性）
-    he = tg['expected_home_goals']
-    ae = tg['expected_away_goals']
-    seed = f'{match.get("match_id","")}_{he:.2f}_{ae:.2f}'
-    if predicted_option == '胜':
-        home_score = 1 + int(_stable_random(seed + '_hs', 0, 2.99))
-        away_score = int(_stable_random(seed + '_as', 0, home_score - 0.01))
-    elif predicted_option == '负':
-        away_score = 1 + int(_stable_random(seed + '_as', 0, 2.99))
-        home_score = int(_stable_random(seed + '_hs', 0, away_score - 0.01))
-    elif predicted_option == '平':
-        s = int(_stable_random(seed + '_s', 0, 2.99))
-        home_score = away_score = s
-    else:
-        home_score = int(_stable_random(seed + '_hs', 0, 3.99))
-        away_score = int(_stable_random(seed + '_as', 0, 2.99))
-    recommended_score = f'{home_score}-{away_score}'
+    # 8. 推荐比分（基于盘口隐含概率 + 球队状态，每次实时推算）
+    # 泊松分布取最可能比分组合
+    he_calc = tg['expected_home_goals']
+    ae_calc = tg['expected_away_goals']
+    best_score = None
+    best_prob = -1
+    for hs in range(0, 6):
+        for as_ in range(0, 6):
+            p = _poisson_prob(hs, he_calc) * _poisson_prob(as_, ae_calc)
+            if p > best_prob:
+                best_prob = p
+                best_score = (hs, as_)
+    recommended_score = f'{best_score[0]}-{best_score[1]}'
 
     # 9. 伤停影响评估
     injury_impact = '无影响'

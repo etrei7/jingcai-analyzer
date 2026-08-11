@@ -258,6 +258,61 @@ def _parse_event_to_match(event):
     }
 
 
+def enrich_jingcai_matches(matches):
+    """用 Bzzoiro 数据富化竞彩场次：伤病/裁判/天气/球队状态（不改动竞彩编号与赔率）"""
+    if not API_KEY or not matches:
+        return matches, 0
+    try:
+        bz_list = fetch_events(date_from=None, date_to=None, limit=60)
+        if not bz_list:
+            return matches, 0
+
+        matched = 0
+        for m in matches:
+            best = None
+            best_score = 0
+            for b in bz_list:
+                # 队名匹配：中文全名互相包含 + 时间接近
+                mh = (m.get('home_team') or '').replace(' ', '')
+                ma = (m.get('away_team') or '').replace(' ', '')
+                bh = (b.get('home_team') or '').replace(' ', '')
+                ba = (b.get('away_team') or '').replace(' ', '')
+                score = 0
+                if mh and (mh in bh or bh in mh):
+                    score += 2
+                if ma and (ma in ba or ba in ma):
+                    score += 2
+                if not score:
+                    continue
+                # 时间接近加成
+                mt = (m.get('time') or m.get('match_time') or '')[:2]
+                bt = (b.get('match_time') or '')[:2]
+                if mt and bt and mt == bt:
+                    score += 1
+                if score > best_score:
+                    best_score = score
+                    best = b
+            if best and best_score >= 3:
+                m['injuries'] = best.get('injuries', {'home': [], 'away': [], 'home_count': 0, 'away_count': 0})
+                m['referee'] = best.get('referee', {}) or {'name': '待定', 'strictness': '未知', 'avg_yellows': 0, 'avg_reds': 0, 'games': 0}
+                m['weather'] = best.get('weather', {}) or {'code': None, 'desc': '未知', 'temp': None, 'wind': None, 'impact': '无明显影响'}
+                m['home_form'] = best.get('home_form', '') or m.get('home_form', '')
+                m['away_form'] = best.get('away_form', '') or m.get('away_form', '')
+                m['home_rank'] = best.get('home_rank') or m.get('home_rank')
+                m['away_rank'] = best.get('away_rank') or m.get('away_rank')
+                m['home_xgd'] = best.get('home_xgd') or m.get('home_xgd')
+                m['away_xgd'] = best.get('away_xgd') or m.get('away_xgd')
+                m['home_coach'] = best.get('home_coach', '') or m.get('home_coach', '')
+                m['away_coach'] = best.get('away_coach', '') or m.get('away_coach', '')
+                m['venue_name'] = best.get('venue_name', '') or m.get('venue_name', '')
+                matched += 1
+        logger.info(f'[Bzzoiro] 富化竞彩 {matched}/{len(matches)} 场')
+        return matches, matched
+    except Exception as e:
+        logger.warning(f'[Bzzoiro] enrich_jingcai_matches: {e}')
+        return matches, 0
+
+
 def fetch_events(date_from=None, date_to=None, limit=15):
     if not API_KEY:
         return []

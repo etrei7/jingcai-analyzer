@@ -153,6 +153,13 @@ def analyze_data():
             m.setdefault('expected_total', 0); m.setdefault('top3_goals', [])
             m.setdefault('handicap_line', 0); m.setdefault('handicap_win_odds', 0); m.setdefault('handicap_draw_odds', 0); m.setdefault('handicap_lose_odds', 0)
 
+        # Bzzoiro 富化：伤病/裁判/天气/球队状态（不改编号赔率）
+        try:
+            from bizzoiro_client import enrich_jingcai_matches
+            matches, _ = enrich_jingcai_matches(matches)
+        except Exception:
+            pass
+
         source = '竞彩官方'
         analyzed = analyze_matches(matches, None, {})
         recommendations = generate_parlay_recommendations(analyzed)
