@@ -319,7 +319,7 @@ async function fetchBzzoiroPredictions() {
 var JINGCAI_TOKEN = '';
 
 async function fetchJingcaiList() {
-  // 1. 从竞彩页面自动获取最新 token
+  // 1. 从竞彩页面自动获取最新 token（若存在则带上，不存在直接调API）
   if (!JINGCAI_TOKEN) {
     try {
       var pageResp = await fetch('https://m.sporttery.cn/mjc/jsq/zqspf/', {
@@ -336,14 +336,15 @@ async function fetchJingcaiList() {
       }
     } catch(e) { console.warn('Token页无法访问'); }
   }
-  if (!JINGCAI_TOKEN) return [];
   
-  // 2. 调竞彩官方 API
-  var url = 'https://webapi.sporttery.cn/gateway/uniform/football/getMatchCalculatorV1.qry?channel=c&share_token=' + JINGCAI_TOKEN;
+  // 2. 调竞彩官方 API（channel=c 即可，token 可选）
+  var url = 'https://webapi.sporttery.cn/gateway/uniform/football/getMatchCalculatorV1.qry?channel=c';
+  if (JINGCAI_TOKEN) url += '&share_token=' + encodeURIComponent(JINGCAI_TOKEN);
   try {
     var resp = await fetch(url, { headers: { 'Referer': 'https://m.sporttery.cn/' } });
-    if (!resp.ok) { JINGCAI_TOKEN = ''; return []; }  // token过期，下次重新获取
+    if (!resp.ok) { JINGCAI_TOKEN = ''; return []; }
     var data = await resp.json();
+    if (!data.success) { console.warn('竞彩API: success=false'); return []; }
     var value = data.value || {};
     var matchList = value.matchInfoList || [];
     var result = [];
@@ -839,39 +840,25 @@ async function refreshData(){
 
     var data = null;
 
-    // 并行：竞彩 + Bzzoiro 同时发，Bzzoiro优先展示，竞彩后台覆盖
-    if (BZZOIRO_API_KEY) {
-      var bzResp = fetch('/api/data').then(function(r){return r.ok?r.json():null}).catch(function(){return null});
-      var jcResp = fetchJingcaiList().then(async function(jc){
-        if(jc&&jc.length>=3){
-          var r=await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({jingcai_matches:jc,client_time:new Date().toISOString()})});
-          return r.ok?r.json():null;
-        }
-        return null;
-      }).catch(function(){return null});
-
-      // Bzzoiro 先展示（3-5秒，稳）
-      data = await Promise.race([bzResp,new Promise(function(r){setTimeout(function(){r(null)},10000)})]);
-      if(data&&data.matches&&data.matches.length>0){
-        showData(data);
-        // 后台等竞彩覆盖
-        var jcData=await Promise.race([jcResp,new Promise(function(r){setTimeout(function(){r(null)},8000)})]);
-        if(jcData&&jcData.matches&&jcData.matches.length>0){
-          showData(jcData);
-        }
-        return;
+    // 竞彩优先：官方场单+赔率（2-5秒），失败则 Bzzoiro 兜底
+    var jcResp = fetchJingcaiList().then(async function(jc){
+      if(jc&&jc.length>=3){
+        var r=await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({jingcai_matches:jc,client_time:new Date().toISOString()})});
+        return r.ok?r.json():null;
       }
-      // Bzzoiro 超时或失败，等竞彩
-      data=await jcResp;
+      return null;
+    }).catch(function(){return null});
+
+    // 等竞彩（8秒超时）
+    data = await Promise.race([jcResp,new Promise(function(r){setTimeout(function(){r(null)},8000)})]);
+    if(data&&data.matches&&data.matches.length>0){
+      showData(data);
+      return;
     }
 
-    // 兜底
-    if(!data){
-      try{
-        var resp=await fetch('/api/data');
-        if(resp.ok) data=await resp.json();
-      }catch(e){}
-    }
+    // 竞彩失败 → Bzzoiro 备用
+    data = await Promise.race([fetch('/api/data').then(function(r){return r.ok?r.json():null}).catch(function(){return null}),new Promise(function(r){setTimeout(function(){r(null)},10000)})]);
+
     if(data) showData(data);
     else document.getElementById('matchesContainer').innerHTML='<div style="text-align:center;padding:60px;color:var(--text-muted)"><p>数据加载失败</p><button class="btn-refresh" onclick="refreshData()" style="margin-top:12px">重试</button></div>';
   }catch(err){

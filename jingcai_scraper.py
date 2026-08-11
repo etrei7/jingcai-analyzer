@@ -49,13 +49,8 @@ def _get_share_token():
 
 def fetch_jingcai_matches():
     """从竞彩官方获取今日场单：返回比赛列表，含编号、球队、赔率、时间、联赛"""
-    token = _get_share_token()
-    if not token:
-        logger.warning('[竞彩] 无法获取 share_token')
-        return []
-
     try:
-        r = requests.get(API_URL, params={'channel': 'c', 'share_token': token}, timeout=15,
+        r = requests.get(API_URL, params={'channel': 'c'}, timeout=15,
                          headers={'User-Agent': 'Mozilla/5.0', 'Referer': 'https://m.sporttery.cn/'})
         r.raise_for_status()
         data = r.json()
