@@ -153,10 +153,11 @@ def analyze_data():
             m.setdefault('expected_total', 0); m.setdefault('top3_goals', [])
             m.setdefault('handicap_line', 0); m.setdefault('handicap_win_odds', 0); m.setdefault('handicap_draw_odds', 0); m.setdefault('handicap_lose_odds', 0)
 
-        # Bzzoiro 双源富化（客户端传数据，按队名匹配）
+        # Bzzoiro 双源富化（客户端传数据，按队名匹配——需翻译英文队名）
         bz_events = data.get('bz_events', [])
         bz_predictions = {}
         if bz_events:
+            from team_names import TEAM_NAME_CN
             bz_preds_raw = data.get('bz_predictions', [])
             bz_pred_map = {}
             for p in bz_preds_raw:
@@ -166,7 +167,10 @@ def analyze_data():
             for jm in matches:
                 jh, ja = jm.get('home_team', ''), jm.get('away_team', '')
                 for bz in bz_events:
-                    if bz.get('home_team', '') == jh and bz.get('away_team', '') == ja:
+                    # 翻译 Bzzoiro 英文队名为中文再匹配
+                    bzh = TEAM_NAME_CN.get(bz.get('home_team', ''), bz.get('home_team', ''))
+                    bza = TEAM_NAME_CN.get(bz.get('away_team', ''), bz.get('away_team', ''))
+                    if bzh == jh and bza == ja:
                         ua = bz.get('unavailable_players') or {}
                         hl, al = ua.get('home', []), ua.get('away', [])
                         if hl or al:
