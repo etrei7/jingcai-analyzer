@@ -70,6 +70,14 @@ def fetch_jingcai_matches():
             biz_date = group.get('businessDate', '')
             for m in group.get('subMatchList', []):
                 had = m.get('had', {})
+                # 过滤未开盘场次：saleStatus=0 或 胜平负赔率全为0
+                sale_status = m.get('saleStatus', 1)
+                h_odds = float(had.get('h', 0) or 0)
+                d_odds = float(had.get('d', 0) or 0)
+                a_odds = float(had.get('a', 0) or 0)
+                if str(sale_status) in ('0', 'false', 'False') or (h_odds <= 0 and d_odds <= 0 and a_odds <= 0):
+                    logger.info(f"[竞彩] 过滤未开盘: {m.get('matchNum','')} saleStatus={sale_status} 赔率=({h_odds},{d_odds},{a_odds})")
+                    continue
                 home_name = m.get('homeTeamAllName', m.get('homeTeamAbbName', ''))
                 away_name = m.get('awayTeamAllName', m.get('awayTeamAbbName', ''))
                 match_num = m.get('matchNum', '')
@@ -87,9 +95,9 @@ def fetch_jingcai_matches():
                     'away_team': away_name,
                     'home_team_id': m.get('homeTeamId'),
                     'away_team_id': m.get('awayTeamId'),
-                    'win_odds': float(had.get('h', 0) or 0),
-                    'draw_odds': float(had.get('d', 0) or 0),
-                    'lose_odds': float(had.get('a', 0) or 0),
+                    'win_odds': h_odds,
+                    'draw_odds': d_odds,
+                    'lose_odds': a_odds,
                     'raw_event_id': mid,
                     'source': '竞彩官方',
                     # 附加数据字段
