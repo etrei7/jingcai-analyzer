@@ -699,28 +699,39 @@ function closeParlayPanel(){
 
 async function refreshData(){
   try{
-    document.getElementById('matchesContainer').innerHTML='<div class="loading"><div class="spinner"></div><p style="margin-top:10px">刷新数据…</p></div>';
+    document.getElementById('matchesContainer').innerHTML='<div class="loading"><div class="spinner"></div><p style="margin-top:10px">加载赛事数据…</p></div>';
     document.getElementById('recContainer').innerHTML='<div class="loading">生成推荐方案…</div>';
     document.getElementById('tgContainer').innerHTML='<div class="loading">分析总进球…</div>';
 
     var data;
 
-    if (BZZOIRO_API_KEY) {
-      document.getElementById('matchesContainer').innerHTML='<div class="loading"><div class="spinner"></div><p style="margin-top:10px">正在拉取Bzzoiro实时数据…</p></div>';
-      var events = await fetchBzzoiroEvents(15);
-      document.getElementById('matchesContainer').innerHTML='<div class="loading"><div class="spinner"></div><p style="margin-top:10px">正在拉取AI预测数据…</p></div>';
-      var preds = await fetchBzzoiroPredictions();
-      document.getElementById('matchesContainer').innerHTML='<div class="loading"><div class="spinner"></div><p style="margin-top:10px">正在匹配竞彩官方场单…</p></div>';
-      var jcList = await fetchJingcaiList();
-      var resp = await fetch('/api/analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ events: events, predictions: preds, jingcai_list: jcList })
-      });
-      if (!resp.ok) throw new Error('Analyze error ' + resp.status);
-      data = await resp.json();
-    } else {
-      data = await fetchData();
+    // 优先走服务端（API Key 不暴露，统一分析管线）
+    try {
+      var resp = await fetch('/api/data');
+      if (resp.ok) data = await resp.json();
+      else throw new Error('server error ' + resp.status);
+    } catch(e) {
+      console.warn('服务端直连失败，切换客户端加载: ' + e.message);
+    }
+
+    // 服务端失败或返回模拟数据时，走客户端直连
+    if (!data || (data.stats && data.stats.source && data.stats.source.indexOf('模拟') >= 0)) {
+      if (BZZOIRO_API_KEY) {
+        document.getElementById('matchesContainer').innerHTML='<div class="loading"><div class="spinner"></div><p style="margin-top:10px">服务端降级，正在通过浏览器直连加载…</p></div>';
+        try {
+          var events = await fetchBzzoiroEvents(15);
+          var preds = await fetchBzzoiroPredictions();
+          var jcList = await fetchJingcaiList();
+          var resp2 = await fetch('/api/analyze', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ events: events, predictions: preds, jingcai_list: jcList })
+          });
+          if (resp2.ok) data = await resp2.json();
+        } catch(e2) {
+          console.warn('客户端直连也失败: ' + e2.message);
+        }
+      }
     }
 
     document.getElementById('updateTime').textContent=data.stats.update_time;

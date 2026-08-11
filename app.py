@@ -46,21 +46,32 @@ def get_data():
         matches = []
 
     if matches and len(matches) >= 3:
-        logging.info('[API] 使用 Bzzoiro 真实数据（后端直接调用）')
+        logging.info('[API] 服务端直连 Bzzoiro 成功')
         try:
             from bizzoiro_client import fetch_standings_for_matches, fetch_predictions, fetch_odds_movement_for_matches
             standings = fetch_standings_for_matches(matches)
             predictions = fetch_predictions()
             odds_movement = fetch_odds_movement_for_matches(matches)
-            source = 'Bzzoiro API (后端直连)'
+
+            # 竞彩官单匹配（服务端刮取 500.com）
+            try:
+                from jingcai_scraper import fetch_jingcai_match_ids, filter_by_jingcai
+                jc_list = fetch_jingcai_match_ids()
+                if jc_list:
+                    matches = filter_by_jingcai(matches, jc_list)
+                    source = 'Bzzoiro + 竞彩官方场单'
+                else:
+                    source = 'Bzzoiro API (竞彩刮取失败)'
+            except Exception:
+                source = 'Bzzoiro API'
         except Exception:
             standings = {}
             predictions = {}
-            source = 'Bzzoiro API (部分数据获取失败)'
+            source = 'Bzzoiro (部分数据失败)'
     else:
-        logging.info('[API] 后端直连失败，降级为模拟数据')
+        logging.info('[API] 服务端直连失败，降级模拟数据')
         matches = generate_mock_matches(12)
-        source = '模拟数据 (建议使用前端加载模式)'
+        source = '模拟数据 (后端API不可用)'
         standings = {}
         predictions = {}
 
