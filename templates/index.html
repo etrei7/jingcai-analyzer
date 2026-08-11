@@ -719,47 +719,16 @@ async function refreshData(){
         var events = await fetchBzzoiroEvents(15);
         if (events && events.length >= 3) {
           var preds = await fetchBzzoiroPredictions();
-          var jcList = await fetchJingcaiList();
           var resp2 = await fetch('/api/analyze', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ events: events, predictions: preds, jingcai_list: jcList })
+            body: JSON.stringify({ events: events, predictions: preds, jingcai_list: [] })
           });
           if (resp2.ok) data = await resp2.json();
         }
       } catch(e2) {
         console.warn('客户端加载失败: ' + e2.message);
       }
-    }
-
-    // 后台补刮竞彩场单（不阻塞页面显示）
-    if (data && BZZOIRO_API_KEY && (!data.stats || data.stats.source.indexOf('竞彩') < 0)) {
-      (async function() {
-        try {
-          var jcList = await fetchJingcaiList();
-          if (jcList && jcList.length > 0) {
-            var events = await fetchBzzoiroEvents(15);
-            var preds = await fetchBzzoiroPredictions();
-            var resp2 = await fetch('/api/analyze', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ events: events, predictions: preds, jingcai_list: jcList })
-            });
-            if (resp2.ok) {
-              var newData = await resp2.json();
-              if (newData && newData.matches) {
-                data = newData;
-                renderMatches(data.matches);
-                renderRecommendations(data.recommendations);
-                renderTotalGoals(data.total_goals_recs);
-                renderHistoryPanel(data.history_stats);
-                document.getElementById('dataSource').textContent = data.stats.source;
-                console.log('竞彩场单后台匹配完成');
-              }
-            }
-          }
-        } catch(e) { console.warn('后台竞彩匹配失败: ' + e); }
-      })();
     }
 
     document.getElementById('updateTime').textContent=data.stats.update_time;
