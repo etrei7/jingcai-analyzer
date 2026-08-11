@@ -3,7 +3,8 @@ from datetime import datetime, timedelta, timezone
 
 LEAGUES = [
     '英超', '西甲', '德甲', '意甲', '法甲',
-    '中超', '日职', '韩K联', '澳超', '挪超'
+    '中超', '日职', '韩K联', '澳超', '挪超', '瑞典超', '丹超',
+    '英冠', '德乙', '意乙', '荷甲', '葡超', '土超', '巴甲',
 ]
 
 CST = timezone(timedelta(hours=8))
@@ -19,8 +20,27 @@ TEAMS = {
     '日职': ['横滨水手', '川崎前锋', '浦和红钻', '鹿岛鹿角', '大阪钢巴', '名古屋鲸八', '广岛三箭', '东京FC', '柏太阳神', '新泻天鹅'],
     '韩K联': ['蔚山现代', '全北现代', '浦项制铁', '首尔FC', '济州联', '大邱FC', '水原三星', '仁川联', '光州FC', '大田市民'],
     '澳超': ['墨尔本城', '中央海岸', '悉尼FC', '西悉尼', '阿德莱德', '墨尔本胜利', '布里斯班', '珀斯光荣', '纽卡斯尔', '惠灵顿凤凰'],
-    '挪超': ['博德闪耀', '莫尔德', '罗森博格', '维京', '布兰', '利勒斯特罗姆', '奥德', '斯特罗姆加斯特', '萨普斯堡', '特罗姆瑟']
+    '挪超': ['博德闪耀', '莫尔德', '罗森博格', '维京', '布兰', '利勒斯特罗姆', '奥德', '斯特罗姆加斯特', '萨普斯堡', '特罗姆瑟'],
+    '瑞典超': ['马尔默', '埃尔夫斯堡', '赫根', '尤尔加登', '索尔纳', '哈马比', '卡尔马', '北雪平', '米亚尔比', '天狼星'],
+    '丹超': ['哥本哈根', '中日德兰', '布隆德比', '奥胡斯', '北西兰', '奥尔堡', '锡尔克堡', '兰德斯', '瓦埃勒', '维堡'],
+    '英冠': ['利兹联', '莱斯特城', '南安普顿', '西布朗', '诺维奇', '沃特福德', '米德尔斯堡', '考文垂', '桑德兰', '卡迪夫城'],
+    '德乙': ['汉堡', '杜塞尔多夫', '汉诺威', '圣保利', '基尔', '帕德博恩', '纽伦堡', '凯泽斯劳滕', '菲尔特', '柏林赫塔'],
+    '意乙': ['帕尔马', '威尼斯', '克雷莫纳', '桑普多利亚', '巴勒莫', '布雷西亚', '比萨', '巴里', '南蒂罗尔', '科莫'],
+    '荷甲': ['阿贾克斯', '埃因霍温', '费耶诺德', '阿尔克马尔', '特温特', '乌德勒支', '奈梅亨', '海伦芬', '福图纳', '瓦尔韦克'],
+    '葡超': ['本菲卡', '波尔图', '里斯本竞技', '布拉加', '吉马良斯', '法马利康', '博阿维斯塔', '阿罗卡', '卡萨皮亚', '埃斯托里尔'],
+    '土超': ['加拉塔萨雷', '费内巴切', '贝西克塔斯', '特拉布宗', '伊斯坦布尔', '科尼亚', '阿拉尼亚', '开塞利', '安塔利亚', '锡瓦斯'],
+    '巴甲': ['弗拉门戈', '帕尔梅拉斯', '圣保罗', '科林蒂安', '巴西国际', '格雷米奥', '弗鲁米嫩塞', '米内罗竞技', '桑托斯', '博塔弗戈'],
 }
+
+
+def _random_form(num=5):
+    """生成近期状态字符串，胜率反映球队实力"""
+    w = random.randint(0, num)
+    l = random.randint(0, num - w)
+    d = num - w - l
+    chars = ['W'] * w + ['L'] * l + ['D'] * d
+    random.shuffle(chars)
+    return ''.join(chars)
 
 
 def _random_odds(home_strength):
@@ -49,7 +69,7 @@ def _random_odds(home_strength):
 
 
 def generate_single_match():
-    """生成单场比赛的模拟数据（不含分析字段）"""
+    """生成单场比赛的模拟数据（含真实差异化的排名、状态、伤停）"""
     league = random.choice(LEAGUES)
     teams = TEAMS[league]
     home_team, away_team = random.sample(teams, 2)
@@ -65,6 +85,26 @@ def generate_single_match():
 
     now_cst = datetime.now(CST)
     mock_date = now_cst.strftime('%Y-%m-%dT%H:%M:%SZ')
+
+    # 差异化排名（1-20，实力越强排名越高）
+    home_rank = random.randint(1, 20)
+    away_rank = random.randint(1, 20)
+    while away_rank == home_rank:
+        away_rank = random.randint(1, 20)
+
+    # 差异化状态（5场走势）
+    home_form = _random_form(5)
+    away_form = _random_form(5)
+
+    # 差异化伤停（0-5人）
+    home_inj_count = random.randint(0, 5)
+    away_inj_count = random.randint(0, 5)
+    h_injured = []
+    for i in range(home_inj_count):
+        h_injured.append({'name': f'球员{i+1}', 'reason_cn': random.choice(['腘绳肌损伤','踝伤','膝伤','肌肉伤']), 'status_cn': '伤停'})
+    a_injured = []
+    for i in range(away_inj_count):
+        a_injured.append({'name': f'球员{i+1}', 'reason_cn': random.choice(['腘绳肌损伤','踝伤','膝伤','肌肉伤']), 'status_cn': '伤停'})
 
     return {
         'match_id': match_id,
@@ -85,7 +125,7 @@ def generate_single_match():
         'handicap_draw_odds': 0,
         'handicap_lose_odds': 0,
         'home_strength': round(home_strength, 4),
-        'injuries': {'home': [], 'away': [], 'home_count': 0, 'away_count': 0},
+        'injuries': {'home': h_injured, 'away': a_injured, 'home_count': home_inj_count, 'away_count': away_inj_count},
         'referee': {'name': '待定', 'strictness': '未知', 'avg_yellows': 0, 'avg_reds': 0, 'games': 0},
         'weather': {'code': None, 'desc': '未知', 'temp': None, 'wind': None, 'impact': '无明显影响'},
         'travel_distance_km': random.randint(0, 800),
@@ -96,10 +136,10 @@ def generate_single_match():
         'home_coach': '',
         'away_coach': '',
         'ai_preview': '',
-        'home_rank': None,
-        'away_rank': None,
-        'home_form': '',
-        'away_form': '',
+        'home_rank': home_rank,
+        'away_rank': away_rank,
+        'home_form': home_form,
+        'away_form': away_form,
         'home_xgd': None,
         'away_xgd': None,
         'home_confidence': 0,

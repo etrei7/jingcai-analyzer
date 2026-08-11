@@ -33,12 +33,17 @@ def _team_confidence_10(form_str=None, rank=None, xgd=None,
                         odds_ratio=None, injuries_count=0, unavailable_count=0):
     breakdown = {'状态': 0.0, '历史交手': 0.0, '伤病': 0.0, '首发轮换': 0.0}
     
-    # 1. 状态 (0-3分): based on recent form
+    # 1. 状态 (0-3分): based on recent form + rank
     form_score = 1.5
     if form_str:
         wins = sum(1 for ch in form_str[-5:] if ch in 'Ww')
         losses = sum(1 for ch in form_str[-5:] if ch in 'Ll')
         form_score = 1.5 + wins * 0.5 - losses * 0.4
+    if rank and rank <= 3: form_score += 0.5
+    elif rank and rank <= 6: form_score += 0.2
+    if xgd:
+        if xgd > 5: form_score += 0.2
+        elif xgd < -5: form_score -= 0.2
     breakdown['状态'] = round(max(0, min(3, form_score)), 1)
 
     # 2. 历史交手 (0-2分): estimated from odds ratio (stronger team = favored h2h)
@@ -245,25 +250,33 @@ def analyze_single_match(match, standings=None, prediction=None):
     market_max = max(market_win, market_draw, market_lose)
     market_tendency = '主胜' if market_win == market_max else '平局' if market_draw == market_max else '客胜' if market_max > 50 else '均衡'
 
-    # 4. 排名信息
-    home_rank = away_rank = home_form = away_form = ''
-    home_pts = away_pts = home_xgd = away_xgd = None
+    # 4. 排名信息（优先 standings，fallback match dict）
+    home_rank = match.get('home_rank')
+    away_rank = match.get('away_rank')
+    home_form = match.get('home_form', '')
+    away_form = match.get('away_form', '')
+    home_pts = None
+    away_pts = None
+    home_xgd = None
+    away_xgd = None
 
     if standings and match.get('league_id'):
         ls = standings.get(str(match['league_id']), {})
         if ls:
-            hk = str(match.get('home_team_id', '')) or match['home_team']
-            ak = str(match.get('away_team_id', '')) or match['away_team']
+            hk = str(match.get('home_team_id', '') or '') or match['home_team']
+            ak = str(match.get('away_team_id', '') or '') or match['away_team']
             hi = ls.get(hk, {})
             ai = ls.get(ak, {})
-            home_rank = hi.get('position')
-            away_rank = ai.get('position')
-            home_form = hi.get('form', '')
-            away_form = ai.get('form', '')
-            home_pts = hi.get('pts')
-            away_pts = ai.get('pts')
-            home_xgd = hi.get('xgd')
-            away_xgd = ai.get('xgd')
+            if hi and hi.get('position') is not None:
+                home_rank = hi.get('position')
+                home_form = hi.get('form', '') or home_form
+                home_pts = hi.get('pts')
+                home_xgd = hi.get('xgd')
+            if ai and ai.get('position') is not None:
+                away_rank = ai.get('position')
+                away_form = ai.get('form', '') or away_form
+                away_pts = ai.get('pts')
+                away_xgd = ai.get('xgd')
 
     # 5. 球队信心 10分制
     home_odds_ratio = 1.0 / match['win_odds'] if match['win_odds'] > 0 else 0.5
