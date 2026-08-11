@@ -145,11 +145,25 @@ def analyze_data():
             m.setdefault('expected_total', 0); m.setdefault('top3_goals', [])
             m.setdefault('handicap_line', 0); m.setdefault('handicap_win_odds', 0); m.setdefault('handicap_draw_odds', 0); m.setdefault('handicap_lose_odds', 0)
         source = '竞彩官方'
-        # Bzzoiro 数据富化：补伤停/裁判/天气
+        # Bzzoiro 数据富化：补伤病/裁判/天气 + 预测数据
+        bz_predictions = {}
         try:
-            from bizzoiro_client import fetch_events
+            from bizzoiro_client import fetch_events, fetch_predictions
             bz_matches = fetch_events(limit=20)
             if bz_matches:
+                # 构建 Bzzoiro 预测按队名索引
+                bz_preds_raw = fetch_predictions()
+                bz_pred_by_team = {}
+                for bz_id, pred in bz_preds_raw.items():
+                    # 找到对应 event
+                    for bz in bz_matches:
+                        if str(bz.get('raw_event_id', '')) == bz_id:
+                            home = bz.get('home_team', '')
+                            away = bz.get('away_team', '')
+                            bz_pred_by_team[home] = pred
+                            bz_pred_by_team[away] = pred
+
+                # 富化伤病/裁判/天气 + 匹配预测
                 for m in matches:
                     hteam = m.get('home_team', '')
                     ateam = m.get('away_team', '')
@@ -160,11 +174,14 @@ def analyze_data():
                             if bz.get('weather') and bz['weather'].get('desc', '未知') != '未知': m['weather'] = bz['weather']
                             if bz.get('venue_name'): m['venue_name'] = bz['venue_name']
                             if bz.get('travel_distance_km'): m['travel_distance_km'] = bz['travel_distance_km']
+                            # 匹配 Bzzoiro 预测数据
+                            if hteam in bz_pred_by_team:
+                                bz_predictions[m['match_id']] = bz_pred_by_team[hteam]
                 source = '竞彩官方 + Bzzoiro'
         except Exception:
             pass
 
-        analyzed = analyze_matches(matches, None, {})
+        analyzed = analyze_matches(matches, None, bz_predictions)
         recommendations = generate_parlay_recommendations(analyzed)
         total_goals_recs = generate_total_goals_recommendations(analyzed)
         try: save_predictions(analyzed)
