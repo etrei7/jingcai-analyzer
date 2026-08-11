@@ -10,6 +10,7 @@ from models import db
 from data_generator import generate_matches as generate_mock_matches
 from analysis import analyze_matches, generate_parlay_recommendations, generate_total_goals_recommendations
 from scheduler import init_scheduler
+from history import save_predictions, get_stats
 
 logging.basicConfig(level=logging.INFO)
 
@@ -69,7 +70,14 @@ def get_data():
     recommendations = generate_parlay_recommendations(analyzed)
     total_goals_recs = generate_total_goals_recommendations(analyzed)
 
-    # 附加赔率变动数据（仅真实数据模式有）
+    # 保存预测并获取战绩
+    try:
+        save_predictions(analyzed)
+    except Exception:
+        pass
+    history_stats = get_stats()
+
+    # 附加赔率变动数据
     for m in analyzed:
         eid = m.get('raw_event_id', '')
         if eid and eid in odds_movement:
@@ -79,6 +87,7 @@ def get_data():
         'matches': analyzed,
         'recommendations': recommendations,
         'total_goals_recs': total_goals_recs,
+        'history_stats': history_stats,
         'stats': {
             'total_matches': len(analyzed),
             'update_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),

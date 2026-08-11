@@ -229,13 +229,17 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
   <div class="content-area">
     <div class="section-title">赛事数据看板</div>
     <div id="matchesContainer"><div class="loading"><div class="spinner"></div><p style="margin-top:10px">加载赛事数据…</p></div></div>
+    <div class="tg-section">
+      <div class="section-title">单关总进球推荐</div>
+      <div id="tgContainer"><div class="loading">分析总进球…</div></div>
+    </div>
     <div class="rec-section">
       <div class="section-title">AI 串关推荐</div>
       <div id="recContainer"><div class="loading">生成推荐方案…</div></div>
     </div>
-    <div class="tg-section">
-      <div class="section-title">单关总进球推荐</div>
-      <div id="tgContainer"><div class="loading">分析总进球…</div></div>
+    <div class="rec-section" style="margin-top:20px">
+      <div class="section-title">预测战绩面板</div>
+      <div id="historyContainer"><div class="loading">加载战绩…</div></div>
     </div>
   </div>
 </div>
@@ -340,10 +344,6 @@ function renderDetailPanel(m) {
   const dist = m.goal_distribution || {};
   const derby = m.is_derby;
   const travel = m.travel_distance_km;
-  const hv = m.home_value || {};
-  const av = m.away_value || {};
-  const h2h = m.h2h || {};
-  const h2hResults = h2h.results || [];
 
   return `
   <div class="detail-grid">
@@ -370,18 +370,6 @@ function renderDetailPanel(m) {
       ${renderGoalDist(dist)}
     </div>
     <div class="detail-section">
-      <h4>&#128176; 球队身价 & 历史交手</h4>
-      <div style="font-size:0.72rem;margin-bottom:6px">
-        <span style="color:var(--home);font-weight:600">${m.home_team}</span> 估值：<strong>${hv.display||'?'}</strong> |
-        <span style="color:var(--away);font-weight:600">${m.away_team}</span> 估值：<strong>${av.display||'?'}</strong>
-      </div>
-      <div style="font-size:0.68rem;color:var(--text-muted)">&#9877; 历史交手 (模拟近5场)：</div>
-      <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:3px">
-        ${h2hResults.map((r,i)=>`<span style="background:var(--card-stripe);padding:2px 6px;border-radius:3px;font-size:0.68rem;font-family:monospace">${r}</span>`).join('')}
-      </div>
-      <div style="font-size:0.65rem;color:var(--text-muted);margin-top:3px">${h2h.summary||''}</div>
-    </div>
-    <div class="detail-section">
       <h4>&#127922; 球队信心详情 (10分制)</h4>
       <div style="font-size:0.7rem"><span style="color:var(--home);font-weight:600">${m.home_team}</span> ${renderConfBreakdown(m.home_breakdown, m.home_confidence)}</div>
       <div style="font-size:0.7rem;margin-top:3px"><span style="color:var(--away);font-weight:600">${m.away_team}</span> ${renderConfBreakdown(m.away_breakdown, m.away_confidence)}</div>
@@ -400,6 +388,56 @@ function renderOddsBtn(match, option, odds, mode) {
   const isSel = sel && sel.option === option && sel.mode === mode;
   const cls = mode === 'hcp' ? 'odds-btn' : 'odds-btn';
   return `<div class="${cls}${isSel?' selected':''}" onclick="toggleOdds('${match.match_id}','${option}',${odds},'${match.home_team}','${match.away_team}','${match.league}','${match.match_time}','${mode}')"><span class="label">${option}</span><span class="val">${odds}</span></div>`;
+}
+
+function renderPredictionBadge(m) {
+  const po = m.predicted_option;
+  const mt = m.market_tendency;
+  if (!po && !mt) return '';
+  const best = po || (mt==='主胜'?'胜':mt==='客胜'?'负':mt==='平局'?'平':'');
+  if (!best || best==='均衡') return '';
+  const bg = best==='胜'?'var(--home)':'best==='平'?'#9ca3af':'var(--away)';
+  const bgColor = best === '胜' ? 'var(--home)' : (best === '平' ? '#9ca3af' : 'var(--away)');
+  const txtColor = '#fff';
+  return `<span style="background:${bgColor};color:${txtColor};padding:3px 12px;border-radius:6px;font-size:0.78rem;font-weight:700;margin-left:auto;white-space:nowrap">
+    推荐${best}
+  </span>`;
+}
+
+function renderHistoryPanel(stats) {
+  const c = document.getElementById('historyContainer');
+  if (!stats || stats.total === 0) {
+    c.innerHTML = '<div style="padding:12px;background:var(--card-stripe);border-radius:8px;font-size:0.78rem;color:var(--text-muted)">尚未有验证记录，预测将在比赛结束后自动验证并更新命中率</div>';
+    return;
+  }
+  const rate = stats.total_rate || 0;
+  const rateColor = rate >= 60 ? 'var(--high)' : rate >= 45 ? 'var(--medium)' : 'var(--low)';
+  let recentHtml = '';
+  if (stats.recent && stats.recent.length > 0) {
+    recentHtml = '<div style="margin-top:8px"><strong style="font-size:0.75rem">近' + stats.recent.length + '场记录：</strong><div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">' +
+      stats.recent.map(r => `<span style="padding:3px 8px;border-radius:4px;font-size:0.65rem;background:${r.hit?'var(--high-bg)':'var(--low-bg)'};color:${r.hit?'#166534':'#b91c1c'};">${r.teams}:${r.predicted}→${r.actual} ${r.hit?'✓':'✗'}</span>`).join('') +
+      '</div></div>';
+  }
+  c.innerHTML = `
+    <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:14px 18px">
+      <div style="text-align:center">
+        <div style="font-size:1.5rem;font-weight:700;color:${rateColor}">${rate}%</div>
+        <div style="font-size:0.65rem;color:var(--text-muted)">命中率</div>
+      </div>
+      <div style="text-align:center">
+        <div style="font-size:1.1rem;font-weight:700;color:var(--text)">${stats.hits||0}</div>
+        <div style="font-size:0.65rem;color:var(--text-muted)">命中</div>
+      </div>
+      <div style="text-align:center">
+        <div style="font-size:1.1rem;font-weight:700;color:var(--text)">${stats.misses||0}</div>
+        <div style="font-size:0.65rem;color:var(--text-muted)">未中</div>
+      </div>
+      <div style="text-align:center">
+        <div style="font-size:1.1rem;font-weight:700;color:var(--text)">${stats.total||0}</div>
+        <div style="font-size:0.65rem;color:var(--text-muted)">已验证</div>
+      </div>
+    </div>
+    ${recentHtml}`;
 }
 
 function renderOddsMove(m) {
@@ -456,6 +494,7 @@ function renderMatches(matches) {
           <span class="match-league">${m.league}</span> ${lqt}
           ${m.home_rank?`<span style="font-size:0.68rem;color:var(--text-muted)">排名${m.home_rank}/${m.away_rank}</span>`:''}
           ${m.is_derby?'<span class="derby-tag">德比</span>':''}
+          ${renderPredictionBadge(m)}
         </div>
         <div class="match-time">${m.match_time} 开赛</div>
       </div>
@@ -609,6 +648,7 @@ async function refreshData(){
     renderMatches(data.matches);
     renderRecommendations(data.recommendations);
     renderTotalGoals(data.total_goals_recs);
+    renderHistoryPanel(data.history_stats);
     renderParlay();
   }catch(err){
     document.getElementById('matchesContainer').innerHTML='<div class="loading" style="color:var(--low)">数据加载失败，请稍后重试</div>';
