@@ -34,40 +34,34 @@ def index():
 def get_data():
     matches = []
     source = ''
-    odds_movement = {}
 
     try:
-        from bizzoiro_client import (
-            fetch_events, fetch_standings_for_matches, fetch_predictions,
-            fetch_odds_movement_for_matches
-        )
+        from bizzoiro_client import fetch_events
         matches = fetch_events(limit=15)
     except Exception:
         matches = []
 
     if matches and len(matches) >= 3:
-        logging.info('[API] 服务端直连 Bzzoiro 成功')
+        logging.info('[API] Bzzoiro 获取 %d 场', len(matches))
         try:
-            from bizzoiro_client import fetch_standings_for_matches, fetch_predictions, fetch_odds_movement_for_matches
-            standings = fetch_standings_for_matches(matches)
-            predictions = fetch_predictions()
-            odds_movement = fetch_odds_movement_for_matches(matches)
-
-            # 竞彩官单匹配（服务端刮取 500.com）
-            try:
-                from jingcai_scraper import fetch_jingcai_match_ids, filter_by_jingcai
-                jc_list = fetch_jingcai_match_ids()
-                if jc_list:
-                    matches = filter_by_jingcai(matches, jc_list)
-                    source = 'Bzzoiro + 竞彩官方场单'
-                else:
-                    source = 'Bzzoiro API (竞彩刮取失败)'
-            except Exception:
-                source = 'Bzzoiro API'
+            from bizzoiro_client import fetch_standings_for_matches, fetch_predictions
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+            standings = {}
+            predictions = {}
+            with ThreadPoolExecutor(max_workers=2) as ex:
+                f1 = ex.submit(fetch_standings_for_matches, matches)
+                f2 = ex.submit(fetch_predictions)
+                for f in as_completed([f1, f2]):
+                    try:
+                        if f == f1: standings = f.result()
+                        elif f == f2: predictions = f.result()
+                    except Exception:
+                        pass
+            source = 'Bzzoiro API'
         except Exception:
             standings = {}
             predictions = {}
-            source = 'Bzzoiro (部分数据失败)'
+            source = 'Bzzoiro (部分失败)'
     else:
         logging.info('[API] 服务端直连失败，降级模拟数据')
         matches = generate_mock_matches(12)
@@ -84,11 +78,6 @@ def get_data():
     except Exception:
         pass
     history_stats = get_stats()
-
-    for m in analyzed:
-        eid = m.get('raw_event_id', '')
-        if eid and eid in odds_movement:
-            m['odds_movement'] = odds_movement[eid]
 
     return jsonify({
         'matches': analyzed,
