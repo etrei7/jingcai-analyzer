@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: jingcai-analyzer
+    runtime: python
+    plan: free
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "gunicorn app:app --bind 0.0.0.0:$PORT"
+    healthCheckPath: /
+    autoDeploy: true
+    envVars:
+      - key: BZZOIRO_API_KEY
+        sync: false
+      - key: BZZOIRO_BASE_URL
+        value: https://sports.bzzoiro.com/api
+      - key: SECRET_KEY
+        sync: false
