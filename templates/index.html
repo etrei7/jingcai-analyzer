@@ -499,9 +499,17 @@ function renderOddsBtn(match, option, odds, mode) {
 function renderPredictionBadge(m) {
   const po = m.predicted_option;
   const mt = m.market_tendency;
-  if (!po && !mt) return '';
-  const best = po || (mt==='主胜'?'胜':mt==='客胜'?'负':mt==='平局'?'平':'');
-  if (!best || best==='均衡') return '';
+  // 优先 AI 预测，其次市场倾向，最后赔率最低方
+  var best = po;
+  if (!best && mt && mt!=='均衡'){
+    best = mt==='主胜'?'胜':mt==='客胜'?'负':mt==='平局'?'平';
+  }
+  if (!best){
+    const odds=[{k:'胜',v:m.win_odds||99},{k:'平',v:m.draw_odds||99},{k:'负',v:m.lose_odds||99}];
+    odds.sort((a,b)=>a.v-b.v);
+    if(odds[0].v<1.8) best=odds[0].k;  // only recommend if clear favorite
+  }
+  if (!best) return '';
   const bgColor = best === '胜' ? 'var(--home)' : (best === '平' ? '#9ca3af' : 'var(--away)');
   const txtColor = '#fff';
   return `<span style="background:${bgColor};color:${txtColor};padding:3px 12px;border-radius:6px;font-size:0.78rem;font-weight:700;margin-left:auto;white-space:nowrap">

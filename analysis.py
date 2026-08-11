@@ -226,7 +226,7 @@ def _compute_total_goals(match, prediction):
 
     expected = round(expected * 2) / 2
     dist = {}
-    for k in range(8):
+    for k in range(7):  # 0-6 球
         dist[str(k)] = round(_poisson_prob(k, expected) * 100, 1)
     dist['7+'] = round(max(0, 100 - sum(dist[str(i)] for i in range(7))), 1)
 
