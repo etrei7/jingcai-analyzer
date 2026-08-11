@@ -732,6 +732,7 @@ function renderMatchesInternal(matches) {
 
 function toggleDetail(el, id) {
   const panel = document.getElementById(id);
+  if (!panel) return;
   const isOpen = panel.classList.contains('show');
   panel.classList.toggle('show');
   el.classList.toggle('open');
@@ -837,17 +838,15 @@ async function refreshData(){
       if (resp.ok) data = await resp.json();
     } catch(e) { console.warn('服务端失败: ' + e.message); }
 
-    // 后台异步：浏览器直连竞彩官方 + Bzzoiro 双源合并（覆盖服务端数据）
+    // 后台异步：浏览器竞彩官单 + 服务端 Bzzoiro 双源合并
     if (BZZOIRO_API_KEY) {
       (async function(){
         try {
           var jcMatches = await fetchJingcaiList();
           if (jcMatches && jcMatches.length >= 3) {
-            var bzEvents = await fetchBzzoiroEvents(20);
-            var bzPreds = await fetchBzzoiroPredictions();
             var resp2 = await fetch('/api/analyze', {
               method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ jingcai_matches: jcMatches, bz_events: bzEvents, bz_predictions: bzPreds, client_time: new Date().toISOString() })
+              body: JSON.stringify({ jingcai_matches: jcMatches, client_time: new Date().toISOString() })
             });
             if (resp2.ok) {
               var newData = await resp2.json();
@@ -860,11 +859,11 @@ async function refreshData(){
                 renderRecommendations(data.recommendations);
                 renderTotalGoals(data.total_goals_recs);
                 renderHistoryPanel(data.history_stats);
-                console.log('双源合并完成: ' + data.stats.source);
+                console.log('竞彩官方编号已匹配: ' + data.stats.source);
               }
             }
           }
-        } catch(e) { console.warn('双源更新失败: ' + e.message); }
+        } catch(e) { console.warn('竞彩更新失败: ' + e.message); }
       })();
     }
 
