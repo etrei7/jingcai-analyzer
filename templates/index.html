@@ -219,7 +219,8 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
   <div class="stats">
     <div class="stat-item"><span class="dot"></span>更新：<span id="updateTime">--</span></div>
     <div class="stat-item">赛事：<span id="totalMatches">0</span> 场</div>
-    <div class="stat-item" style="font-size:0.68rem;color:var(--text-light)">源：<span id="dataSource">--</span></div>
+    <div class="stat-item" id="sourceTag" style="font-size:0.68rem;color:var(--text-light)">源：<span id="dataSource">--</span></div>
+    <div class="stat-item" id="priorityTag" style="display:none"></div>
     <button class="btn-refresh" onclick="refreshData()">手动刷新</button>
     <button class="btn-theme" onclick="toggleTheme()" title="切换深/浅色模式">🌓</button>
   </div>
@@ -395,10 +396,13 @@ function renderWeather(weather, derby, travel) {
   return parts.join('<br>');
 }
 
-function renderConfBreakdown(bd, conf) {
+function renderConfBreakdown(bd, reasons, conf, teamName) {
   if(!bd) return '';
-  const items = ['状态','历史交手','伤病','首发轮换'];
-  return '<div class="conf-breakdown">'+items.map(k=>`<span>${k} ${bd[k]||0}</span>`).join('')+' 合计 <strong style="color:var(--home)">${conf}/10</strong></div>';
+  var items = ['状态','历史交手','伤病','首发轮换'];
+  return '<div class="conf-breakdown">'+items.map(k=>{
+    var r=reasons?reasons[k]:''; 
+    return '<span title="'+r+'">'+k+' '+bd[k]+'</span>';
+  }).join('')+' 合计 <strong style="color:var(--home)">'+conf+'/10</strong></div>';
 }
 
 function renderDetailPanel(m) {
@@ -406,37 +410,49 @@ function renderDetailPanel(m) {
   const weather = m.weather || {};
   const inj = m.injuries || {};
   const dist = m.goal_distribution || {};
+  const pp = m.poisson_params || {};
   const derby = m.is_derby;
   const travel = m.travel_distance_km;
+  const hrs = m.home_reasons || {};
+  const ars = m.away_reasons || {};
+  const hasInjuries = inj.home_count > 0 || inj.away_count > 0;
+  const hasRef = ref.name && ref.name !== '待定' && ref.games > 0;
+  const hasWeather = weather.desc && weather.desc !== '未知';
+  const canRenderRef = ref.name && ref.name !== '待定';
 
   return `
   <div class="detail-grid">
+    ${hasInjuries ? `
     <div class="detail-section">
       <h4>&#9877; 伤停报告</h4>
       ${renderInjuries(inj)}
       ${m.injury_impact && m.injury_impact !== '无影响' ? `<div style="margin-top:4px;font-size:0.7rem;color:${m.injury_impact.includes('重大')?'var(--low)':'var(--medium)'}">&#9888; 综合影响评估：${m.injury_impact}</div>` : ''}
-    </div>
+    </div>` : ''}
+    ${canRenderRef ? `
     <div class="detail-section">
       <h4>&#9917; 裁判分析</h4>
       ${renderReferee(ref)}
       ${m.ref_impact ? `<div style="margin-top:3px;font-size:0.68rem;color:var(--text-muted)">&#9432; ${m.ref_impact}</div>` : ''}
-    </div>
+    </div>` : ''}
+    ${hasWeather ? `
     <div class="detail-section">
       <h4>&#127788; 天气与场地</h4>
       <div style="font-size:0.72rem">${renderWeather(weather, derby, travel)}</div>
       <div style="font-size:0.7rem;color:var(--text-muted);margin-top:3px">
         场地：${m.venue_name||'未知'} ${m.venue_city?'('+m.venue_city+')':''} ${m.venue_capacity?' | 容量 '+m.venue_capacity.toLocaleString():''}
       </div>
-    </div>
+    </div>` : ''}
     <div class="detail-section">
       <h4>&#128200; 泊松进球概率分布</h4>
       <div>预期总进球：<strong>${m.expected_goals||'?'} 球</strong> | 大2.5概率：<strong>${m.over25_prob||0}%</strong></div>
+      ${pp.lambda_total ? `<div style="font-size:0.62rem;color:var(--text-muted);margin-top:2px">λ=${pp.lambda_total} | 主队攻击力=${pp.home_attack} | 客队攻击力=${pp.away_attack} | 来源：${pp.source||'-'}</div>` : ''}
       ${renderGoalDist(dist)}
     </div>
     <div class="detail-section">
       <h4>&#127922; 球队信心详情 (10分制)</h4>
-      <div style="font-size:0.7rem"><span style="color:var(--home);font-weight:600">${m.home_team}</span> ${renderConfBreakdown(m.home_breakdown, m.home_confidence)}</div>
-      <div style="font-size:0.7rem;margin-top:3px"><span style="color:var(--away);font-weight:600">${m.away_team}</span> ${renderConfBreakdown(m.away_breakdown, m.away_confidence)}</div>
+      <div style="font-size:0.7rem"><span style="color:var(--home);font-weight:600">${m.home_team}</span> ${renderConfBreakdown(m.home_breakdown, m.home_reasons, m.home_confidence, m.home_team)}</div>
+      <div style="font-size:0.7rem;margin-top:3px"><span style="color:var(--away);font-weight:600">${m.away_team}</span> ${renderConfBreakdown(m.away_breakdown, m.away_reasons, m.away_confidence, m.away_team)}</div>
+      <div style="font-size:0.6rem;color:var(--text-light);margin-top:4px">&#9432; 鼠标悬停各维度查看评分依据</div>
     </div>
     ${m.ai_preview ? `
     <div class="detail-section" style="grid-column:1/-1">
@@ -532,7 +548,10 @@ function renderPressureTag(m) {
 function renderMatches(matches) {
   currentMatches = matches;
   const c = document.getElementById('matchesContainer');
-  if(!matches.length){c.innerHTML='<div class="loading">暂无赛事数据</div>';return}
+  if(!matches.length){
+    c.innerHTML='<div style="text-align:center;padding:60px 20px;color:var(--text-muted)"><div style="font-size:3rem;margin-bottom:16px">&#9917;</div><div style="font-size:0.9rem;font-weight:600;margin-bottom:8px">暂无赛事数据</div><div style="font-size:0.75rem">可能原因：竞彩今日未开售 / API 暂时不可用<br>请稍后刷新或检查网络连接</div><button class="btn-refresh" onclick="refreshData()" style="margin-top:16px">重新加载</button></div>';
+    return;
+  }
 
   c.innerHTML = matches.map(m => {
     const ouCls = m.over_under_tendency==='大球倾向'?'tag-over':m.over_under_tendency==='小球倾向'?'tag-under':'tag-balance';
@@ -620,17 +639,19 @@ function toggleDetail(el, id) {
 
 function renderRecommendations(recs) {
   const c = document.getElementById('recContainer');
-  if(!recs||!recs.length){c.innerHTML='<div class="loading">暂无推荐方案</div>';return}
+  if(!recs||!recs.length){c.innerHTML='<div style="text-align:center;padding:30px;color:var(--text-muted)">暂无推荐方案</div>';return}
   c.innerHTML='<div class="rec-grid">'+recs.map(r=>{
     const riskCls=r.risk_level==='低风险'?'rec-risk-low':'rec-risk-mid';
+    const co=r.combo_odds||0;
+    const riskNote=co<2.5?'(含保底场，稳健型)':co<5?'(中等回报，攻守兼备)':'(高风险高回报，谨慎参考)';
     return `<div class="rec-card">
-      <div class="rec-header"><div><div class="rec-name">${r.name}</div><div class="rec-type">${r.plan_type}</div></div><span class="rec-risk ${riskCls}">${r.risk_level}</span></div>
+      <div class="rec-header"><div><div class="rec-name">${r.name}</div><div class="rec-type">${r.plan_type}</div></div><span class="rec-risk ${riskCls}" title="组合赔率${co}${riskNote}">${r.risk_level}${co<2.5?' &#128737;':co<5?' &#127919;':' &#9888;'}</span></div>
       ${r.logic ? `<div class="rec-logic">&#128161; ${r.logic}</div>` : ''}
       ${(r.matches_detail||[]).map(md=>`<div class="rec-match-item">
         <div class="teams"><span class="h">${md.home_team}</span> vs <span class="a">${md.away_team}</span><span style="font-size:0.68rem;color:var(--text-muted);margin-left:5px">${md.league} #${md.match_id}</span>${md.home_rank?'<span style="font-size:0.62rem;color:var(--text-muted);margin-left:3px">排名'+md.home_rank+'/'+md.away_rank+'</span>':''}</div>
         <div class="detail"><span>推荐: <strong style="color:var(--home)">${md.option}</strong> @${md.odds}</span><span>${md.hotness_label} | ${md.bookmaker_intent}</span>${md.market_tendency?'<span>市场: '+md.market_tendency+'</span>':''}${md.injury_impact&&md.injury_impact!=='无影响'?'<span style="color:var(--medium)">'+md.injury_impact+'</span>':''}</div>
       </div>`).join('')}
-      <div class="rec-odds-display"><div class="combo">组合赔率 ${r.combo_odds}</div><div class="ret">${r.expected_return}</div></div>
+      <div class="rec-odds-display"><div class="combo">组合赔率 ${r.combo_odds}</div><div class="ret">${r.expected_return} <span style="font-size:0.62rem;color:var(--text-muted)">${riskNote}</span></div></div>
     </div>`;
   }).join('')+'</div>';
 }
@@ -734,6 +755,15 @@ async function refreshData(){
     document.getElementById('updateTime').textContent=data.stats.update_time;
     document.getElementById('totalMatches').textContent=data.stats.total_matches;
     document.getElementById('dataSource').textContent=data.stats.source;
+    // 数据源优先级指示器
+    var priTag=document.getElementById('priorityTag');
+    var pri=data.stats.data_priority||'';
+    var note=data.stats.data_note||'';
+    if(pri==='primary'){priTag.style.display='inline';priTag.innerHTML='<span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:4px;font-size:0.62rem;font-weight:600">主数据源</span>';}
+    else if(pri==='secondary'){priTag.style.display='inline';priTag.innerHTML='<span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:4px;font-size:0.62rem">备用源</span>';}
+    else if(pri==='fallback'){priTag.style.display='inline';priTag.innerHTML='<span style="background:#fee2e2;color:#b91c1c;padding:2px 8px;border-radius:4px;font-size:0.62rem">模拟</span>';}
+    else{priTag.style.display='none';}
+    document.getElementById('dataSource').title=note;
     renderMatches(data.matches);
     renderRecommendations(data.recommendations);
     renderTotalGoals(data.total_goals_recs);

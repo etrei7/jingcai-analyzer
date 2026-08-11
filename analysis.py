@@ -44,40 +44,49 @@ def _goal_distribution(expected):
 def _team_confidence_10(form_str=None, rank=None, xgd=None,
                         odds_ratio=None, injuries_count=0, unavailable_count=0):
     breakdown = {'状态': 0.0, '历史交手': 0.0, '伤病': 0.0, '首发轮换': 0.0}
-    
-    # 1. 状态 (0-3分): based on recent form + rank
+    reasons = {'状态': '', '历史交手': '', '伤病': '', '首发轮换': ''}
+
+    # 1. 状态 (0-3分): 近5场 W/D/L + 排名加成
     form_score = 1.5
+    w = l = 0
     if form_str:
-        wins = sum(1 for ch in form_str[-5:] if ch in 'Ww')
-        losses = sum(1 for ch in form_str[-5:] if ch in 'Ll')
-        form_score = 1.5 + wins * 0.5 - losses * 0.4
-    if rank and rank <= 3: form_score += 0.5
-    elif rank and rank <= 6: form_score += 0.2
+        w = sum(1 for ch in form_str[-5:] if ch in 'Ww')
+        l = sum(1 for ch in form_str[-5:] if ch in 'Ll')
+        form_score = 1.5 + w * 0.5 - l * 0.4
+        reasons['状态'] = f'近5场{w}胜{5-w-l}平{l}负'
+    else:
+        reasons['状态'] = '无近期战绩'
+    if rank and rank <= 3: form_score += 0.5; reasons['状态'] += f', 排名前3(+0.5)'
+    elif rank and rank <= 6: form_score += 0.2; reasons['状态'] += f', 排名前6(+0.2)'
     if xgd:
-        if xgd > 5: form_score += 0.2
-        elif xgd < -5: form_score -= 0.2
+        if xgd > 5: form_score += 0.2; reasons['状态'] += f', xGD优势(+0.2)'
+        elif xgd < -5: form_score -= 0.2; reasons['状态'] += f', xGD劣势(-0.2)'
     breakdown['状态'] = round(max(0, min(3, form_score)), 1)
 
-    # 2. 历史交手 (0-2分): estimated from odds ratio (stronger team = favored h2h)
+    # 2. 历史交手 (0-2分): 基于赔率强弱（大热=H2H占优）
     h2h_score = 1.0
     if odds_ratio is not None and odds_ratio > 0:
-        if odds_ratio < 0.6:  h2h_score = 2.0          # strong favorite
-        elif odds_ratio < 0.8: h2h_score = 1.5
-        elif odds_ratio > 1.6: h2h_score = 0.3         # heavy underdog
-        elif odds_ratio > 1.2: h2h_score = 0.7
-        else: h2h_score = 1.0
+        if odds_ratio < 0.6:  h2h_score = 2.0; reasons['历史交手'] = '极强方(赔率<0.6)'
+        elif odds_ratio < 0.8: h2h_score = 1.5; reasons['历史交手'] = '较强方(赔率0.6-0.8)'
+        elif odds_ratio > 1.6: h2h_score = 0.3; reasons['历史交手'] = '大冷方(赔率>1.6)'
+        elif odds_ratio > 1.2: h2h_score = 0.7; reasons['历史交手'] = '弱方(赔率1.2-1.6)'
+        else: h2h_score = 1.0; reasons['历史交手'] = '实力均衡'
     breakdown['历史交手'] = round(h2h_score, 1)
 
-    # 3. 伤病 (0-3分): fewer injuries = higher score
+    # 3. 伤病 (0-3分)
     inj_score = max(0, 3.0 - injuries_count * 0.6)
+    if injuries_count == 0: reasons['伤病'] = '无伤停(-0.0)'
+    else: reasons['伤病'] = f'{injuries_count}人伤停(-{round(injuries_count*0.6,1)})'
     breakdown['伤病'] = round(inj_score, 1)
 
-    # 4. 首发轮换 (0-2分): fewer unavailable = better lineup stability
+    # 4. 首发轮换 (0-2分)
     lineup_score = max(0, 2.0 - unavailable_count * 0.4)
+    if unavailable_count == 0: reasons['首发轮换'] = '阵容完整(-0.0)'
+    else: reasons['首发轮换'] = f'{unavailable_count}人缺席(-{round(unavailable_count*0.4,1)})'
     breakdown['首发轮换'] = round(lineup_score, 1)
 
     total = round(sum(breakdown.values()), 1)
-    return {'score': min(total, 10), 'breakdown': breakdown}
+    return {'score': min(total, 10), 'breakdown': breakdown, 'reasons': reasons}
 
 
 def _estimate_team_value(league_quality, rank, odds_ratio, confidence, team_name=''):
@@ -231,6 +240,12 @@ def _compute_total_goals(match, prediction):
         'top3_goals': top_3,
         'expected_home_goals': home_exp if home_exp > 0 else expected * 0.55,
         'expected_away_goals': away_exp if away_exp > 0 else expected * 0.45,
+        'poisson_params': {
+            'lambda_total': round(expected, 2),
+            'home_attack': round(home_exp if home_exp > 0 else expected * 0.55, 2),
+            'away_attack': round(away_exp if away_exp > 0 else expected * 0.45, 2),
+            'source': 'Bzzoiro预测' if home_exp > 0 else '赔率推算'
+        }
     }
 
 
@@ -411,6 +426,8 @@ def analyze_single_match(match, standings=None, prediction=None):
     result['away_confidence'] = away_confidence
     result['home_breakdown'] = home_breakdown
     result['away_breakdown'] = away_breakdown
+    result['home_reasons'] = home_conf_result.get('reasons', {})
+    result['away_reasons'] = away_conf_result.get('reasons', {})
     result['home_xgd'] = home_xgd
     result['away_xgd'] = away_xgd
     result['predicted_option'] = predicted_option
@@ -418,6 +435,7 @@ def analyze_single_match(match, standings=None, prediction=None):
     result['over25_prob'] = over25_prob
     result['injury_impact'] = injury_impact
     result['ref_impact'] = ref_impact
+    result['poisson_params'] = tg.get('poisson_params', {})
 
     # Handicap fields
     result['handicap'] = handicap['handicap_label']

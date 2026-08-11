@@ -41,12 +41,16 @@ def get_data():
         matches = fetch_jingcai_matches()
         if matches and len(matches) >= 3:
             source = '竞彩官方'
+            data_priority = 'primary'
+            data_note = '主数据源：中国体育彩票官方赔率'
             logging.info('[API] 竞彩官方 %d 场', len(matches))
     except Exception:
         pass
 
     # 次选：Bzzoiro API
     if not matches or len(matches) < 3:
+        data_priority = 'secondary'
+        data_note = '备用源：Bzzoiro 第三方数据（竞彩官方API不可用）'
         try:
             from bizzoiro_client import fetch_events
             matches = fetch_events(limit=15)
@@ -60,6 +64,8 @@ def get_data():
     if not matches or len(matches) < 3:
         matches = generate_mock_matches(12)
         source = '模拟数据'
+        data_priority = 'fallback'
+        data_note = '降级源：模拟数据（所有外部API不可用）'
 
     # 附加数据（standings + predictions 仅 Bzzoiro 模式有效）
     standings = {}
@@ -90,9 +96,12 @@ def get_data():
         'stats': {
             'total_matches': len(analyzed),
             'update_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-            'source': source
+            'source': source,
+            'data_priority': data_priority,
+            'data_note': data_note,
         }
     })
+    # /api/data end
 
 
 @app.route('/api/analyze', methods=['POST'])
