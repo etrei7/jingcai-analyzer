@@ -806,7 +806,7 @@ async function refreshData(){
           var resp = await fetch('/api/analyze', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ jingcai_matches: jcMatches })
+            body: JSON.stringify({ jingcai_matches: jcMatches, client_time: new Date().toISOString() })
           });
           if (resp.ok) data = await resp.json();
         }

@@ -120,6 +120,14 @@ def analyze_data():
     # 路径1：竞彩官方数据直接分析
     jc_matches = data.get('jingcai_matches', [])
     if jc_matches:
+        client_time = data.get('client_time', '')
+        fetch_ts = datetime.now().strftime('%H:%M:%S')
+        if client_time:
+            try:
+                ct = datetime.fromisoformat(client_time.replace('Z', '+00:00'))
+                fetch_ts = ct.astimezone().strftime('%H:%M:%S')
+            except Exception:
+                pass
         matches = jc_matches
         # 补充缺失字段
         for m in matches:
@@ -190,7 +198,7 @@ def analyze_data():
             'matches': analyzed, 'recommendations': recommendations,
             'total_goals_recs': total_goals_recs, 'history_stats': get_stats(),
             'stats': {'total_matches': len(analyzed),
-                       'update_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'source': source}
+                       'update_time': fetch_ts, 'source': source}  # jingcai path
         })
 
     # 路径2：Bzzoiro 原始数据 + 竞彩场单匹配
