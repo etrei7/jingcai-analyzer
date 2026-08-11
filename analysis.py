@@ -1,4 +1,15 @@
-import random, math, copy, json, os
+import random, math, copy, json, os, hashlib
+
+
+def _stable_random(seed_str, min_val, max_val):
+    """确定性随机：同输入永远同输出"""
+    h = int(hashlib.md5(seed_str.encode()).hexdigest()[:8], 16)
+    return min_val + (h % 1000) / 1000.0 * (max_val - min_val)
+
+
+def _stable_gauss(seed_str, mean, sigma):
+    h = int(hashlib.md5(seed_str.encode()).hexdigest()[:8], 16)
+    return max(0, round(mean + ((h % 1000) / 500.0 - 1.0) * sigma))
 
 
 def _load_team_values():
@@ -115,11 +126,12 @@ def _estimate_team_value(league_quality, rank, odds_ratio, confidence, team_name
 
 
 def _simulate_h2h(home_exp, away_exp, num=5):
-    """模拟两队近5场历史交手比分"""
+    """确定性模拟两队近5场历史交手比分"""
     results = []
-    for _ in range(num):
-        hg = max(0, round(random.gauss(home_exp, 1.2)))
-        ag = max(0, round(random.gauss(away_exp, 1.0)))
+    seed = f'{home_exp:.2f}_{away_exp:.2f}'
+    for i in range(num):
+        hg = _stable_gauss(f'{seed}_h{i}', home_exp, 1.2)
+        ag = _stable_gauss(f'{seed}_a{i}', away_exp, 1.0)
         results.append({'home': hg, 'away': ag})
     home_wins = sum(1 for r in results if r['home'] > r['away'])
     draws = sum(1 for r in results if r['home'] == r['away'])
@@ -200,11 +212,17 @@ def _compute_total_goals(match, prediction):
     if home_exp > 0 and away_exp > 0:
         expected = home_exp + away_exp
     else:
-        home_gs = random.uniform(0.8, 2.4)
-        home_gc = random.uniform(0.5, 2.0)
-        away_gs = random.uniform(0.7, 2.0)
-        away_gc = random.uniform(0.5, 2.2)
-        expected = (home_gs + home_gc + away_gs + away_gc) / 2
+        # 确定性推算：基于赔率隐含概率
+        imp_w = 1.0 / match['win_odds'] if match['win_odds'] > 0 else 0.33
+        imp_d = 1.0 / match['draw_odds'] if match['draw_odds'] > 0 else 0.33
+        imp_l = 1.0 / match['lose_odds'] if match['lose_odds'] > 0 else 0.33
+        total_imp = imp_w + imp_d + imp_l
+        home_str = imp_w / total_imp if total_imp > 0 else 0.33
+        away_str = imp_l / total_imp if total_imp > 0 else 0.33
+        # 强队预期进球更高
+        home_exp = 1.0 + home_str * 2.0
+        away_exp = 0.8 + away_str * 1.8
+        expected = home_exp + away_exp
 
     expected = round(expected * 2) / 2
     dist = {}
@@ -381,19 +399,22 @@ def analyze_single_match(match, standings=None, prediction=None):
     # 7.6 历史交手模拟（近5场）
     h2h = _simulate_h2h(tg['expected_home_goals'], tg['expected_away_goals'], 5)
 
-    # 8. 推荐比分
+    # 8. 推荐比分（确定性）
+    he = tg['expected_home_goals']
+    ae = tg['expected_away_goals']
+    seed = f'{match.get("match_id","")}_{he:.2f}_{ae:.2f}'
     if predicted_option == '胜':
-        home_score = random.randint(1, 3)
-        away_score = random.randint(0, home_score - 1)
+        home_score = 1 + int(_stable_random(seed + '_hs', 0, 2.99))
+        away_score = int(_stable_random(seed + '_as', 0, home_score - 0.01))
     elif predicted_option == '负':
-        away_score = random.randint(1, 3)
-        home_score = random.randint(0, away_score - 1)
+        away_score = 1 + int(_stable_random(seed + '_as', 0, 2.99))
+        home_score = int(_stable_random(seed + '_hs', 0, away_score - 0.01))
     elif predicted_option == '平':
-        s = random.randint(0, 2)
+        s = int(_stable_random(seed + '_s', 0, 2.99))
         home_score = away_score = s
     else:
-        home_score = random.randint(0, 4)
-        away_score = random.randint(0, 3)
+        home_score = int(_stable_random(seed + '_hs', 0, 3.99))
+        away_score = int(_stable_random(seed + '_as', 0, 2.99))
     recommended_score = f'{home_score}-{away_score}'
 
     # 9. 伤停影响评估
@@ -488,7 +509,7 @@ def generate_parlay_recommendations(matches):
 
     if len(plan1) >= 2:
         pairs = [(plan1[i], plan1[j]) for i in range(len(plan1)) for j in range(i + 1, len(plan1))]
-        random.shuffle(pairs)
+        pairs.sort(key=lambda p: (p[0]['odds'] + p[1]['odds']))  # 确定性排序
         for a, b in pairs[:3]:
             co = round(a['odds'] * b['odds'], 2)
             recommendations.append({
@@ -515,7 +536,7 @@ def generate_parlay_recommendations(matches):
 
     if len(hcp_bets) >= 2:
         pairs = [(hcp_bets[i], hcp_bets[j]) for i in range(len(hcp_bets)) for j in range(i + 1, len(hcp_bets))]
-        random.shuffle(pairs)
+        pairs.sort(key=lambda p: (p[0]['odds'] + p[1]['odds']))
         for a, b in pairs[:2]:
             co = round(a['odds'] * b['odds'], 2)
             recommendations.append({
@@ -530,11 +551,13 @@ def generate_parlay_recommendations(matches):
     hc = [m for m in matches if m['confidence_level'] == '高']
     co_match = [m for m in matches if m['over_under_tendency'] in ('大球倾向', '小球倾向')]
     if hc and co_match:
-        spf = random.choice(hc)
+        hc.sort(key=lambda m: m.get('confidence_score', 0), reverse=True)
+        spf = hc[0]
         opts = [('胜', spf['win_odds']), ('平', spf['draw_odds']), ('负', spf['lose_odds'])]
         bs = min(opts, key=lambda x: x[1])
-        ou = random.choice(co_match)
-        ou_odds = round(random.uniform(1.50, 1.95), 2)
+        co_match.sort(key=lambda m: abs(m.get('over25_prob', 50) - 50), reverse=True)
+        ou = co_match[0]
+        ou_odds = round(bs[1] * 0.7, 2) if bs[1] > 0 else 1.80
         co = round(bs[1] * ou_odds, 2)
         recommendations.append({
             'name': f"混合2串1-{spf['match_id']}({bs[0]})+{ou['match_id']}({ou['over_under_tendency']})",
@@ -559,7 +582,7 @@ def generate_parlay_recommendations(matches):
 
     if len(overlap) >= 2:
         pairs = [(overlap[i], overlap[j]) for i in range(len(overlap)) for j in range(i + 1, len(overlap))]
-        random.shuffle(pairs)
+        pairs.sort(key=lambda p: (p[0]['odds'] + p[1]['odds']))
         for a, b in pairs[:2]:
             co = round(a['odds'] * b['odds'], 2)
             recommendations.append({
@@ -582,7 +605,7 @@ def generate_parlay_recommendations(matches):
 
     if len(injury_bets) >= 2:
         pairs = [(injury_bets[i], injury_bets[j]) for i in range(len(injury_bets)) for j in range(i + 1, len(injury_bets))]
-        random.shuffle(pairs)
+        pairs.sort(key=lambda p: (p[0]['odds'] + p[1]['odds']))
         for a, b in pairs[:2]:
             co = round(a['odds'] * b['odds'], 2)
             recommendations.append({
