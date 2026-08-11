@@ -1,4 +1,16 @@
-import random, math, copy
+import random, math, copy, json, os
+
+
+def _load_team_values():
+    path = os.path.join(os.path.dirname(__file__), 'team_values.json')
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+TEAM_VALUES = _load_team_values()
 
 
 def _poisson_prob(k, lam):
@@ -68,16 +80,24 @@ def _team_confidence_10(form_str=None, rank=None, xgd=None,
     return {'score': min(total, 10), 'breakdown': breakdown}
 
 
-def _estimate_team_value(league_quality, rank, odds_ratio, confidence):
-    """估算球队身价（百万欧元），基于联赛等级+排名+赔率强度"""
+def _estimate_team_value(league_quality, rank, odds_ratio, confidence, team_name=''):
+    """估算球队身价（百万欧元）。优先使用真实数据集，缺失时基于联赛+排名推算"""
+    # Real data from team_values.json (Transfermarkt-based)
+    if team_name and team_name in TEAM_VALUES:
+        val = TEAM_VALUES[team_name]
+        display = f'{val/100:.1f}亿' if val >= 100 else f'{val}M'
+        source = 'Transfermarkt'
+        return {'value_m': val, 'display': display, 'tier': '千万欧' if val >= 30 else '百万欧', 'source': source}
+    
+    # Estimate from league + rank + odds
     base = 150 if league_quality >= 1.0 else 80 if league_quality >= 0.85 else 30
     rank_adj = max(0, 1 - (rank or 10) / 30) * base
     odds_bonus = (1 - odds_ratio) * 50 if odds_ratio < 1 else 0
     conf_bonus = (confidence / 10) * 30
     val = round(base + rank_adj + odds_bonus + conf_bonus)
-    tier = '亿欧' if val >= 300 else '千万欧' if val >= 50 else '百万欧'
     display = f'{val/100:.1f}亿' if val >= 100 else f'{val}M'
-    return {'value_m': val, 'display': display, 'tier': tier}
+    source = '估算'
+    return {'value_m': val, 'display': display, 'tier': '千万欧' if val >= 50 else '百万欧', 'source': source}
 
 
 def _simulate_h2h(home_exp, away_exp, num=5):
@@ -335,8 +355,8 @@ def analyze_single_match(match, standings=None, prediction=None):
 
     # 7.5 球队身价估算（基于联赛等级+排名+赔率强度）
     league_quality_ord = LEAGUE_QUALITY.get(league, 0.65)
-    home_value = _estimate_team_value(league_quality_ord, home_rank, home_odds_ratio, home_confidence)
-    away_value = _estimate_team_value(league_quality_ord, away_rank, away_odds_ratio, away_confidence)
+    home_value = _estimate_team_value(league_quality_ord, home_rank, home_odds_ratio, home_confidence, match['home_team'])
+    away_value = _estimate_team_value(league_quality_ord, away_rank, away_odds_ratio, away_confidence, match['away_team'])
 
     # 7.6 历史交手模拟（近5场）
     h2h = _simulate_h2h(tg['expected_home_goals'], tg['expected_away_goals'], 5)
