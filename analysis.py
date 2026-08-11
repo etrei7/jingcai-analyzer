@@ -219,12 +219,13 @@ def _compute_total_goals(match, prediction, home_state=0.5, away_state=0.5, h_in
         total_imp = imp_w + imp_d + imp_l
         home_str = imp_w / total_imp if total_imp > 0 else 0.33
         away_str = imp_l / total_imp if total_imp > 0 else 0.33
-        # 强队预期进球更高，状态分越高进球越多，伤员越多进球越少
-        home_exp = (1.0 + home_str * 2.0) * (0.85 + home_state * 0.35) - 0.12 * h_inj
-        away_exp = (0.8 + away_str * 1.8) * (0.85 + away_state * 0.35) - 0.12 * a_inj
+        # 真实基准：主队期望1.15-2.15，客队0.75-1.75，实力差只影响1球左右
+        # 悬殊战(巴黎1.19 vs 弱旅)总期望≈2.7，均衡战≈2.55，接近联赛真实场均
+        home_exp = (1.15 + home_str * 1.0) * (0.95 + home_state * 0.1) - 0.06 * h_inj
+        away_exp = (0.75 + away_str * 1.0) * (0.95 + away_state * 0.1) - 0.06 * a_inj
         expected = home_exp + away_exp
 
-    expected = round(expected * 2) / 2
+    expected = round(expected * 2) / 2 if expected > 2.8 else round(expected, 2)
     dist = {}
     for k in range(7):  # 0-6 球
         dist[str(k)] = round(_poisson_prob(k, expected) * 100, 1)
@@ -242,13 +243,17 @@ def _compute_total_goals(match, prediction, home_state=0.5, away_state=0.5, h_in
     goals_options.sort(key=lambda x: -x['prob'])
     top_3 = goals_options[:3]
 
-    # Tendency tag
-    if expected >= 2.5:
+    # Tendency tag: 分级更细，避免全部相同
+    if expected >= 3.0:
         tendency = '大球倾向'
-    elif expected <= 2.0:
-        tendency = '小球倾向'
-    else:
+    elif expected >= 2.6:
+        tendency = '偏大球'
+    elif expected >= 2.3:
         tendency = '大小均衡'
+    elif expected >= 2.0:
+        tendency = '偏小球'
+    else:
+        tendency = '小球倾向'
 
     low = max(0, int(expected) - 1)
     high = int(expected) + 2
