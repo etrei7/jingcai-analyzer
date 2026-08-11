@@ -832,56 +832,62 @@ async function refreshData(){
 
     var data = null;
 
-    // 1. 浏览器端取竞彩官单（2-3秒，8秒超时）
+    // 并行：竞彩 + Bzzoiro 同时发，Bzzoiro优先展示，竞彩后台覆盖
     if (BZZOIRO_API_KEY) {
-      try {
-        var jc = await Promise.race([
-          fetchJingcaiList(),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000))
-        ]);
-        if (jc && jc.length >= 3) {
-          var resp = await fetch('/api/analyze', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ jingcai_matches: jc, client_time: new Date().toISOString() })
-          });
-          if (resp.ok) data = await resp.json();
+      var bzResp = fetch('/api/data').then(function(r){return r.ok?r.json():null}).catch(function(){return null});
+      var jcResp = fetchJingcaiList().then(async function(jc){
+        if(jc&&jc.length>=3){
+          var r=await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({jingcai_matches:jc,client_time:new Date().toISOString()})});
+          return r.ok?r.json():null;
         }
-      } catch(e) { console.warn('竞彩: ' + e.message); }
+        return null;
+      }).catch(function(){return null});
+
+      // Bzzoiro 先展示（3-5秒，稳）
+      data = await Promise.race([bzResp,new Promise(function(r){setTimeout(function(){r(null)},10000)})]);
+      if(data&&data.matches&&data.matches.length>0){
+        showData(data);
+        // 后台等竞彩覆盖
+        var jcData=await Promise.race([jcResp,new Promise(function(r){setTimeout(function(){r(null)},8000)})]);
+        if(jcData&&jcData.matches&&jcData.matches.length>0){
+          showData(jcData);
+        }
+        return;
+      }
+      // Bzzoiro 超时或失败，等竞彩
+      data=await jcResp;
     }
 
-    // 2. 竞彩失败时走服务端 Bzzoiro
-    if (!data) {
-      try {
-        var resp = await fetch('/api/data');
-        if (resp.ok) data = await resp.json();
-      } catch(e) { console.warn('服务端: ' + e.message); }
+    // 兜底
+    if(!data){
+      try{
+        var resp=await fetch('/api/data');
+        if(resp.ok) data=await resp.json();
+      }catch(e){}
     }
-            }
-          }
-        } catch(e) { console.warn('竞彩更新失败: ' + e.message); }
-      })();
-    }
-
-    document.getElementById('updateTime').textContent=data.stats.update_time;
-    document.getElementById('totalMatches').textContent=data.stats.total_matches;
-    document.getElementById('dataSource').textContent=data.stats.source;
-    // 数据源优先级指示器
-    var priTag=document.getElementById('priorityTag');
-    var pri=data.stats.data_priority||'';
-    var note=data.stats.data_note||'';
-    if(pri==='primary'){priTag.style.display='inline';priTag.innerHTML='<span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:4px;font-size:0.62rem;font-weight:600">主数据源</span>';}
-    else if(pri==='secondary'){priTag.style.display='inline';priTag.innerHTML='<span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:4px;font-size:0.62rem">备用源</span>';}
-    else if(pri==='fallback'){priTag.style.display='inline';priTag.innerHTML='<span style="background:#fee2e2;color:#b91c1c;padding:2px 8px;border-radius:4px;font-size:0.62rem">模拟</span>';}
-    else{priTag.style.display='none';}
-    document.getElementById('dataSource').title=note;
-    renderMatches(data.matches);
-    renderRecommendations(data.recommendations);
-    renderTotalGoals(data.total_goals_recs);
-    renderHistoryPanel(data.history_stats);
-    renderParlay();
+    if(data) showData(data);
+    else document.getElementById('matchesContainer').innerHTML='<div style="text-align:center;padding:60px;color:var(--text-muted)"><p>数据加载失败</p><button class="btn-refresh" onclick="refreshData()" style="margin-top:12px">重试</button></div>';
   }catch(err){
-    document.getElementById('matchesContainer').innerHTML='<div class="loading" style="color:var(--low)">数据加载失败: '+err.message+'</div>';
+    document.getElementById('matchesContainer').innerHTML='<div style="text-align:center;padding:40px;color:var(--text-muted)">加载异常: '+err.message+'<br><button class="btn-refresh" onclick="refreshData()" style="margin-top:8px">重试</button></div>';
   }
+}
+
+function showData(data){
+  document.getElementById('updateTime').textContent=data.stats.update_time;
+  document.getElementById('totalMatches').textContent=data.stats.total_matches;
+  document.getElementById('dataSource').textContent=data.stats.source;
+  var pri=data.stats.data_priority||'';
+  var priTag=document.getElementById('priorityTag');
+  if(pri==='primary'){priTag.style.display='inline';priTag.innerHTML='<span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:4px;font-size:0.62rem;font-weight:600">主数据源</span>';}
+  else if(pri==='secondary'){priTag.style.display='inline';priTag.innerHTML='<span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:4px;font-size:0.62rem">备用源</span>';}
+  else if(pri==='fallback'){priTag.style.display='inline';priTag.innerHTML='<span style="background:#fee2e2;color:#b91c1c;padding:2px 8px;border-radius:4px;font-size:0.62rem">模拟</span>';}
+  else{priTag.style.display='none';}
+  document.getElementById('dataSource').title=data.stats.data_note||'';
+  renderMatches(data.matches);
+  renderRecommendations(data.recommendations);
+  renderTotalGoals(data.total_goals_recs);
+  renderHistoryPanel(data.history_stats);
+  renderParlay();
 }
 
 function toggleTheme() {
