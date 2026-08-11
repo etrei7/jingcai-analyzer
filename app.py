@@ -30,20 +30,29 @@ def index():
 
 @app.route('/api/data')
 def get_data():
-    """综合接口: 优先使用 Bzzoiro 真实数据，失败则降级为模拟数据"""
+    matches = []
+    standings = {}
+    predictions = {}
+
     # 尝试获取真实数据
-    from bizzoiro_client import fetch_events
+    from bizzoiro_client import (
+        fetch_events, fetch_standings_for_matches, fetch_predictions
+    )
     matches = fetch_events(limit=15)
 
-    if not matches or len(matches) < 5:
-        logging.info('[API] 真实数据不足，使用模拟数据')
+    if matches and len(matches) >= 5:
+        logging.info('[API] 使用 Bzzoiro 真实数据')
+        standings = fetch_standings_for_matches(matches)
+        predictions = fetch_predictions()
+        source = 'Bzzoiro API'
+    else:
+        logging.info('[API] 真实数据不足，降级为模拟数据')
         matches = generate_mock_matches(12)
+        source = '模拟数据'
 
-    analyzed = analyze_matches(matches)
+    analyzed = analyze_matches(matches, standings, predictions)
     recommendations = generate_parlay_recommendations(analyzed)
     hit_rate = random.randint(65, 85)
-
-    source = 'Bzzoiro API' if os.environ.get('BZZOIRO_API_KEY') else '模拟数据'
 
     return jsonify({
         'matches': analyzed,

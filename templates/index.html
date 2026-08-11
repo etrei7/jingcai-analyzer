@@ -5,287 +5,186 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>竞彩足球智能分析</title>
 <style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#f5f6fa;--card-bg:#fff;--card-hover:#f8f9fb;--border:#e5e7eb;--border-light:#f0f1f3;
+  --text:#1f2937;--text-muted:#6b7280;--text-light:#9ca3af;
+  --home:#2563eb;--away:#ea580c;--accent:#7c3aed;
+  --high:#16a34a;--high-bg:#dcfce7;--medium:#d97706;--medium-bg:#fef3c7;--low:#dc2626;--low-bg:#fee2e2;
+  --over:#ea580c;--under:#2563eb;--balance:#6b7280;
+  --btn-bg:#f3f4f6;--btn-hover:#e5e7eb;--odds-sel:#dbeafe;--odds-sel-border:#2563eb;
+  --panel-bg:#fff;--shadow:0 1px 3px rgba(0,0,0,.08);--shadow-lg:0 4px 16px rgba(0,0,0,.12);
+}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Microsoft YaHei',sans-serif;min-height:100vh}
 
-:root {
-  --bg: #0f0f1a;
-  --card-bg: #1a1a2e;
-  --card-hover: #1e1e35;
-  --border: #2a2a45;
-  --text: #e0e0e0;
-  --text-muted: #8888aa;
-  --home: #4a9eff;
-  --away: #ff8c42;
-  --high: #00c853;
-  --medium: #ffd600;
-  --low: #ff1744;
-  --over: #ff8c42;
-  --under: #64b5ff;
-  --moderate: #ffd600;
-  --extreme: #ff5252;
-  --cold: #82b1ff;
-  --btn-bg: #2a2a4a;
-  --btn-hover: #3a3a5a;
-  --odds-hover: rgba(74, 158, 255, 0.2);
-  --panel-bg: rgba(20, 20, 40, 0.95);
-}
+.header{position:sticky;top:0;z-index:100;background:#fff;border-bottom:1px solid var(--border);padding:10px 24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;box-shadow:var(--shadow)}
+.header .logo{font-size:1.2rem;font-weight:700;color:var(--home);letter-spacing:1px}
+.header .stats{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.header .stat-item{font-size:0.8rem;color:var(--text-muted)}
+.header .stat-item span{color:var(--text);font-weight:600;margin-left:3px}
+.header .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#16a34a;margin-right:3px;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.btn-refresh{background:var(--home);color:#fff;border:none;padding:6px 16px;border-radius:6px;cursor:pointer;font-size:0.8rem;font-weight:500}
 
-body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif;
-  min-height: 100vh;
-}
+.main-container{display:flex;gap:20px;padding:18px 24px;max-width:1400px;margin:0 auto}
+.content-area{flex:1;min-width:0;margin-right:340px}
+.section-title{font-size:1rem;font-weight:700;margin-bottom:12px;padding-left:10px;border-left:3px solid var(--home)}
 
-/* ====== Header / Status Bar ====== */
-.header {
-  position: sticky; top: 0; z-index: 100;
-  background: linear-gradient(180deg, #12122a 0%, #0f0f1a 100%);
-  border-bottom: 1px solid var(--border);
-  padding: 12px 24px;
-  display: flex; align-items: center; justify-content: space-between;
-  flex-wrap: wrap; gap: 10px;
-}
-.header .logo { font-size: 1.3rem; font-weight: 700; color: var(--home); letter-spacing: 1px; }
-.header .stats { display: flex; gap: 20px; align-items: center; flex-wrap: wrap; }
-.header .stat-item { font-size: 0.85rem; color: var(--text-muted); }
-.header .stat-item span { color: var(--text); font-weight: 600; margin-left: 4px; }
-.header .stat-item .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%;
-  background: #00c853; margin-right: 4px; animation: pulse 2s infinite; }
-@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
-.btn-refresh {
-  background: var(--btn-bg); color: var(--text); border: 1px solid var(--border);
-  padding: 6px 16px; border-radius: 6px; cursor: pointer; font-size: 0.85rem;
-  transition: all 0.2s;
-}
-.btn-refresh:hover { background: var(--btn-hover); border-color: var(--home); }
+.match-card{background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:16px 20px;margin-bottom:12px;box-shadow:var(--shadow);transition:all .15s}
+.match-card:hover{box-shadow:0 4px 12px rgba(0,0,0,.08)}
+.match-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:10px}
+.match-meta{display:flex;gap:8px;align-items:center;flex-shrink:0;flex-wrap:wrap}
+.match-id{background:#eff6ff;color:var(--home);padding:3px 10px;border-radius:5px;font-size:0.78rem;font-weight:700}
+.match-league{font-size:0.8rem;color:var(--text-muted)}
+.match-time{font-size:0.8rem;color:var(--text-muted);white-space:nowrap;flex-shrink:0}
+.derby-tag{background:#fef3c7;color:#92400e;font-size:0.65rem;padding:2px 6px;border-radius:3px;font-weight:600}
+.injury-dot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-left:2px}
+.injury-dot.red{background:var(--low)}
+.injury-dot.yellow{background:var(--medium)}
 
-/* ====== Main Layout ====== */
-.main-container {
-  display: flex; gap: 20px; padding: 20px 24px;
-  max-width: 1400px; margin: 0 auto;
-}
-.content-area { flex: 1; min-width: 0; margin-right: 340px; }
+.match-content{display:flex;gap:16px;align-items:stretch}
+.match-teams{flex:0 0 210px;display:flex;flex-direction:column;justify-content:center;gap:3px;min-width:0}
+.team-line{display:flex;align-items:center;gap:6px}
+.team-name{font-size:1rem;font-weight:600}
+.team-name.home{color:var(--home)}.team-name.away{color:var(--away)}
+.rank-badge{font-size:0.68rem;padding:2px 7px;border-radius:10px;font-weight:600}
+.rank-badge.top3{background:#dcfce7;color:#166534}
+.rank-badge.mid{background:#f0fdf4;color:#15803d}
+.rank-badge.low{background:#fef3c7;color:#92400e}
+.rank-badge.bottom{background:#fee2e2;color:#991b1b}
+.team-conf{font-size:0.68rem;color:var(--text-muted)}
+.team-conf .bar{display:inline-block;height:4px;border-radius:2px;vertical-align:middle;margin-right:3px}
+.team-conf .bar.green{background:var(--high)}.team-conf .bar.yellow{background:var(--medium)}.team-conf .bar.red{background:var(--low)}
+.vs-text{font-size:0.75rem;color:var(--text-light);margin:3px 0}
 
-/* ====== Match Cards ====== */
-.section-title {
-  font-size: 1.1rem; color: var(--text); margin-bottom: 12px;
-  padding-left: 10px; border-left: 3px solid var(--home);
-}
-.match-card {
-  background: var(--card-bg);
-  border: 1px solid var(--border);
-  border-radius: 10px; padding: 16px 20px;
-  margin-bottom: 12px; transition: all 0.2s;
-  display: flex; gap: 20px; align-items: stretch;
-}
-.match-card:hover { background: var(--card-hover); border-color: #3a3a5a; }
+.match-center{flex:1;display:flex;flex-direction:column;justify-content:center;gap:8px;min-width:0}
+.odds-row{display:flex;gap:8px;flex-wrap:wrap}
+.odds-btn{background:var(--btn-bg);color:var(--text);border:2px solid var(--border);padding:6px 12px;border-radius:8px;cursor:pointer;font-size:0.82rem;transition:all .15s;text-align:center;min-width:56px;user-select:none}
+.odds-btn:hover{background:#dbeafe;border-color:var(--home)}
+.odds-btn.selected{background:var(--odds-sel);border-color:var(--odds-sel-border);color:var(--home);font-weight:700}
+.odds-btn .label{display:block;font-size:0.65rem;color:var(--text-muted);margin-bottom:1px}
+.odds-btn .val{font-weight:700;font-size:0.95rem}
 
-.match-left {
-  flex: 0 0 220px; display: flex; flex-direction: column; justify-content: center;
-  gap: 6px; min-width: 0;
-}
-.match-meta { display: flex; gap: 8px; align-items: center; }
-.match-id { background: #252545; color: var(--home); padding: 2px 8px; border-radius: 4px;
-  font-size: 0.8rem; font-weight: 700; }
-.match-league { font-size: 0.82rem; color: var(--text-muted); }
-.match-teams { font-size: 1.05rem; font-weight: 600; margin-top: 2px; }
-.match-teams .home { color: var(--home); }
-.match-teams .away { color: var(--away); }
-.match-teams .vs { color: var(--text-muted); margin: 0 6px; font-weight: 400; font-size: 0.8rem; }
-.match-time { font-size: 0.82rem; color: var(--text-muted); }
+.market-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.market-bar-wrap{display:flex;align-items:center;gap:3px;flex:1;min-width:70px}
+.market-bar-label{font-size:0.65rem;color:var(--text-muted);width:16px;text-align:center}
+.market-bar{flex:1;height:5px;background:#e5e7eb;border-radius:3px;overflow:hidden}
+.market-bar-fill{height:100%;border-radius:3px}
+.market-bar-fill.win{background:var(--home)}.market-bar-fill.draw{background:#9ca3af}.market-bar-fill.lose{background:var(--away)}
+.market-bar-pct{font-size:0.65rem;color:var(--text-muted);width:28px;text-align:right}
+.market-tag{font-size:0.7rem;padding:2px 8px;border-radius:4px;white-space:nowrap}
+.market-tag.home-tendency{background:#dbeafe;color:var(--home)}
+.market-tag.away-tendency{background:#fff7ed;color:var(--away)}
+.market-tag.draw-tendency{background:#f3f4f6;color:#6b7280}
+.market-tag.balanced{background:#f0fdf4;color:#166534}
 
-.match-center {
-  flex: 1; display: flex; flex-direction: column; justify-content: center;
-  gap: 8px; min-width: 0;
-}
-.odds-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-.odds-btn {
-  background: #1f1f38; color: var(--text); border: 1px solid var(--border);
-  padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 0.9rem;
-  transition: all 0.2s; text-align: center; min-width: 60px;
-  position: relative; user-select: none;
-}
-.odds-btn:hover { background: #2a2a50; border-color: var(--home); transform: translateY(-1px); }
-.odds-btn.selected { background: rgba(74, 158, 255, 0.25); border-color: var(--home);
-  color: var(--home); font-weight: 700; }
-.odds-btn .label { display: block; font-size: 0.7rem; color: var(--text-muted); margin-bottom: 2px; }
-.odds-btn .val { font-weight: 700; font-size: 1.05rem; }
+.match-extras{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:0.7rem;color:var(--text-muted)}
+.extras-item{display:flex;align-items:center;gap:3px;background:#f9fafb;padding:2px 8px;border-radius:4px}
+.extras-item .icon{font-size:0.85rem}
+.extras-item.ref{color:#7c3aed}
+.extras-item.weather{color:#0891b2}
 
-.match-extras { display: flex; gap: 10px; align-items: center; margin-top: 2px; flex-wrap: wrap; }
-.handicap-badge { background: #252545; padding: 3px 10px; border-radius: 4px;
-  font-size: 0.78rem; color: #b0b0d0; }
-.rec-score { font-size: 0.78rem; color: var(--text-muted); background: #252545;
-  padding: 3px 10px; border-radius: 4px; }
+.match-right{flex:0 0 200px;display:flex;flex-direction:column;justify-content:center;gap:5px}
+.tag-row{display:flex;gap:4px;flex-wrap:wrap}
+.tag{padding:3px 8px;border-radius:4px;font-size:0.7rem;font-weight:600;white-space:nowrap}
+.tag-high{background:var(--high-bg);color:var(--high)}.tag-medium{background:var(--medium-bg);color:var(--medium)}.tag-low{background:var(--low-bg);color:var(--low)}
+.tag-over{background:#fff7ed;color:var(--over)}.tag-under{background:#dbeafe;color:var(--under)}.tag-balance{background:#f3f4f6;color:var(--balance)}
+.tag-moderate{background:#fefce8;color:#a16207}.tag-extreme{background:#fee2e2;color:#b91c1c}.tag-cold{background:#dbeafe;color:#1d4ed8}
 
-.match-right {
-  flex: 0 0 240px; display: flex; flex-direction: column; justify-content: center;
-  gap: 6px; flex-wrap: wrap;
-}
-.tag-row { display: flex; gap: 6px; flex-wrap: wrap; }
-.tag {
-  padding: 3px 10px; border-radius: 4px; font-size: 0.75rem; font-weight: 600;
-  white-space: nowrap;
-}
-.tag-high { background: rgba(0,200,83,0.15); color: var(--high); border: 1px solid rgba(0,200,83,0.3); }
-.tag-medium { background: rgba(255,214,0,0.12); color: var(--medium); border: 1px solid rgba(255,214,0,0.25); }
-.tag-low { background: rgba(255,23,68,0.15); color: var(--low); border: 1px solid rgba(255,23,68,0.3); }
-.tag-over { background: rgba(255,140,66,0.15); color: var(--over); border: 1px solid rgba(255,140,66,0.3); }
-.tag-under { background: rgba(100,180,255,0.15); color: var(--under); border: 1px solid rgba(100,180,255,0.25); }
-.tag-balance { background: rgba(158,158,158,0.12); color: #9e9e9e; border: 1px solid rgba(158,158,158,0.2); }
-.tag-moderate { background: rgba(255,214,0,0.1); color: var(--moderate); border: 1px solid rgba(255,214,0,0.2); }
-.tag-extreme { background: rgba(255,82,82,0.12); color: var(--extreme); border: 1px solid rgba(255,82,82,0.25); }
-.tag-cold { background: rgba(130,177,255,0.1); color: var(--cold); border: 1px solid rgba(130,177,255,0.2); }
-.tag-intent-real { background: rgba(0,200,83,0.1); color: var(--high); border: 1px solid rgba(0,200,83,0.2); }
-.tag-intent-trap { background: rgba(255,82,82,0.1); color: var(--extreme); border: 1px solid rgba(255,82,82,0.2); }
-.tag-intent-neutral { background: rgba(158,158,158,0.1); color: #9e9e9e; border: 1px solid rgba(158,158,158,0.2); }
+/* Detail toggle */
+.detail-toggle{cursor:pointer;display:inline-flex;align-items:center;gap:4px;font-size:0.72rem;color:var(--text-muted);margin-top:8px;user-select:none;padding:3px 0}
+.detail-toggle:hover{color:var(--home)}
+.detail-toggle .arrow{transition:transform .2s;font-size:0.65rem}
+.detail-toggle.open .arrow{transform:rotate(90deg)}
+.detail-panel{display:none;margin-top:10px;padding:12px 16px;background:#fafbfc;border-radius:8px;border:1px solid var(--border-light)}
+.detail-panel.show{display:block}
+.detail-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
+.detail-section h4{font-size:0.78rem;font-weight:700;margin-bottom:6px;color:var(--text)}
+.detail-section h4 .sec-icon{margin-right:4px}
+.injury-list{list-style:none;font-size:0.72rem}
+.injury-list li{padding:3px 0;border-bottom:1px solid var(--border-light);display:flex;justify-content:space-between;gap:8px}
+.injury-list li .player{font-weight:600}
+.injury-list li .reason{color:var(--text-muted)}
+.injury-list li .tag-injury{background:#fee2e2;color:#b91c1c;font-size:0.62rem;padding:1px 5px;border-radius:3px}
+.goal-dist-bars{display:flex;align-items:flex-end;gap:6px;height:60px;padding-top:8px}
+.goal-dist-bar{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px}
+.goal-dist-fill{width:100%;border-radius:3px 3px 0 0;transition:height .3s}
+.goal-dist-fill.high-dist{background:var(--home)}.goal-dist-fill.mid-dist{background:#93c5fd}.goal-dist-fill.low-dist{background:#e5e7eb}
+.goal-dist-label{font-size:0.6rem;color:var(--text-muted)}
+.goal-dist-pct{font-size:0.6rem;color:var(--text);font-weight:600}
+.referee-info{font-size:0.72rem}.referee-info .strict{font-weight:600}
+.strict-strict{color:#dc2626}.strict-moderate{color:#d97706}.strict-lenient{color:#16a34a}
 
-/* ====== AI Recommendations Section ====== */
-.rec-section { margin-top: 30px; }
-.rec-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 16px; }
-.rec-card {
-  background: var(--card-bg); border: 1px solid var(--border);
-  border-radius: 10px; padding: 16px 20px;
-}
-.rec-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-.rec-name { font-weight: 700; font-size: 0.95rem; }
-.rec-risk { font-size: 0.75rem; padding: 3px 10px; border-radius: 4px; }
-.rec-risk-low { background: rgba(0,200,83,0.15); color: var(--high); }
-.rec-risk-mid { background: rgba(255,214,0,0.12); color: var(--medium); }
-.rec-type { font-size: 0.78rem; color: var(--text-muted); }
-.rec-match-item {
-  background: #1e1e35; border-radius: 6px; padding: 10px 14px;
-  margin-bottom: 8px; border-left: 3px solid var(--home);
-}
-.rec-match-item .teams { font-weight: 600; margin-bottom: 4px; }
-.rec-match-item .teams .h { color: var(--home); } .rec-match-item .teams .a { color: var(--away); }
-.rec-match-item .detail { font-size: 0.78rem; color: var(--text-muted); display: flex; gap: 12px; }
-.rec-odds-display { text-align: center; margin-top: 10px; padding: 10px;
-  background: #1f1f3a; border-radius: 6px; }
-.rec-odds-display .combo { font-size: 1.3rem; font-weight: 700; color: var(--home); }
-.rec-odds-display .ret { font-size: 0.82rem; color: var(--text-muted); margin-top: 4px; }
+.rec-section{margin-top:30px}
+.rec-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(400px,1fr));gap:14px}
+.rec-card{background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:16px 18px;box-shadow:var(--shadow)}
+.rec-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.rec-name{font-weight:700;font-size:0.88rem}.rec-type{font-size:0.73rem;color:var(--text-muted)}
+.rec-risk{font-size:0.68rem;padding:2px 8px;border-radius:4px;font-weight:600}
+.rec-risk-low{background:#dcfce7;color:#166534}.rec-risk-mid{background:#fef3c7;color:#92400e}
+.rec-match-item{background:#f9fafb;border-radius:6px;padding:9px 12px;margin-bottom:6px;border-left:3px solid var(--home)}
+.rec-match-item .teams{font-weight:600;font-size:0.85rem;margin-bottom:3px}
+.rec-match-item .teams .h{color:var(--home)}.rec-match-item .teams .a{color:var(--away)}
+.rec-match-item .detail{font-size:0.72rem;color:var(--text-muted);display:flex;gap:8px;flex-wrap:wrap}
+.rec-odds-display{text-align:center;margin-top:8px;padding:10px;background:#eff6ff;border-radius:6px}
+.rec-odds-display .combo{font-size:1.15rem;font-weight:700;color:var(--home)}
+.rec-odds-display .ret{font-size:0.78rem;color:var(--text-muted);margin-top:3px}
 
-/* ====== Parlay Panel ====== */
-.parlay-panel {
-  position: fixed; right: 20px; top: 80px; width: 300px;
-  max-height: calc(100vh - 120px);
-  background: var(--panel-bg); border: 1px solid var(--border);
-  border-radius: 12px; display: flex; flex-direction: column;
-  z-index: 200; box-shadow: 0 8px 32px rgba(0,0,0,0.4);
-  backdrop-filter: blur(10px);
-}
-.parlay-header {
-  padding: 14px 16px; border-bottom: 1px solid var(--border);
-  display: flex; justify-content: space-between; align-items: center;
-}
-.parlay-title { font-weight: 700; font-size: 0.95rem; }
-.parlay-badge {
-  background: var(--home); color: #fff; font-size: 0.7rem; padding: 2px 8px;
-  border-radius: 10px; min-width: 20px; text-align: center;
-}
-.parlay-list { flex: 1; overflow-y: auto; padding: 8px 12px; max-height: 300px; }
-.parlay-empty { text-align: center; color: var(--text-muted); padding: 30px 0; font-size: 0.85rem; }
-.parlay-item {
-  background: #1e1e38; border-radius: 6px; padding: 10px 12px;
-  margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center;
-  font-size: 0.82rem;
-}
-.parlay-item .info { flex: 1; min-width: 0; }
-.parlay-item .match-teams-small { font-weight: 600; color: var(--text);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.parlay-item .option-info { color: var(--text-muted); font-size: 0.75rem; }
-.parlay-remove {
-  background: none; border: none; color: var(--low); cursor: pointer;
-  font-size: 1.1rem; padding: 0 4px; transition: all 0.2s;
-}
-.parlay-remove:hover { color: #ff5252; transform: scale(1.2); }
-.parlay-footer { padding: 12px 16px; border-top: 1px solid var(--border); }
-.parlay-combo { text-align: center; margin-bottom: 10px; }
-.parlay-combo .val { font-size: 1.15rem; font-weight: 700; color: var(--home); }
-.parlay-combo .label { font-size: 0.7rem; color: var(--text-muted); }
-.parlay-btns { display: flex; gap: 8px; }
-.btn-clear {
-  flex: 1; background: transparent; color: var(--low); border: 1px solid var(--low);
-  padding: 8px; border-radius: 6px; cursor: pointer; font-size: 0.82rem; transition: all 0.2s;
-}
-.btn-clear:hover { background: rgba(255,23,68,0.1); }
-.btn-generate {
-  flex: 1; background: var(--home); color: #fff; border: none;
-  padding: 8px; border-radius: 6px; cursor: pointer; font-size: 0.82rem; font-weight: 600;
-  transition: all 0.2s;
-}
-.btn-generate:hover { opacity: 0.9; transform: translateY(-1px); }
-.btn-generate:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+.parlay-panel{position:fixed;right:20px;top:80px;width:300px;max-height:calc(100vh - 120px);background:var(--panel-bg);border:1px solid var(--border);border-radius:12px;display:flex;flex-direction:column;z-index:200;box-shadow:var(--shadow-lg)}
+.parlay-header{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+.parlay-title{font-weight:700;font-size:0.9rem}
+.parlay-badge{background:var(--home);color:#fff;font-size:0.68rem;padding:2px 9px;border-radius:10px;min-width:20px;text-align:center}
+.parlay-list{flex:1;overflow-y:auto;padding:6px 12px;max-height:300px}
+.parlay-empty{text-align:center;color:var(--text-muted);padding:28px 0;font-size:0.8rem}
+.parlay-item{background:#f9fafb;border-radius:6px;padding:9px 11px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center;font-size:0.78rem}
+.parlay-item .info{flex:1;min-width:0}
+.parlay-item .match-teams-small{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.parlay-item .option-info{color:var(--text-muted);font-size:0.7rem}
+.parlay-remove{background:none;border:none;color:var(--low);cursor:pointer;font-size:1.1rem;padding:0 4px}
+.parlay-remove:hover{color:#b91c1c;transform:scale(1.2)}
+.parlay-footer{padding:10px 16px;border-top:1px solid var(--border)}
+.parlay-combo{text-align:center;margin-bottom:8px}
+.parlay-combo .val{font-size:1.05rem;font-weight:700;color:var(--home)}
+.parlay-combo .label{font-size:0.65rem;color:var(--text-muted)}
+.parlay-btns{display:flex;gap:6px}
+.btn-clear{flex:1;background:transparent;color:var(--low);border:1px solid var(--low);padding:7px;border-radius:6px;cursor:pointer;font-size:0.78rem}.btn-clear:hover{background:#fee2e2}
+.btn-generate{flex:1;background:var(--home);color:#fff;border:none;padding:7px;border-radius:6px;cursor:pointer;font-size:0.78rem;font-weight:600}.btn-generate:hover{opacity:.9}.btn-generate:disabled{opacity:.4;cursor:not-allowed}
 
-/* ====== Modal ====== */
-.modal-overlay {
-  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,0.65); z-index: 300;
-  display: flex; align-items: center; justify-content: center;
-}
-.modal-content {
-  background: var(--card-bg); border: 1px solid var(--border);
-  border-radius: 12px; padding: 24px; max-width: 500px; width: 90%;
-  max-height: 80vh; overflow-y: auto;
-}
-.modal-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 16px; }
-.modal-match {
-  background: #1e1e35; border-radius: 6px; padding: 10px 14px;
-  margin-bottom: 8px;
-}
-.modal-match .teams { font-weight: 600; }
-.modal-match .detail { font-size: 0.8rem; color: var(--text-muted); }
-.modal-summary { text-align: center; margin-top: 16px; padding: 14px;
-  background: #1f1f3a; border-radius: 8px; }
-.modal-summary .odds { font-size: 1.4rem; font-weight: 700; color: var(--home); }
-.modal-summary .info { font-size: 0.85rem; color: var(--text-muted); margin-top: 4px; }
-.modal-close {
-  display: block; width: 100%; margin-top: 16px; background: var(--btn-bg);
-  color: var(--text); border: 1px solid var(--border); padding: 10px;
-  border-radius: 6px; cursor: pointer; font-size: 0.9rem; transition: all 0.2s;
-}
-.modal-close:hover { background: var(--btn-hover); }
+.modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.45);z-index:300;display:flex;align-items:center;justify-content:center}
+.modal-content{background:#fff;border-radius:12px;padding:24px;max-width:500px;width:90%;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2)}
+.modal-title{font-size:1.05rem;font-weight:700;margin-bottom:14px}
+.modal-match{background:#f9fafb;border-radius:6px;padding:9px 12px;margin-bottom:6px}
+.modal-match .teams{font-weight:600}.modal-match .detail{font-size:0.75rem;color:var(--text-muted)}
+.modal-summary{text-align:center;margin-top:14px;padding:12px;background:#eff6ff;border-radius:8px}
+.modal-summary .odds{font-size:1.2rem;font-weight:700;color:var(--home)}
+.modal-summary .info{font-size:0.8rem;color:var(--text-muted);margin-top:3px}
+.modal-close{display:block;width:100%;margin-top:14px;background:var(--btn-bg);color:var(--text);border:1px solid var(--border);padding:9px;border-radius:6px;cursor:pointer;font-size:0.85rem}
 
-/* ====== Footer ====== */
-.footer { text-align: center; padding: 30px 20px; color: var(--text-muted); font-size: 0.78rem;
-  border-top: 1px solid var(--border); margin-top: 40px; }
-.footer .disclaimer { color: #ff5252; font-weight: 500; margin-bottom: 6px; }
+.footer{text-align:center;padding:26px 20px;color:var(--text-muted);font-size:0.73rem;border-top:1px solid var(--border);margin-top:36px;background:#fff}
+.footer .disclaimer{color:#dc2626;font-weight:500;margin-bottom:5px}
+.loading{text-align:center;padding:40px;color:var(--text-muted)}
+.spinner{display:inline-block;width:20px;height:20px;border:2px solid var(--border);border-top-color:var(--home);border-radius:50%;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.form-str{letter-spacing:1px;font-size:0.73rem;font-family:monospace}
+.form-str .w{color:var(--high)}.form-str .l{color:var(--low)}.form-str .d{color:var(--medium)}
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:3px}
 
-/* ====== Loading ====== */
-.loading { text-align: center; padding: 40px; color: var(--text-muted); }
-.spinner { display: inline-block; width: 24px; height: 24px; border: 2px solid var(--border);
-  border-top-color: var(--home); border-radius: 50%; animation: spin 0.8s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
-
-/* ====== Scrollbar ====== */
-::-webkit-scrollbar { width: 5px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #3a3a5a; border-radius: 3px; }
-
-/* ====== Mobile ====== */
-@media (max-width: 900px) {
-  .main-container { padding: 16px; padding-bottom: 100px; }
-  .content-area { margin-right: 0; }
-  .match-card { flex-direction: column; gap: 12px; }
-  .match-left, .match-center, .match-right { flex: none; }
-  .match-left { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 10px; }
-  .match-teams { font-size: 1rem; }
-  .rec-grid { grid-template-columns: 1fr; }
-  .header { padding: 10px 16px; }
-  .header .stats { gap: 12px; }
-
-  .parlay-panel {
-    position: fixed; right: 0; top: auto; bottom: 0; left: 0;
-    width: 100%; max-height: 45vh; border-radius: 16px 16px 0 0;
-    border-bottom: none;
-  }
-  .parlay-panel .parlay-list { max-height: 150px; }
+@media(max-width:900px){
+  .main-container{padding:10px;padding-bottom:100px}.content-area{margin-right:0}
+  .match-content{flex-direction:column;gap:8px}
+  .match-teams,.match-center,.match-right{flex:none}
+  .rec-grid{grid-template-columns:1fr}
+  .header{padding:8px 12px}.header .stats{gap:8px}
+  .parlay-panel{position:fixed;right:0;top:auto;bottom:0;left:0;width:100%;max-height:45vh;border-radius:16px 16px 0 0;border-bottom:none}
+  .parlay-panel .parlay-list{max-height:140px}
+  .detail-grid{grid-template-columns:1fr}
 }
-@media (max-width: 480px) {
-  .odds-btn { padding: 6px 10px; font-size: 0.8rem; min-width: 50px; }
-  .odds-btn .val { font-size: 0.9rem; }
-  .match-left { flex: 0 0 auto; }
-  .odds-row { gap: 6px; }
+@media(max-width:480px){
+  .match-top{flex-direction:column;gap:4px}
+  .odds-btn{padding:5px 8px;min-width:48px;font-size:0.75rem}
+  .odds-btn .val{font-size:0.85rem}
+  .market-row{flex-direction:column;align-items:flex-start;gap:4px}
+  .goal-dist-bars{height:44px}
 }
 </style>
 </head>
@@ -294,9 +193,10 @@ body {
 <div class="header">
   <div class="logo">竞彩足球智能分析</div>
   <div class="stats">
-    <div class="stat-item"><span class="dot"></span>数据更新：<span id="updateTime">--</span></div>
-    <div class="stat-item">赛事总数：<span id="totalMatches">0</span> 场</div>
-    <div class="stat-item">AI近10场命中率：<span id="hitRate">--</span></div>
+    <div class="stat-item"><span class="dot"></span>更新：<span id="updateTime">--</span></div>
+    <div class="stat-item">赛事：<span id="totalMatches">0</span> 场</div>
+    <div class="stat-item">AI 近10场命中率：<span id="hitRate">--</span></div>
+    <div class="stat-item" style="font-size:0.68rem;color:var(--text-light)">源：<span id="dataSource">--</span></div>
     <button class="btn-refresh" onclick="refreshData()">手动刷新</button>
   </div>
 </div>
@@ -304,37 +204,26 @@ body {
 <div class="main-container">
   <div class="content-area">
     <div class="section-title">赛事数据看板</div>
-    <div id="matchesContainer"><div class="loading"><div class="spinner"></div><p style="margin-top:10px">加载赛事数据...</p></div></div>
+    <div id="matchesContainer"><div class="loading"><div class="spinner"></div><p style="margin-top:10px">加载赛事数据…</p></div></div>
     <div class="rec-section">
       <div class="section-title">AI 串关推荐</div>
-      <div id="recContainer"><div class="loading">加载推荐方案...</div></div>
+      <div id="recContainer"><div class="loading">生成推荐方案…</div></div>
     </div>
   </div>
 </div>
 
 <div class="parlay-panel" id="parlayPanel">
-  <div class="parlay-header">
-    <span class="parlay-title">我的串关</span>
-    <span class="parlay-badge" id="parlayCount">0</span>
-  </div>
-  <div class="parlay-list" id="parlayList">
-    <div class="parlay-empty">点击赔率数字添加比赛</div>
-  </div>
+  <div class="parlay-header"><span class="parlay-title">我的串关</span><span class="parlay-badge" id="parlayCount">0</span></div>
+  <div class="parlay-list" id="parlayList"><div class="parlay-empty">点击赔率数字添加比赛</div></div>
   <div class="parlay-footer">
-    <div class="parlay-combo">
-      <div class="val" id="comboOdds">--</div>
-      <div class="label">组合赔率</div>
-    </div>
-    <div class="parlay-btns">
-      <button class="btn-clear" onclick="clearParlay()">清空</button>
-      <button class="btn-generate" id="btnGenerate" disabled onclick="generatePlan()">生成方案</button>
-    </div>
+    <div class="parlay-combo"><div class="val" id="comboOdds">--</div><div class="label">组合赔率</div></div>
+    <div class="parlay-btns"><button class="btn-clear" onclick="clearParlay()">清空</button><button class="btn-generate" id="btnGenerate" disabled onclick="generatePlan()">生成方案</button></div>
   </div>
 </div>
 
 <div class="footer">
   <p class="disclaimer">免责声明：本网站所有数据及分析仅供娱乐参考，不构成任何投注建议。请理性对待，适度娱乐。</p>
-  <p>&copy; 2024 竞彩足球智能分析 Demo</p>
+  <p>&copy; 2024 竞彩足球智能分析 | 数据源：Bzzoiro Sports Data</p>
 </div>
 
 <div class="modal-overlay" id="modalOverlay" style="display:none" onclick="closeModal(event)">
@@ -342,246 +231,234 @@ body {
 </div>
 
 <script>
-// ====== 全局状态 ======
 let currentMatches = [];
 let parlaySelections = {};
 let autoRefreshTimer = null;
 
-// ====== API 调用 ======
 async function fetchData() {
   const resp = await fetch('/api/data');
   if (!resp.ok) throw new Error('Network error');
   return await resp.json();
 }
 
-// ====== 渲染函数 ======
+function rankClass(r) { if(!r) return ''; if(r<=3) return 'top3'; if(r<=6) return 'mid'; if(r<=12) return 'low'; return 'bottom'; }
+function formStrHTML(f) { if(!f) return ''; return '<span class="form-str">'+f.split('').map(c=>`<span class="${c.toLowerCase()}">${c}</span>`).join('')+'</span>'; }
+function confBar(s) { const p=s/5*100; const c=s>=3.5?'green':s>=2.5?'yellow':'red'; return `<span class="bar ${c}" style="width:${p}px"></span>`; }
+function refStrictClass(s) { if(s.includes('严格')) return 'strict-strict'; if(s.includes('适中')) return 'strict-moderate'; return 'strict-lenient'; }
+
+function renderGoalDist(dist) {
+  if(!dist) return '';
+  const keys = [0,1,2,3,4,'5+'];
+  const maxVal = Math.max(...keys.map(k=>dist[k]||0), 1);
+  return '<div class="goal-dist-bars">'+keys.map(k=>{
+    const v = dist[k]||0; const h = Math.max(3, v/maxVal*100);
+    const cls = v>20?'high-dist':v>10?'mid-dist':'low-dist';
+    return `<div class="goal-dist-bar"><span class="goal-dist-pct">${v}%</span><div class="goal-dist-fill ${cls}" style="height:${h}%"></div><span class="goal-dist-label">${k}球</span></div>`;
+  }).join('')+'</div>';
+}
+
+function renderInjuries(inj) {
+  if(!inj) return '<span style="font-size:0.72rem;color:var(--text-muted)">无伤停报告</span>';
+  const h = inj.home || [], a = inj.away || [];
+  if(!h.length && !a.length) return '<span style="font-size:0.72rem;color:var(--text-muted)">无伤停球员</span>';
+  let html = '';
+  if(h.length) html += '<div style="margin-bottom:6px"><strong style="color:var(--home);font-size:0.72rem">主队伤停 ('+h.length+'人)：</strong><ul class="injury-list">'+h.map(p=>`<li><span class="player">${p.name}</span><span class="reason">${p.reason_cn||p.reason||'未知'}</span><span class="tag-injury">${p.status_cn||'伤停'}</span></li>`).join('')+'</ul></div>';
+  if(a.length) html += '<div><strong style="color:var(--away);font-size:0.72rem">客队伤停 ('+a.length+'人)：</strong><ul class="injury-list">'+a.map(p=>`<li><span class="player">${p.name}</span><span class="reason">${p.reason_cn||p.reason||'未知'}</span><span class="tag-injury">${p.status_cn||'伤停'}</span></li>`).join('')+'</ul></div>';
+  return html;
+}
+
+function renderDetailPanel(m) {
+  const ref = m.referee || {};
+  const weather = m.weather || {};
+  const inj = m.injuries || {};
+  const dist = m.goal_distribution || {};
+  const derby = m.is_derby ? '<span class="derby-tag">德比战</span>' : '';
+
+  return `
+  <div class="detail-grid">
+    <div class="detail-section">
+      <h4><span class="sec-icon">&#9877;</span> 伤停报告</h4>
+      ${renderInjuries(inj)}
+      ${m.injury_impact && m.injury_impact !== '无影响' ? `<div style="margin-top:4px;font-size:0.7rem;color:${m.injury_impact.includes('重大')?'var(--low)':'var(--medium)'}">&#9888; 综合影响评估：${m.injury_impact}</div>` : ''}
+    </div>
+    <div class="detail-section">
+      <h4><span class="sec-icon">&#9917;</span> 裁判分析</h4>
+      <div class="referee-info">
+        <div>主裁判：<strong>${ref.name||'待定'}</strong> ${ref.country||''}</div>
+        <div>执法场次：${ref.games||0} 场 | 场均黄牌：<strong class="${refStrictClass(ref.strictness||'')}">${ref.avg_yellows||0}</strong> 张 | 场均红牌：${ref.avg_reds||0} 张</div>
+        <div>执法风格：<strong class="${refStrictClass(ref.strictness||'')}">${ref.strictness||'未知'}</strong></div>
+        ${m.ref_impact ? `<div style="margin-top:3px;font-size:0.68rem;color:var(--text-muted)">&#9432; ${m.ref_impact}</div>` : ''}
+      </div>
+    </div>
+    <div class="detail-section">
+      <h4><span class="sec-icon">&#127788;</span> 天气与场地</h4>
+      <div style="font-size:0.72rem">
+        <div>天气：${weather.desc||'未知'} ${weather.temp!=null?' | '+weather.temp+'°C':''} ${weather.wind!=null?' | 风速 '+weather.wind+' m/s':''}</div>
+        <div>场地：${m.venue_name||'未知'} ${m.venue_city?'('+m.venue_city+')':''} ${m.venue_capacity?' | 容量 '+m.venue_capacity.toLocaleString():''}</div>
+        ${weather.impact&&weather.impact!=='无明显影响'?`<div style="margin-top:3px;color:var(--text-muted)">&#9432; ${weather.impact}</div>`:''}
+        ${m.travel_distance_km&&m.travel_distance_km>300?`<div style="margin-top:3px;color:var(--medium)">&#9992; 客队远征 ${m.travel_distance_km}km</div>`:''}
+        ${derby}
+      </div>
+    </div>
+    <div class="detail-section">
+      <h4><span class="sec-icon">&#128200;</span> 泊松进球概率</h4>
+      <div>预期总进球：<strong>${m.expected_goals||'?'} 球</strong> | 大2.5概率：<strong>${m.over25_prob||0}%</strong></div>
+      ${renderGoalDist(dist)}
+    </div>
+    ${m.ai_preview ? `
+    <div class="detail-section" style="grid-column:1/-1">
+      <h4><span class="sec-icon">&#129302;</span> AI 综合分析</h4>
+      <div style="font-size:0.72rem;line-height:1.6;color:var(--text-muted);max-height:120px;overflow-y:auto">${m.ai_preview}</div>
+    </div>` : ''}
+  </div>`;
+}
+
 function renderMatches(matches) {
   currentMatches = matches;
-  const container = document.getElementById('matchesContainer');
-  if (!matches.length) {
-    container.innerHTML = '<div class="loading">暂无赛事数据</div>';
-    return;
-  }
-  container.innerHTML = matches.map(m => {
-    const ouCls = m.over_under_tendency === '大球倾向' ? 'tag-over'
-      : m.over_under_tendency === '小球倾向' ? 'tag-under' : 'tag-balance';
-    const confCls = m.confidence_level === '高' ? 'tag-high'
-      : m.confidence_level === '中' ? 'tag-medium' : 'tag-low';
-    const hotCls = m.hotness_label === '适度热门' ? 'tag-moderate'
-      : m.hotness_label === '极端热门' ? 'tag-extreme' : 'tag-cold';
-    const intentCls = m.bookmaker_intent === '真实防范' ? 'tag-intent-real'
-      : m.bookmaker_intent === '诱盘' ? 'tag-intent-trap' : 'tag-intent-neutral';
+  const c = document.getElementById('matchesContainer');
+  if(!matches.length){c.innerHTML='<div class="loading">暂无赛事数据</div>';return}
+
+  c.innerHTML = matches.map(m => {
+    const ouCls = m.over_under_tendency==='大球倾向'?'tag-over':m.over_under_tendency==='小球倾向'?'tag-under':'tag-balance';
+    const confCls = m.confidence_level==='高'?'tag-high':m.confidence_level==='中'?'tag-medium':'tag-low';
+    const hotCls = m.hotness_label==='适度热门'?'tag-moderate':m.hotness_label==='极端热门'?'tag-extreme':'tag-cold';
+    const mtCls = m.market_tendency==='主胜'?'home-tendency':m.market_tendency==='客胜'?'away-tendency':m.market_tendency==='平局'?'draw-tendency':'balanced';
+    const hr = m.home_rank?`<span class="rank-badge ${rankClass(m.home_rank)}">#${m.home_rank}</span>`:'';
+    const ar = m.away_rank?`<span class="rank-badge ${rankClass(m.away_rank)}">#${m.away_rank}</span>`:'';
+    const ref = m.referee||{};
+    const weather = m.weather||{};
+    const inj = m.injuries||{};
+    const hid = m.match_id;
 
     return `
     <div class="match-card">
-      <div class="match-left">
+      <div class="match-top">
         <div class="match-meta">
           <span class="match-id">#${m.match_id}</span>
           <span class="match-league">${m.league}</span>
-        </div>
-        <div class="match-teams">
-          <span class="home">${m.home_team}</span>
-          <span class="vs">vs</span>
-          <span class="away">${m.away_team}</span>
+          ${m.home_rank?`<span style="font-size:0.68rem;color:var(--text-muted)">排名${m.home_rank}/${m.away_rank}</span>`:''}
+          ${m.is_derby?'<span class="derby-tag">德比</span>':''}
         </div>
         <div class="match-time">${m.match_time} 开赛</div>
       </div>
-      <div class="match-center">
-        <div class="odds-row">
-          ${renderOddsBtn(m, '胜', m.win_odds)}
-          ${renderOddsBtn(m, '平', m.draw_odds)}
-          ${renderOddsBtn(m, '负', m.lose_odds)}
+      <div class="match-content">
+        <div class="match-teams">
+          <div class="team-line"><span class="team-name home">${m.home_team}</span>${hr}${inj.home_count>0?`<span class="injury-dot red" title="主队${inj.home_count}人伤停"></span>`.repeat(Math.min(inj.home_count,3)):''}</div>
+          <div class="team-conf">${confBar(m.home_confidence)}信心 ${m.home_confidence} ${formStrHTML(m.home_form)}</div>
+          <div class="vs-text">vs</div>
+          <div class="team-line"><span class="team-name away">${m.away_team}</span>${ar}${inj.away_count>0?`<span class="injury-dot red" title="客队${inj.away_count}人伤停"></span>`.repeat(Math.min(inj.away_count,3)):''}</div>
+          <div class="team-conf">${confBar(m.away_confidence)}信心 ${m.away_confidence} ${formStrHTML(m.away_form)}</div>
         </div>
-        <div class="match-extras">
-          <span class="handicap-badge">让球 ${m.handicap}</span>
-          <span class="rec-score">推荐比分 ${m.recommended_score}</span>
+        <div class="match-center">
+          <div class="odds-row">
+            ${renderOddsBtn(m,'胜',m.win_odds)}${renderOddsBtn(m,'平',m.draw_odds)}${renderOddsBtn(m,'负',m.lose_odds)}
+          </div>
+          <div class="market-row">
+            <div class="market-bar-wrap"><span class="market-bar-label">主</span><div class="market-bar"><div class="market-bar-fill win" style="width:${m.market_win_pct||0}%"></div></div><span class="market-bar-pct">${m.market_win_pct||0}%</span></div>
+            <div class="market-bar-wrap"><span class="market-bar-label">平</span><div class="market-bar"><div class="market-bar-fill draw" style="width:${m.market_draw_pct||0}%"></div></div><span class="market-bar-pct">${m.market_draw_pct||0}%</span></div>
+            <div class="market-bar-wrap"><span class="market-bar-label">客</span><div class="market-bar"><div class="market-bar-fill lose" style="width:${m.market_lose_pct||0}%"></div></div><span class="market-bar-pct">${m.market_lose_pct||0}%</span></div>
+            <span class="market-tag ${mtCls}">${m.market_tendency==='主胜'||m.market_tendency==='客胜'?'倾向'+m.market_tendency:m.market_tendency==='平局'?'看好平局':m.market_tendency}</span>
+            ${m.predicted_option?`<span style="font-size:0.65rem;color:var(--text-muted)">AI:${m.predicted_option}</span>`:''}
+          </div>
+          <div class="match-extras">
+            <span class="extras-item">让球 ${m.handicap}</span>
+            <span class="extras-item">推荐 ${m.recommended_score}</span>
+            ${m.market_tendency!=='均衡'?`<span class="extras-item">溢价 ${m.overround}%</span>`:''}
+            <span class="extras-item ref" title="裁判">&#9877; ${ref.name||'待定'}</span>
+            <span class="extras-item weather" title="天气">&#9728; ${weather.desc||'?'} ${weather.temp!=null?weather.temp+'°C':''}</span>
+          </div>
+        </div>
+        <div class="match-right">
+          <div class="tag-row"><span class="tag ${confCls}">${m.confidence_level}信心</span><span class="tag ${ouCls}">${m.over_under_tendency}</span></div>
+          <div class="tag-row"><span class="tag ${hotCls}">${m.hotness_label}</span><span class="tag" style="background:#f3f4f6;color:var(--text-muted)">${m.bookmaker_intent}</span></div>
+          <div class="tag-row"><span class="tag" style="background:#f3f4f6;color:var(--text-muted);font-weight:400">预期 ${m.expected_goals} 球 | 大2.5 ${m.over25_prob||0}%</span></div>
         </div>
       </div>
-      <div class="match-right">
-        <div class="tag-row">
-          <span class="tag ${confCls}">${m.confidence_level}信心</span>
-          <span class="tag ${ouCls}">${m.over_under_tendency}</span>
-        </div>
-        <div class="tag-row">
-          <span class="tag ${hotCls}">${m.hotness_label}</span>
-          <span class="tag ${intentCls}">${m.bookmaker_intent}</span>
-        </div>
-        <div class="tag-row">
-          <span class="tag" style="background:#252545;color:#b0b0d0;border:1px solid #3a3a5a;">预期 ${m.expected_goals} 球</span>
-        </div>
-      </div>
+      <div class="detail-toggle" onclick="toggleDetail(this,'detail_${hid}')"><span class="arrow">&#9654;</span> 展开详情（伤停·裁判·天气·泊松分布）</div>
+      <div class="detail-panel" id="detail_${hid}">${renderDetailPanel(m)}</div>
     </div>`;
   }).join('');
 }
 
+function toggleDetail(el, id) {
+  const panel = document.getElementById(id);
+  const isOpen = panel.classList.contains('show');
+  panel.classList.toggle('show');
+  el.classList.toggle('open');
+  el.querySelector('.arrow').innerHTML = isOpen ? '&#9654;' : '&#9660;';
+  el.innerHTML = (isOpen ? '&#9654; ' : '&#9660; ') + '展开详情（伤停·裁判·天气·泊松分布）';
+}
+
 function renderOddsBtn(match, option, odds) {
   const sel = parlaySelections[match.match_id];
-  const isSelected = sel && sel.option === option;
-  return `
-  <div class="odds-btn${isSelected ? ' selected' : ''}"
-       onclick="toggleOdds('${match.match_id}','${option}',${odds},'${match.home_team}','${match.away_team}','${match.league}','${match.match_time}')">
-    <span class="label">${option}</span>
-    <span class="val">${odds}</span>
-  </div>`;
+  const isSel = sel && sel.option === option;
+  return `<div class="odds-btn${isSel?' selected':''}" onclick="toggleOdds('${match.match_id}','${option}',${odds},'${match.home_team}','${match.away_team}','${match.league}','${match.match_time}')"><span class="label">${option}</span><span class="val">${odds}</span></div>`;
 }
 
 function renderRecommendations(recs) {
-  const container = document.getElementById('recContainer');
-  if (!recs || !recs.length) {
-    container.innerHTML = '<div class="loading">暂无推荐方案</div>';
-    return;
-  }
-  container.innerHTML = '<div class="rec-grid">' + recs.map(r => {
-    const riskCls = r.risk_level === '低风险' ? 'rec-risk-low' : 'rec-risk-mid';
-    return `
-    <div class="rec-card">
-      <div class="rec-header">
-        <div>
-          <div class="rec-name">${r.name}</div>
-          <div class="rec-type">${r.plan_type}</div>
-        </div>
-        <span class="rec-risk ${riskCls}">${r.risk_level}</span>
-      </div>
-      ${(r.matches_detail || []).map(md => `
-      <div class="rec-match-item">
-        <div class="teams">
-          <span class="h">${md.home_team}</span> vs <span class="a">${md.away_team}</span>
-          <span style="font-size:0.75rem;color:var(--text-muted);margin-left:6px;">${md.league} #${md.match_id}</span>
-        </div>
-        <div class="detail">
-          <span>推荐: <strong style="color:var(--home)">${md.option}</strong> @${md.odds}</span>
-          <span>${md.hotness_label} | ${md.bookmaker_intent}</span>
-        </div>
+  const c = document.getElementById('recContainer');
+  if(!recs||!recs.length){c.innerHTML='<div class="loading">暂无推荐方案</div>';return}
+  c.innerHTML='<div class="rec-grid">'+recs.map(r=>{
+    const riskCls=r.risk_level==='低风险'?'rec-risk-low':'rec-risk-mid';
+    return `<div class="rec-card">
+      <div class="rec-header"><div><div class="rec-name">${r.name}</div><div class="rec-type">${r.plan_type}</div></div><span class="rec-risk ${riskCls}">${r.risk_level}</span></div>
+      ${(r.matches_detail||[]).map(md=>`<div class="rec-match-item">
+        <div class="teams"><span class="h">${md.home_team}</span> vs <span class="a">${md.away_team}</span><span style="font-size:0.68rem;color:var(--text-muted);margin-left:5px">${md.league} #${md.match_id}</span>${md.home_rank?'<span style="font-size:0.62rem;color:var(--text-muted);margin-left:3px">排名'+md.home_rank+'/'+md.away_rank+'</span>':''}</div>
+        <div class="detail"><span>推荐: <strong style="color:var(--home)">${md.option}</strong> @${md.odds}</span><span>${md.hotness_label} | ${md.bookmaker_intent}</span>${md.market_tendency?'<span>市场: '+md.market_tendency+'</span>':''}${md.injury_impact&&md.injury_impact!=='无影响'?'<span style="color:var(--medium)">'+md.injury_impact+'</span>':''}</div>
       </div>`).join('')}
-      <div class="rec-odds-display">
-        <div class="combo">组合赔率 ${r.combo_odds}</div>
-        <div class="ret">${r.expected_return}</div>
-      </div>
+      <div class="rec-odds-display"><div class="combo">组合赔率 ${r.combo_odds}</div><div class="ret">${r.expected_return}</div></div>
     </div>`;
-  }).join('') + '</div>';
+  }).join('')+'</div>';
 }
 
 function renderParlay() {
-  const list = document.getElementById('parlayList');
-  const count = document.getElementById('parlayCount');
-  const comboEl = document.getElementById('comboOdds');
-  const btnGen = document.getElementById('btnGenerate');
-
-  const items = Object.values(parlaySelections);
-  count.textContent = items.length;
-
-  if (items.length === 0) {
-    list.innerHTML = '<div class="parlay-empty">点击赔率数字添加比赛</div>';
-    comboEl.textContent = '--';
-    btnGen.disabled = true;
-  } else {
-    list.innerHTML = items.map(item => `
-    <div class="parlay-item">
-      <div class="info">
-        <div class="match-teams-small">${item.home_team} vs ${item.away_team}</div>
-        <div class="option-info">#${item.match_id} ${item.league} | ${item.option} @${item.odds}</div>
-      </div>
-      <button class="parlay-remove" onclick="removeParlayItem('${item.match_id}')" title="移除">x</button>
-    </div>`).join('');
-
-    const combo = items.reduce((acc, item) => acc * item.odds, 1);
-    comboEl.textContent = combo.toFixed(2);
-    btnGen.disabled = items.length < 2;
-  }
-
-  // 重新渲染比赛卡片中的赔率选中状态
-  if (currentMatches.length) renderMatches(currentMatches);
+  const list=document.getElementById('parlayList'),count=document.getElementById('parlayCount');
+  const comboEl=document.getElementById('comboOdds'),btnGen=document.getElementById('btnGenerate');
+  const items=Object.values(parlaySelections);count.textContent=items.length;
+  if(!items.length){list.innerHTML='<div class="parlay-empty">点击赔率数字添加比赛</div>';comboEl.textContent='--';btnGen.disabled=true}
+  else{list.innerHTML=items.map(i=>`<div class="parlay-item"><div class="info"><div class="match-teams-small">${i.home_team} vs ${i.away_team}</div><div class="option-info">#${i.match_id} ${i.league} | ${i.option} @${i.odds}</div></div><button class="parlay-remove" onclick="removeParlayItem('${i.match_id}')">&times;</button></div>`).join('');comboEl.textContent=items.reduce((a,i)=>a*i.odds,1).toFixed(2);btnGen.disabled=items.length<2}
+  if(currentMatches.length) renderMatches(currentMatches);
 }
 
-// ====== 串关操作 ======
-function toggleOdds(matchId, option, odds, homeTeam, awayTeam, league, matchTime) {
-  if (parlaySelections[matchId] && parlaySelections[matchId].option === option) {
-    // 取消选中
-    delete parlaySelections[matchId];
-  } else {
-    // 选中或替换
-    parlaySelections[matchId] = { match_id: matchId, option, odds, home_team: homeTeam, away_team: awayTeam, league, match_time: matchTime };
-  }
+function toggleOdds(mid,opt,odds,ht,at,lg,mt){
+  if(parlaySelections[mid]&&parlaySelections[mid].option===opt) delete parlaySelections[mid];
+  else parlaySelections[mid]={match_id:mid,option:opt,odds,home_team:ht,away_team:at,league:lg,match_time:mt};
   renderParlay();
 }
+function removeParlayItem(mid){delete parlaySelections[mid];renderParlay()}
+function clearParlay(){parlaySelections={};renderParlay()}
 
-function removeParlayItem(matchId) {
-  delete parlaySelections[matchId];
-  renderParlay();
-}
-
-function clearParlay() {
-  parlaySelections = {};
-  renderParlay();
-}
-
-function generatePlan() {
-  const items = Object.values(parlaySelections);
-  if (items.length < 2) return;
-
-  const comboOdds = items.reduce((acc, item) => acc * item.odds, 1);
-  const expectedReturn = (comboOdds * 2).toFixed(2);
-
-  const modal = document.getElementById('modalContent');
-  modal.innerHTML = `
+function generatePlan(){
+  const items=Object.values(parlaySelections);if(items.length<2)return;
+  const co=items.reduce((a,i)=>a*i.odds,1),ret=(co*2).toFixed(2);
+  document.getElementById('modalContent').innerHTML=`
     <div class="modal-title">串关方案详情</div>
-    ${items.map((item, i) => `
-    <div class="modal-match">
-      <div class="teams">
-        <span style="color:var(--home)">${item.home_team}</span> vs <span style="color:var(--away)">${item.away_team}</span>
-      </div>
-      <div class="detail">
-        #${item.match_id} ${item.league} | ${item.match_time} |
-        选择: <strong style="color:var(--home)">${item.option}</strong> @${item.odds}
-      </div>
-    </div>`).join('')}
-    <div class="modal-summary">
-      <div class="odds">组合赔率: ${comboOdds.toFixed(2)}</div>
-      <div class="info">投注2元预计返奖: <strong style="color:var(--home)">${expectedReturn}元</strong></div>
-      <div class="info" style="margin-top:8px;font-size:0.75rem;color:var(--text-muted)">共 ${items.length} 串 1 组合</div>
-    </div>
-    <button class="modal-close" onclick="closeModal()">关闭</button>
-  `;
-  document.getElementById('modalOverlay').style.display = 'flex';
+    ${items.map(i=>`<div class="modal-match"><div class="teams"><span style="color:var(--home)">${i.home_team}</span> vs <span style="color:var(--away)">${i.away_team}</span></div><div class="detail">#${i.match_id} ${i.league} | ${i.match_time} | 选择: <strong style="color:var(--home)">${i.option}</strong> @${i.odds}</div></div>`).join('')}
+    <div class="modal-summary"><div class="odds">组合赔率: ${co.toFixed(2)}</div><div class="info">投注2元预计返奖: <strong style="color:var(--home)">${ret}元</strong></div><div class="info" style="margin-top:5px;font-size:0.7rem;color:var(--text-muted)">${items.length}串1 组合</div></div>
+    <button class="modal-close" onclick="closeModal()">关闭</button>`;
+  document.getElementById('modalOverlay').style.display='flex';
 }
+function closeModal(event){if(event&&event.target!==event.currentTarget)return;document.getElementById('modalOverlay').style.display='none'}
 
-function closeModal(event) {
-  if (event && event.target !== event.currentTarget) return;
-  document.getElementById('modalOverlay').style.display = 'none';
-}
-
-// ====== 数据刷新 ======
-async function refreshData() {
-  try {
-    document.getElementById('matchesContainer').innerHTML = '<div class="loading"><div class="spinner"></div><p style="margin-top:10px">刷新数据中...</p></div>';
-    document.getElementById('recContainer').innerHTML = '<div class="loading">加载推荐方案...</div>';
-
-    const data = await fetchData();
-    document.getElementById('updateTime').textContent = data.stats.update_time;
-    document.getElementById('totalMatches').textContent = data.stats.total_matches;
-    document.getElementById('hitRate').textContent = data.stats.hit_rate;
-
+async function refreshData(){
+  try{
+    document.getElementById('matchesContainer').innerHTML='<div class="loading"><div class="spinner"></div><p style="margin-top:10px">刷新数据…</p></div>';
+    document.getElementById('recContainer').innerHTML='<div class="loading">生成推荐方案…</div>';
+    const data=await fetchData();
+    document.getElementById('updateTime').textContent=data.stats.update_time;
+    document.getElementById('totalMatches').textContent=data.stats.total_matches;
+    document.getElementById('hitRate').textContent=data.stats.hit_rate;
+    document.getElementById('dataSource').textContent=data.stats.source;
     renderMatches(data.matches);
     renderRecommendations(data.recommendations);
     renderParlay();
-  } catch (err) {
-    document.getElementById('matchesContainer').innerHTML = '<div class="loading" style="color:var(--low)">数据加载失败，请稍后重试</div>';
+  }catch(err){
+    document.getElementById('matchesContainer').innerHTML='<div class="loading" style="color:var(--low)">数据加载失败，请稍后重试</div>';
   }
 }
-
-function startAutoRefresh() {
-  if (autoRefreshTimer) clearInterval(autoRefreshTimer);
-  autoRefreshTimer = setInterval(refreshData, 120000); // 2分钟
-}
-
-// ====== 键盘快捷关闭 Modal ======
-document.addEventListener('keydown', function(e) {
-  if (e.key === 'Escape') document.getElementById('modalOverlay').style.display = 'none';
-});
-
-// ====== 启动 ======
+function startAutoRefresh(){if(autoRefreshTimer)clearInterval(autoRefreshTimer);autoRefreshTimer=setInterval(refreshData,120000)}
+document.addEventListener('keydown',function(e){if(e.key==='Escape')document.getElementById('modalOverlay').style.display='none'});
 refreshData().then(startAutoRefresh);
 </script>
-
 </body>
 </html>
