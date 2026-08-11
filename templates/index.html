@@ -502,7 +502,9 @@ function renderPredictionBadge(m) {
   // 优先 AI 预测，其次市场倾向，最后赔率最低方
   var best = po;
   if (!best && mt && mt!=='均衡'){
-    best = mt==='主胜'?'胜':mt==='客胜'?'负':mt==='平局'?'平';
+    if(mt==='主胜') best='胜';
+    else if(mt==='客胜') best='负';
+    else if(mt==='平局') best='平';
   }
   if (!best){
     const odds=[{k:'胜',v:m.win_odds||99},{k:'平',v:m.draw_odds||99},{k:'负',v:m.lose_odds||99}];
