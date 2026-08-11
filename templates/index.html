@@ -353,12 +353,15 @@ async function fetchJingcaiList() {
       for (var si = 0; si < subs.length; si++) {
         var m = subs[si];
         var had = m.had || {};
-        // 过滤未开盘场次：saleStatus=0 或 赔率全为0
-        var saleSt = m.saleStatus === undefined ? 1 : m.saleStatus;
+        // 过滤未开盘场次：matchStatus 非 Selling 或 赔率全为0
+        var ms = String(m.matchStatus || '');
         var hOdds = parseFloat(had.h || 0), dOdds = parseFloat(had.d || 0), aOdds = parseFloat(had.a || 0);
-        if (String(saleSt) === '0' || (hOdds <= 0 && dOdds <= 0 && aOdds <= 0)) continue;
+        if ((ms && ms.toLowerCase() !== 'selling') || (hOdds <= 0 && dOdds <= 0 && aOdds <= 0)) continue;
+        // 官方编号是后3位：2002 → 002
+        var numRaw = String(m.matchNum || '');
+        var num3 = (numRaw.length >= 4 && /^\d+$/.test(numRaw)) ? numRaw.slice(-3) : numRaw;
         result.push({
-          match_id: (group.weekday || '') + (m.matchNum || ''),
+          match_id: (group.weekday || '') + num3,
           home_team: m.homeTeamAllName || m.homeTeamAbbName || '',
           away_team: m.awayTeamAllName || m.awayTeamAbbName || '',
           league: m.leagueName || m.leagueAbbName || '',
@@ -366,7 +369,7 @@ async function fetchJingcaiList() {
           win_odds: hOdds,
           draw_odds: dOdds,
           lose_odds: aOdds,
-          raw_event_id: (group.weekday || '') + (m.matchNum || ''),
+          raw_event_id: (group.weekday || '') + num3,
           date: group.businessDate || '',
           source: '竞彩官方'
         });

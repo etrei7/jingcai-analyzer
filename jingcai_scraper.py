@@ -70,17 +70,19 @@ def fetch_jingcai_matches():
             biz_date = group.get('businessDate', '')
             for m in group.get('subMatchList', []):
                 had = m.get('had', {})
-                # 过滤未开盘场次：saleStatus=0 或 胜平负赔率全为0
-                sale_status = m.get('saleStatus', 1)
+                # 过滤未开盘场次：matchStatus 非 Selling 或 胜平负赔率全为0
+                match_status = str(m.get('matchStatus', '') or '')
                 h_odds = float(had.get('h', 0) or 0)
                 d_odds = float(had.get('d', 0) or 0)
                 a_odds = float(had.get('a', 0) or 0)
-                if str(sale_status) in ('0', 'false', 'False') or (h_odds <= 0 and d_odds <= 0 and a_odds <= 0):
-                    logger.info(f"[竞彩] 过滤未开盘: {m.get('matchNum','')} saleStatus={sale_status} 赔率=({h_odds},{d_odds},{a_odds})")
+                if (match_status and match_status.lower() != 'selling') or (h_odds <= 0 and d_odds <= 0 and a_odds <= 0):
+                    logger.info(f"[竞彩] 过滤未开盘: {m.get('matchNum','')} matchStatus={match_status} 赔率=({h_odds},{d_odds},{a_odds})")
                     continue
                 home_name = m.get('homeTeamAllName', m.get('homeTeamAbbName', ''))
                 away_name = m.get('awayTeamAllName', m.get('awayTeamAbbName', ''))
-                match_num = m.get('matchNum', '')
+                match_num_raw = str(m.get('matchNum', '') or '')
+                # 官方编号是后3位：2002 → 002, 3001 → 001
+                match_num = match_num_raw[-3:] if match_num_raw.isdigit() and len(match_num_raw) >= 4 else match_num_raw
                 mid = f'{weekday}{match_num}' if weekday and match_num else str(m.get('matchNumStr', ''))
 
                 matches.append({
