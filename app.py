@@ -35,29 +35,42 @@ def get_data():
     matches = []
     source = ''
 
+    # 优先：竞彩官方 API（真实场单 + 赔率）
     try:
-        from bizzoiro_client import fetch_events
-        matches = fetch_events(limit=15)
+        from jingcai_scraper import fetch_jingcai_matches
+        matches = fetch_jingcai_matches()
+        if matches and len(matches) >= 3:
+            source = '竞彩官方'
+            logging.info('[API] 竞彩官方 %d 场', len(matches))
     except Exception:
-        matches = []
+        pass
 
-    if matches and len(matches) >= 3:
-        logging.info('[API] Bzzoiro 获取 %d 场', len(matches))
+    # 次选：Bzzoiro API
+    if not matches or len(matches) < 3:
+        try:
+            from bizzoiro_client import fetch_events
+            matches = fetch_events(limit=15)
+            if matches and len(matches) >= 3:
+                source = 'Bzzoiro API'
+                logging.info('[API] Bzzoiro %d 场', len(matches))
+        except Exception:
+            matches = []
+
+    # 最后：模拟数据
+    if not matches or len(matches) < 3:
+        matches = generate_mock_matches(12)
+        source = '模拟数据'
+
+    # 附加数据（standings + predictions 仅 Bzzoiro 模式有效）
+    standings = {}
+    predictions = {}
+    if source == 'Bzzoiro API':
         try:
             from bizzoiro_client import fetch_standings_for_matches, fetch_predictions
             standings = fetch_standings_for_matches(matches)
             predictions = fetch_predictions()
-            source = 'Bzzoiro API'
         except Exception:
-            standings = {}
-            predictions = {}
-            source = 'Bzzoiro (部分失败)'
-    else:
-        logging.info('[API] 服务端直连失败，降级模拟数据')
-        matches = generate_mock_matches(12)
-        source = '模拟数据 (后端API不可用)'
-        standings = {}
-        predictions = {}
+            pass
 
     analyzed = analyze_matches(matches, standings, predictions)
     recommendations = generate_parlay_recommendations(analyzed)
