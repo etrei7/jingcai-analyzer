@@ -156,6 +156,20 @@ def analyze_data():
             m.setdefault('expected_total', 0); m.setdefault('top3_goals', [])
             m.setdefault('handicap_line', 0); m.setdefault('handicap_win_odds', 0); m.setdefault('handicap_draw_odds', 0); m.setdefault('handicap_lose_odds', 0)
 
+        # 提取官方让球数据 hhad（若前端已传），仅附加不修改其他字段
+        for m in matches:
+            line = m.get('hhad_goal_line')
+            w = m.get('hhad_win')
+            d = m.get('hhad_draw')
+            l = m.get('hhad_lose')
+            if w or d or l:
+                m['official_hcp_line'] = line
+                m['official_hcp_win'] = w
+                m['official_hcp_draw'] = d
+                m['official_hcp_lose'] = l
+            m.pop('hhad_goal_line', None); m.pop('hhad_win', None)
+            m.pop('hhad_draw', None); m.pop('hhad_lose', None)
+
         # Bzzoiro 富化：伤病/裁判/天气/球队状态（不改编号赔率）
         try:
             from bizzoiro_client import enrich_jingcai_matches

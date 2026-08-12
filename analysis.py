@@ -425,6 +425,36 @@ def analyze_single_match(match, standings=None, prediction=None):
     handicap = _compute_handicap(match, prediction, home_confidence / 10.0, away_confidence / 10.0,
                                  h_inj, a_inj, home_rank, away_rank)
 
+    # 7.1 官方让球数据优先：竞彩官方 hhad 真实让球盘口与赔率
+    official_line = match.get('official_hcp_line')
+    if official_line is not None:
+        ow = match.get('official_hcp_win')
+        od = match.get('official_hcp_draw')
+        ol = match.get('official_hcp_lose')
+        if (ow or od or ol):
+            oline = float(official_line or 0)
+            olabel = f'让球{oline:+g}' if oline != 0 else '不让球'
+            direction = '主让' if oline < 0 else '客让' if oline > 0 else '平手'
+            # 官方赔率反推概率（去水）
+            opts = [('让胜', float(ow or 0)), ('让平', float(od or 0)), ('让负', float(ol or 0))]
+            inv = [(n, 1.0/o if o > 0 else 0) for n, o in opts]
+            tot = sum(i for _, i in inv)
+            pick = max(inv, key=lambda x: x[1]) if tot > 0 else ('让胜', 0)
+            hcp_pick = {'option': f'{pick[0]}({direction})' if oline != 0 else pick[0],
+                        'prob': round(pick[1] / tot * 100, 1) if tot > 0 else 0,
+                        'odds': dict(opts)[pick[0]], 'side': pick[0], 'line': oline, 'direction': direction,
+                        'source': '官方盘口'}
+            handicap = {
+                'handicap_line': oline,
+                'handicap_label': olabel,
+                'handicap_win_odds': float(ow or 0),
+                'handicap_draw_odds': float(od or 0),
+                'handicap_lose_odds': float(ol or 0),
+                'hcp_pick': hcp_pick,
+                'hcp_reason': f'官方让球盘口 {olabel}，官方赔率反推让胜{round(hcp_pick["prob"],1)}%概率',
+                'hcp_net': 0,
+            }
+
     # 7.5 球队身价估算（基于联赛等级+排名+赔率强度）
     league_quality_ord = LEAGUE_QUALITY.get(league, 0.65)
     home_value = _estimate_team_value(league_quality_ord, home_rank, home_odds_ratio, home_confidence, match['home_team'])
