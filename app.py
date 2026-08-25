@@ -26,7 +26,7 @@ init_scheduler(app)
 
 @app.route('/')
 def index():
-    api_key = os.environ.get('BZZOIRO_API_KEY', '')
+    api_key = os.environ.get('BZZOIRO_API_KEY', '2d8a09f4eaac8ce462729d3a7b82cd489bcf4b8e')
     return render_template('index.html', api_key=api_key)
 
 
