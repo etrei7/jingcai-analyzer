@@ -6,7 +6,7 @@ from team_names import TEAM_NAME_CN
 logger = logging.getLogger(__name__)
 
 BASE_URL = os.environ.get('BZZOIRO_BASE_URL', 'https://sports.bzzoiro.com/api')
-API_KEY = os.environ.get('BZZOIRO_API_KEY', '')
+API_KEY = os.environ.get('BZZOIRO_API_KEY', '2d8a09f4eaac8ce462729d3a7b82cd489bcf4b8e')
 
 LEAGUE_NAME_MAP = {
     # 竞彩常开联赛（含中文名）
