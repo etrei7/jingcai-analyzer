@@ -215,6 +215,32 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
   .market-row{flex-direction:column;align-items:flex-start;gap:4px}
   .goal-dist-bars{height:44px}
 }
+/* ===== AI 资深分析师 ===== */
+.analyst-section{margin-top:20px}
+.analyst-panel{background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:14px 18px;box-shadow:var(--shadow)}
+.analyst-head{font-size:0.95rem;font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.analyst-head .badge{background:var(--accent);color:#fff;font-size:0.6rem;font-weight:600;padding:2px 7px;border-radius:10px;letter-spacing:.5px}
+.pt-tabs{display:flex;gap:6px;margin-bottom:12px}
+.pt-btn{flex:1;background:var(--btn-bg);color:var(--text);border:1px solid var(--border);padding:8px;border-radius:8px;cursor:pointer;font-size:0.8rem;font-weight:600;transition:all .15s}
+.pt-btn.active{background:var(--home);color:#fff;border-color:var(--home)}
+.analyst-mode{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.analyst-mode select,.analyst-mode input[type=text]{flex:1;min-width:150px;background:var(--card-bg);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-size:0.78rem}
+.analyst-run{background:var(--accent);color:#fff;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:0.78rem;font-weight:600;white-space:nowrap}
+.analyst-run:hover{filter:brightness(1.1)}
+.analyst-hint{font-size:0.68rem;color:var(--text-muted);margin-bottom:8px}
+.analyst-output{margin-top:4px}
+.an-out{background:var(--card-stripe);border:1px solid var(--border-light);border-radius:8px;padding:12px;font-size:0.76rem}
+.an-out .an-title{font-size:0.82rem;font-weight:700;color:var(--accent);margin-bottom:8px;display:flex;align-items:center;gap:5px}
+.an-line{display:flex;justify-content:space-between;align-items:center;padding:6px 8px;border-radius:6px;margin-bottom:4px;background:var(--card-bg);border:1px solid var(--border-light)}
+.an-line .m{font-weight:600;color:var(--text)}
+.an-line .o{color:var(--home);font-weight:700;white-space:nowrap}
+.an-line .o .odds{color:var(--text-muted);font-weight:500;margin-left:4px}
+.an-bar{height:5px;border-radius:3px;background:var(--bar-track);overflow:hidden;margin:6px 0}
+.an-bar-fill{height:100%;border-radius:3px}
+.an-warn{color:var(--medium);background:var(--medium-bg);padding:6px 10px;border-radius:6px;font-size:0.72rem;margin-bottom:8px}
+.an-tip{font-size:0.66rem;color:var(--accent);font-weight:600;margin-top:6px}
+.an-risk{font-size:0.66rem;color:var(--text-muted);margin-top:8px;padding-top:8px;border-top:1px dashed var(--border-light)}
+.an-empty{color:var(--text-muted);text-align:center;padding:20px;font-size:0.78rem}
 </style>
 </head>
 <body>
@@ -262,6 +288,27 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
     <div class="rec-section" style="margin-top:20px">
       <div class="section-title">预测战绩面板</div>
       <div id="historyContainer"><div class="loading">加载战绩…</div></div>
+    </div>
+    <div class="analyst-section" id="analystSection">
+      <div class="section-title">AI 资深分析师</div>
+      <div class="analyst-panel">
+        <div class="analyst-head">&#129302; 竞彩分析师 <span class="badge">15年经验</span></div>
+        <div class="pt-tabs">
+          <button class="pt-btn active" id="ptTotal" onclick="setAnalystMode('total')">总进球</button>
+          <button class="pt-btn" id="ptParlay" onclick="setAnalystMode('parlay')">串关</button>
+        </div>
+        <div class="analyst-mode" id="totalMode">
+          <select id="analystMatch"><option value="">-- 选择比赛 --</option></select>
+          <button class="analyst-run" onclick="runTotalAnalysis()">生成分析</button>
+        </div>
+        <div class="analyst-mode" id="parlayMode" style="display:none">
+          <span class="analyst-hint" id="parlayHint">根据「我的串关」已选比赛生成</span>
+          <button class="analyst-run" onclick="runParlayAnalysis()">生成串关方案</button>
+        </div>
+        <div class="analyst-output" id="analystOutput">
+          <div class="an-empty">请先加载赛事数据，然后选择玩法开始分析</div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -843,6 +890,173 @@ function closeParlayPanel(){
   }
 }
 
+/* ===== AI 资深分析师 ===== */
+var analystModeSel = 'total';
+
+function setAnalystMode(mode){
+  analystModeSel = mode;
+  document.getElementById('ptTotal').classList.toggle('active', mode === 'total');
+  document.getElementById('ptParlay').classList.toggle('active', mode === 'parlay');
+  var totalEl = document.getElementById('totalMode');
+  var parlayEl = document.getElementById('parlayMode');
+  totalEl.style.display = (mode === 'total') ? 'flex' : 'none';
+  parlayEl.style.display = (mode === 'parlay') ? 'flex' : 'none';
+}
+
+function fillAnalystMatches(matches){
+  var sel = document.getElementById('analystMatch');
+  sel.innerHTML = '<option value="">-- 选择比赛 --</option>';
+  (matches || []).forEach(function(m, i){
+    var opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = (m.match_id + ' ' + m.home_team + ' vs ' + m.away_team);
+    sel.appendChild(opt);
+  });
+}
+
+function getSummaryMatch(matches, matchId){
+  for (var i = 0; i < matches.length; i++){
+    if (matches[i].match_id === matchId) return matches[i];
+  }
+  return null;
+}
+
+function evalTotalGoals(m){
+  // 基于泊松进球分布计算三档概率
+  var dist = m.goal_distribution || {};
+  function get(k){ var v = dist[k]; var n = parseFloat(v); return (typeof v !== 'undefined' && !isNaN(n)) ? n : 0; }
+  var p02 = get('0') + get('1') + get('2');
+  var p34 = get('3') + get('4');
+  var p5p = get('5') + get('6') + get('7') + get('7+');
+  // 若分布缺失，用 over25 概率近似
+  if (p02 + p34 + p5p < 1){
+    var o25 = parseFloat(m.over25_prob);
+    if (!isNaN(o25) && o25 > 0){
+      p34 = o25 * 0.62;
+      p5p = o25 * 0.38;
+      p02 = 100 - p34 - p5p;
+    } else {
+      p02 = 42; p34 = 38; p5p = 20;
+    }
+  }
+  var bands = [
+    { label: '0-2球', p: Math.round(p02 * 10) / 10 },
+    { label: '3-4球', p: Math.round(p34 * 10) / 10 },
+    { label: '5+球', p: Math.round(p5p * 10) / 10 }
+  ];
+  bands.sort(function(a, b){ return b.p - a.p; });
+  return { bands: bands, best: bands[0], o25: m.over25_prob, tendency: m.over_under_tendency };
+}
+
+function runTotalAnalysis(){
+  var out = document.getElementById('analystOutput');
+  if (!currentMatches.length){
+    out.innerHTML = '<div class="an-warn">请先点击<strong>“加载赛事数据”</strong>，待赛事数据看板加载完成后再分析</div>';
+    return;
+  }
+  var sel = document.getElementById('analystMatch');
+  var m;
+  if (sel.value === '') {
+    out.innerHTML = '<div class="an-warn">请先选择一场比赛，再生成总进球分析</div>';
+    return;
+  }
+  m = currentMatches[parseInt(sel.value, 10)];
+  if (!m){ out.innerHTML = '<div class="an-warn">未找到该比赛数据，请刷新后重试</div>'; return; }
+
+  var r = evalTotalGoals(m);
+  var bars = r.bands.map(function(b){
+    var pct = Math.max(3, b.p / 8);
+    var color = (b === r.best) ? 'var(--high)' : 'var(--balance)';
+    return '<div class="an-line"><span class="m">' + b.label + '</span><div style="flex:1;margin:0 8px"><div class="an-bar"><div class="an-bar-fill" style="width:' + pct + '%;background:' + color + '"></div></div></div><span class="o">' + b.p + '%</span></div>';
+  }).join('');
+
+  var tendNote = '';
+  if (r.tendency === '大球倾向') tendNote = '盘口偏向大球，注意3-4球段';
+  else if (r.tendency === '小球倾向') tendNote = '盘口偏向小球，0-2球概率抬升';
+
+  out.innerHTML = '<div class="an-out">' +
+    '<div class="an-title">&#9917; 总进球分析</div>' +
+    '<div style="font-size:0.8rem;font-weight:700;margin-bottom:6px">' + m.home_team + ' vs ' + m.away_team + '（' + m.match_id + ' ' + (m.league||'') + '）</div>' +
+    (r.o25 != null ? '<div class="an-line"><span class="m">大2.5球概率</span><span class="o">' + r.o25 + '%</span></div>' : '') +
+    bars +
+    '<div class="an-tip">推荐区间：<strong>' + r.best.label + '</strong>（' + r.best.p + '%）' + (tendNote ? ' ｜ ' + tendNote : '') + '</div>' +
+    '<div class="an-risk">请理性购彩，本推荐仅供参考</div>' +
+    '</div>';
+}
+
+function runParlayAnalysis(){
+  var out = document.getElementById('analystOutput');
+  if (!currentMatches.length){
+    out.innerHTML = '<div class="an-warn">请先点击<strong>“加载赛事数据”</strong>，待赛事数据看板加载完成后再分析</div>';
+    return;
+  }
+  var items = Object.values(parlaySelections);
+  if (items.length < 2){
+    out.innerHTML = '<div class="an-warn">当前仅选择' + items.length + '场，串关至少需2场，请继续添加</div>';
+    return;
+  }
+
+  // 计算所有 C(n,2) 2串1 组合
+  var pairs = [];
+  for (var i = 0; i < items.length; i++){
+    for (var j = i + 1; j < items.length; j++){
+      var a = items[i], b = items[j];
+      var odds = (parseFloat(a.odds) * parseFloat(b.odds));
+      pairs.push({ a: a, b: b, odds: odds });
+    }
+  }
+  pairs.sort(function(x, y){ return x.odds - y.odds; });  // 赔率升序
+  var minPair = pairs[0], maxPair = pairs[pairs.length - 1];
+  var allOdds = items.reduce(function(acc, x){ return acc * parseFloat(x.odds); }, 1);
+
+  function detail(item){
+    return '<span class="m">' + item.home_team + ' vs ' + item.away_team + '（' + item.option + ' @' + item.odds + '）</span>';
+  }
+
+  // 2串1 低风险 & 最优
+  var html = '<div class="an-out">' +
+    '<div class="an-title">&#128640; 串关方案（' + items.length + '场）</div>';
+
+  var best2 = maxPair.odds >= minPair.odds ? maxPair : minPair;
+  if (items.length === 2){
+    html += '<div class="an-line"><span class="m">' + items[0].home_team + ' vs ' + items[0].away_team + '：' + items[0].option + '（' + items[0].odds + '）</span></div>';
+    html += '<div class="an-line"><span class="m">' + items[1].home_team + ' vs ' + items[1].away_team + '：' + items[1].option + '（' + items[1].odds + '）</span></div>';
+    html += '<div class="an-tip">2串1 组合赔率：<strong>' + (allOdds.toFixed(2)) + '</strong>　投2元预计返 ' + (allOdds * 2).toFixed(2) + ' 元</div>';
+  } else {
+    html += '<div class="an-line" style="justify-content:flex-start"><span class="m" style="font-size:0.72rem;color:var(--text-muted)">低风险（赔率最低）：</span></div>';
+    html += '<div class="an-line">' + detail(minPair.a) + '</div><div class="an-line">' + detail(minPair.b) + '</div>';
+    html += '<div class="an-line">组合赔率 <strong>' + minPair.odds.toFixed(2) + '</strong></div>';
+    html += '<div class="an-line" style="justify-content:flex-start;margin-top:6px;border-top:1px dashed var(--border-light)"><span class="m" style="font-size:0.72rem;color:var(--text-muted)">最优赔率（回报最高）：</span></div>';
+    html += '<div class="an-line">' + detail(maxPair.a) + '</div><div class="an-line">' + detail(maxPair.b) + '</div>';
+    html += '<div class="an-line">组合赔率 <strong>' + maxPair.odds.toFixed(2) + '</strong></div>';
+  }
+
+  // 3串1 方案（若足够）
+  if (items.length >= 3){
+    var triples = [];
+    for (var x = 0; x < items.length; x++){
+      for (var y = x + 1; y < items.length; y++){
+        for (var z = y + 1; z < items.length; z++){
+          var t = [items[x], items[y], items[z]];
+          var o3 = t.reduce(function(acc, k){ return acc * parseFloat(k.odds); }, 1);
+          triples.push({ items: t, odds: o3 });
+        }
+      }
+    }
+    triples.sort(function(a, b){ return a.odds - b.odds; });
+    var rec3 = triples[triples.length - 1];
+    html += '<div class="an-line" style="justify-content:flex-start;margin-top:6px;border-top:1px dashed var(--border-light)"><span class="m" style="font-size:0.72rem;color:var(--text-muted)">优选 3串1：</span></div>';
+    rec3.items.forEach(function(it){
+      html += '<div class="an-line">' + detail(it) + '</div>';
+    });
+    html += '<div class="an-line">3串1 组合赔率 <strong>' + rec3.odds.toFixed(2) + '</strong></div>';
+  }
+
+  html += '<div class="an-tip">全部' + items.length + '场全串：' + allOdds.toFixed(2) + '（' + (allOdds * 2).toFixed(2) + '元）</div>';
+  html += '<div class="an-risk">请理性购彩，本推荐仅供参考</div></div>';
+  out.innerHTML = html;
+}
+
 async function refreshData(){
   try{
     document.getElementById('matchesContainer').innerHTML='<div class="loading"><div class="spinner"></div><p style="margin-top:10px">加载赛事数据…</p></div>';
@@ -889,6 +1103,7 @@ function showData(data){
   else{priTag.style.display='none';}
   document.getElementById('dataSource').title=data.stats.data_note||'';
   renderMatches(data.matches);
+  fillAnalystMatches(data.matches);
   renderRecommendations(data.recommendations);
   renderTotalGoals(data.total_goals_recs);
   renderHistoryPanel(data.history_stats);
