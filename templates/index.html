@@ -906,9 +906,9 @@ function setAnalystMode(mode){
 function fillAnalystMatches(matches){
   var sel = document.getElementById('analystMatch');
   sel.innerHTML = '<option value="">-- 选择比赛 --</option>';
-  (matches || []).forEach(function(m, i){
+  (matches || []).forEach(function(m){
     var opt = document.createElement('option');
-    opt.value = i;
+    opt.value = m.match_id;
     opt.textContent = (m.match_id + ' ' + m.home_team + ' vs ' + m.away_team);
     sel.appendChild(opt);
   });
@@ -960,7 +960,7 @@ function runTotalAnalysis(){
     out.innerHTML = '<div class="an-warn">请先选择一场比赛，再生成总进球分析</div>';
     return;
   }
-  m = currentMatches[parseInt(sel.value, 10)];
+  m = getSummaryMatch(currentMatches, sel.value);
   if (!m){ out.innerHTML = '<div class="an-warn">未找到该比赛数据，请刷新后重试</div>'; return; }
 
   var r = evalTotalGoals(m);
