@@ -11,6 +11,8 @@ from analysis import analyze_matches, generate_parlay_recommendations, generate_
 from scheduler import init_scheduler
 from history import save_predictions, get_stats
 from bizzoiro_client import _parse_event_to_match, _assign_match_ids, LEAGUE_NAME_MAP
+import backtest_models  # noqa: F401  确保回测表 bt_* 随 db.create_all() 创建
+import backtest_models  # noqa: F401  确保回测表 bt_* 随 db.create_all() 创建
 
 logging.basicConfig(level=logging.INFO)
 
@@ -336,6 +338,32 @@ Allow: /
 @app.route('/health')
 def health():
     return jsonify({'status': 'ok', 'time': datetime.now().strftime('%Y-%m-%d %H:%M:%S')})
+
+
+@app.route('/api/backtest')
+def backtest_stats():
+    """回测战绩汇总：命中率 + ROI + 累计盈亏 + 样本量。供战绩面板读取。"""
+    try:
+        from backtest import compute_summary
+        play_type = request.args.get('play_type', 'all')
+        period = request.args.get('period', 'all')
+        s = compute_summary(period=period, play_type=play_type)
+        return jsonify(s)
+    except Exception as e:
+        logging.warning('[API] backtest: %s', e)
+        return jsonify({'total_bets': 0, 'total_pnl': 0, 'roi': 0, 'hit_rate': 0, 'pending': 0})
+
+
+@app.route('/api/backtest/run', methods=['POST'])
+def backtest_run():
+    """手动触发一次流水线：拉取快照 + 结算已完赛。"""
+    try:
+        from data_pipeline import run_full
+        res = run_full()
+        return jsonify({'success': True, **res})
+    except Exception as e:
+        logging.warning('[API] backtest/run: %s', e)
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 if __name__ == '__main__':
