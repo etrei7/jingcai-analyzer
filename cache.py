@@ -22,7 +22,8 @@ def now():
 
 def _build_payload():
     """从主/备数据源构建完整的分析 payload（与 app.get_data 逻辑一致，但集中在此）。
-    使用竞彩官方优先，Bzzoiro 兜底，模拟数据最终兜底。
+    说明：PythonAnywhere 服务器端直连 sporttery.cn 会 403（白名单限制），
+    因此后端缓存仅走 Bzzoiro 数据源；竞彩官方数据由浏览器前端直连并提供。
     """
     matches = []
     source = ''
@@ -31,35 +32,24 @@ def _build_payload():
     standings = {}
     predictions = {}
 
-    # 竞彩官方为主（后端直连）
+    # Bzzoiro 兜底（后端可直接访问；短超时避免缓存重建卡顿）
+    data_priority = 'secondary'
+    data_note = '数据源：Bzzoiro 第三方数据'
     try:
-        from jingcai_scraper import fetch_jingcai_matches
-        matches = fetch_jingcai_matches()
+        from bizzoiro_client import fetch_events, fetch_standings_for_matches, fetch_predictions
+        matches = fetch_events(limit=15)
         if matches and len(matches) >= 3:
-            source = '竞彩官方'
-            data_priority = 'primary'
-            data_note = '主数据源：中国体育彩票官方赔率'
+            source = 'Bzzoiro API'
+            data_priority = 'secondary'
+            data_note = '数据源：Bzzoiro 第三方数据'
+            try:
+                standings = fetch_standings_for_matches(matches)
+                predictions = fetch_predictions()
+            except Exception:
+                pass
     except Exception as e:
-        logger.warning('[cache] 竞彩官方拉取失败: %s', e)
+        logger.warning('[cache] Bzzoiro 拉取失败: %s', e)
         matches = []
-
-    # Bzzoiro 兜底
-    if not matches or len(matches) < 3:
-        data_priority = 'secondary'
-        data_note = '备用源：Bzzoiro 第三方数据（竞彩官方API不可用）'
-        try:
-            from bizzoiro_client import fetch_events, fetch_standings_for_matches, fetch_predictions
-            matches = fetch_events(limit=15)
-            if matches and len(matches) >= 3:
-                source = 'Bzzoiro API'
-                try:
-                    standings = fetch_standings_for_matches(matches)
-                    predictions = fetch_predictions()
-                except Exception:
-                    pass
-        except Exception as e:
-            logger.warning('[cache] Bzzoiro 拉取失败: %s', e)
-            matches = []
 
     # 模拟数据最终兜底
     if not matches or len(matches) < 3:
