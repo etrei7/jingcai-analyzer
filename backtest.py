@@ -144,7 +144,7 @@ def compute_summary(period='all', model_name=None, play_type=None):
     try:
         from backtest_models import BtBet, db
         q = BtBet.query
-        if play_type:
+        if play_type and play_type != 'all':
             q = q.filter_by(play_type=play_type)
         bets = q.all()
         settled = [b for b in bets if b.settled_at]
