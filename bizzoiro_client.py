@@ -353,6 +353,46 @@ def fetch_events(date_from=None, date_to=None, limit=15):
         return []
 
 
+def fetch_actionable_results(date_from, date_to, limit=60):
+    """按队名匹配验证已完赛比赛：返回按(主队,客队)规约键的结果映射。
+    用于竞彩场次赛后结算（竞彩 raw_event_id 非 Bzzoiro ID，需按队名匹配）。
+    队名统一用中文名（TEAM_NAME_CN）规约，以兼容竞彩中文全名。
+    """
+    if not API_KEY:
+        return {}
+    url = f'{BASE_URL}/events/'
+    params = {'date_from': date_from, 'date_to': date_to, 'status': 'finished', 'limit': limit}
+
+    def norm(s):
+        return (s or '').replace(' ', '').replace('-', '').lower()
+
+    result = {}
+    try:
+        resp = requests.get(url, headers=_headers(), params=params, timeout=20)
+        resp.raise_for_status()
+        data = resp.json()
+        results = data.get('results', [])
+        if not isinstance(results, list):
+            results = []
+        for e in results:
+            hs = e.get('home_score')
+            aw = e.get('away_score')
+            if hs is None or aw is None:
+                continue
+            home_en = e.get('home_team', '')
+            away_en = e.get('away_team', '')
+            home = TEAM_NAME_CN.get(home_en, home_en)
+            away = TEAM_NAME_CN.get(away_en, away_en)
+            # 存双方向键，便于双向匹配
+            result[f'{norm(home)}|{norm(away)}'] = {'home': hs, 'away': aw}
+            result[f'{norm(away)}|{norm(home)}'] = {'home': hs, 'away': aw}
+        logger.info(f'[Bzzoiro] 已完赛匹配表 {len(result)} 条')
+        return result
+    except Exception as e:
+        logger.warning(f'[Bzzoiro] fetch_actionable_results: {e}')
+        return {}
+
+
 def fetch_standings(league_id):
     if not API_KEY or not league_id:
         return {}
