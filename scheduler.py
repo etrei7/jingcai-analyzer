@@ -12,7 +12,7 @@ def daily_settlement():
     """每日结算：尝试从 Bzzoiro 获取已完成比赛结果，验证预测命中率"""
     logger.info('[定时任务] 每日结算开始...')
     try:
-        api_key = os.environ.get('BZZOIRO_API_KEY', '')
+        api_key = os.environ.get('BZZOIRO_API_KEY', '2d8a09f4eaac8ce462729d3a7b82cd489bcf4b8e')
         if not api_key:
             logger.info('[定时任务] 无 API Key，跳过结算')
             return
