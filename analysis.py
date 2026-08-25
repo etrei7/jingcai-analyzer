@@ -342,7 +342,8 @@ def analyze_single_match(match, standings=None, prediction=None):
             pr = prediction.get('predicted_result', '')
             predicted_option = '胜' if pr == 'home' else '平' if pr == 'draw' else '负' if pr == 'away' else None
     else:
-        predicted_option = None
+        # 无 AI 预测时：以市场赔率最低方作为默认倾向，保证预测可保存
+        predicted_option = min_option[0] if min_option else None
 
     confidence_score *= league_quality
     confidence_level = '高' if confidence_score > 0.48 else '中' if confidence_score > 0.32 else '低'
