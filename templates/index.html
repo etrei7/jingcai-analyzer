@@ -4,6 +4,19 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>竞彩足球智能分析</title>
+<meta name="description" content="基于中国体育彩票竞彩数据的足球赛事分析工具，提供胜平负、总进球、串关参考，仅供娱乐学习研究。">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://LS7.pythonanywhere.com/">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  "name": "竞彩足球智能分析",
+  "description": "基于公开赛事数据的足球分析参考工具，仅供娱乐学习研究，不构成投注建议。",
+  "applicationCategory": "SportsApplication",
+  "url": "https://LS7.pythonanywhere.com/"
+}
+</script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root,[data-theme="light"]{
@@ -241,6 +254,20 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .an-tip{font-size:0.66rem;color:var(--accent);font-weight:600;margin-top:6px}
 .an-risk{font-size:0.66rem;color:var(--text-muted);margin-top:8px;padding-top:8px;border-top:1px dashed var(--border-light)}
 .an-empty{color:var(--text-muted);text-align:center;padding:20px;font-size:0.78rem}
+/* ===== 骨架屏 & 加载提示 ===== */
+.skeleton{background:linear-gradient(90deg,var(--card-stripe) 25%,var(--btn-hover) 37%,var(--card-stripe) 63%);background-size:400% 100%;animation:sken 1.2s ease infinite;border-radius:6px}
+@keyframes sken{0%{background-position:100% 50%}100%{background-position:0 50%}}
+.sk-card{background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:14px 18px;margin-bottom:12px}
+.sk-line{height:12px;margin:8px 0}
+.sk-title{height:16px;width:38%}
+.sk-sub{height:10px;width:60%}
+.sk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+.sk-rec{height:90px}
+.loading-hint{color:var(--text-muted);font-size:0.72rem;margin-top:8px;transition:opacity .3s}
+.loading-slow{color:var(--medium)}
+.footer .disclaimer{font-weight:600;letter-spacing:.5px}
+.footer{max-width:1400px;margin:0 auto;padding:16px 24px 24px;text-align:center;font-size:0.72rem;color:var(--text-muted)}
+.risk-banner{background:linear-gradient(90deg,rgba(220,38,38,.08),rgba(138,43,226,.08));border:1px solid var(--low);color:var(--low);font-weight:600;padding:12px 16px;border-radius:8px;margin-bottom:10px;font-size:0.8rem;line-height:1.5;letter-spacing:.3px}
 </style>
 </head>
 <body>
@@ -253,7 +280,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
     <div class="stat-item">赛事：<span id="totalMatches">0</span> 场</div>
     <div class="stat-item" id="sourceTag" style="font-size:0.68rem;color:var(--text-light)">源：<span id="dataSource">--</span></div>
     <div class="stat-item" id="priorityTag" style="display:none"></div>
-    <button class="btn-refresh" onclick="refreshData()">手动刷新</button>
+    <button class="btn-refresh" onclick="refreshData(true)">手动刷新</button>
     <button class="btn-theme" onclick="toggleTheme()" title="切换深/浅色模式">🌓</button>
   </div>
 </div>
@@ -328,8 +355,9 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 </div>
 
 <div class="footer">
-  <p class="disclaimer">免责声明：本网站所有数据及分析仅供娱乐参考，不构成任何投注建议。请理性对待，适度娱乐。</p>
-  <p>&copy; 2024 竞彩足球智能分析 | 数据源：Bzzoiro Sports Data</p>
+  <div class="risk-banner">&#9888;&#65039; 本网站所有数据及分析仅供娱乐参考，不构成任何投注建议。请理性购彩，量力而行，适度娱乐。未满18周岁禁止购彩。</div>
+  <p class="disclaimer">免责声明：由于赛果与赔率实时变动，仅供参考，请以中国体育彩票官方发布为准。</p>
+  <p>&copy; 2024 竞彩足球智能分析 | 数据源：Bzzoiro Sports Data | 仅供个人学习研究使用</p>
 </div>
 
 <div class="modal-overlay" id="modalOverlay" style="display:none" onclick="closeModal(event)">
@@ -1057,15 +1085,27 @@ function runParlayAnalysis(){
   out.innerHTML = html;
 }
 
-async function refreshData(){
+function renderSkeleton(){
+  var sk = '<div class="loading"><div class="spinner"></div><p style="margin-top:10px">加载赛事数据…</p><div class="loading-hint" id="loadHint">首次加载若较慢请稍候</div></div>';
+  for (var i = 0; i < 3; i++) {
+    sk += '<div class="sk-card"><div class="sk-line sk-title skeleton"></div><div class="sk-line sk-sub skeleton"></div><div class="sk-line sk-sub skeleton"></div></div>';
+  }
+  var rec = '<div class="loading">生成推荐方案…</div>';
+  for (var j = 0; j < 2; j++) rec += '<div class="sk-card sk-rec skeleton" style="margin-bottom:8px"></div>';
+  document.getElementById('matchesContainer').innerHTML = sk;
+  document.getElementById('recContainer').innerHTML = rec;
+  document.getElementById('tgContainer').innerHTML = '<div class="loading">分析总进球…</div>';
+  var hint = document.getElementById('loadHint');
+  if (hint) setTimeout(function(){ if (hint) { hint.textContent = '加载较慢，正在连接数据源…'; hint.className = 'loading-hint loading-slow'; } }, 6000);
+}
+
+async function refreshData(force){
   try{
-    document.getElementById('matchesContainer').innerHTML='<div class="loading"><div class="spinner"></div><p style="margin-top:10px">加载赛事数据…</p></div>';
-    document.getElementById('recContainer').innerHTML='<div class="loading">生成推荐方案…</div>';
-    document.getElementById('tgContainer').innerHTML='<div class="loading">分析总进球…</div>';
+    renderSkeleton();
 
     var data = null;
 
-    // 竞彩优先：官方场单+赔率（2-5秒），失败则 Bzzoiro 兜底
+    // 竞彩优先：官方场单+赔率（兜底 /api/data 缓存），失败则 Bzzoiro 兜底
     var jcResp = fetchJingcaiList().then(async function(jc){
       if(jc&&jc.length>=3){
         var r=await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({jingcai_matches:jc,client_time:new Date().toISOString(),odds_time:JINGCAI_ODDS_TIME})});
@@ -1081,8 +1121,9 @@ async function refreshData(){
       return;
     }
 
-    // 竞彩失败 → Bzzoiro 备用
-    data = await Promise.race([fetch('/api/data').then(function(r){return r.ok?r.json():null}).catch(function(){return null}),new Promise(function(r){setTimeout(function(){r(null)},10000)})]);
+    // 竞彩失败 → 缓存数据（/api/data 优先返回内存缓存，手动刷新 force 则强制重建）
+    var cacheUrl = force ? '/api/data?force=1' : '/api/data';
+    data = await Promise.race([fetch(cacheUrl).then(function(r){return r.ok?r.json():null}).catch(function(){return null}),new Promise(function(r){setTimeout(function(){r(null)},10000)})]);
 
     if(data) showData(data);
     else document.getElementById('matchesContainer').innerHTML='<div style="text-align:center;padding:60px;color:var(--text-muted)"><p>数据加载失败</p><button class="btn-refresh" onclick="refreshData()" style="margin-top:12px">重试</button></div>';
