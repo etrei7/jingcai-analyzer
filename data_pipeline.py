@@ -1,4 +1,6 @@
-"""鏁版嵁娴佹按绾匡細瀹氭椂鎷夊彇璧涗簨+璧旂巼骞惰惤搴擄紝璧涘悗鍥炲～缁撴灉锛屽舰鎴愬洖娴嬮棴鐜€?鍩轰簬 Bzzoiro锛堝悗绔彲璁块棶锛夛紱sporttery 鍦ㄦ湇鍔″櫒绔?403锛屾晠绔炲僵瀹樻柟鏁版嵁璧板墠绔紝姝ゅ浠呭洖娴嬨€?"""
+"""数据流水线：定时拉取赛事+赔率并落库，赛后回填结果，形成回测闭环。
+基于 Bzzoiro（后端可访问）；sporttery 在服务器端 403，故竞彩官方数据走前端，此处仅回测。
+"""
 import logging
 from datetime import datetime, timezone, timedelta
 
@@ -6,11 +8,11 @@ logger = logging.getLogger(__name__)
 
 
 def run_pipeline():
-    """鎷夊彇鏈潵璧涗簨+璧旂巼蹇収 + 鐢熸垚浠峰€肩洏棰勬祴钀藉簱銆傜敱 APScheduler 瀹氭椂璋冪敤銆?""
+    """拉取未来赛事+赔率快照 + 生成价值盘预测落库。由 APScheduler 定时调用。"""
     try:
         from bizzoiro_client import API_KEY, fetch_events
         if not API_KEY:
-            logger.info('[pipeline] 鏃?API Key锛岃烦杩?)
+            logger.info('[pipeline] no API key, skip')
             return 0
         from analysis import analyze_matches
         import backtest as bt
@@ -25,23 +27,22 @@ def run_pipeline():
             mid = m.get('raw_event_id') or m.get('match_id')
             if not mid:
                 continue
-            # 璧旂巼蹇収
+
             bt.record_odds_snapshot(
                 match_id=str(mid), market='1X2',
                 home=m.get('win_odds'), draw=m.get('draw_odds'), away=m.get('lose_odds'),
                 source='Bzzoiro'
             )
 
-            # 鐢卞競鍦烘渶浣庤禂鐜囦富鎺?1X2锛岀敤闅愬惈姒傜巼 + 杞诲井涓婃诞浣滀负妯″瀷姒傜巼锛屽垽鏂环鍊肩洏
             win, draw, loss = m.get('win_odds'), m.get('draw_odds'), m.get('lose_odds')
             opts = [('H', win), ('D', draw), ('A', loss)]
             best = min((o for o in opts if o[1] and o[1] > 0), key=lambda x: x[1])
             pick, odds = best
-            # 妯″瀷姒傜巼锛氶殣鍚鐜囷紙甯傚満浠凤級浣滀负鍩哄噯
             imp = bt.implied_prob(odds)
             conf_level = m.get('confidence_level', '')
-            conf = 0.8 if conf_level == '楂? else 0.6 if conf_level == '涓? else 0.4
-            predicted_prob = round(imp * conf, 4)  # 淇濆畧涓嬩慨锛岄伩鍏嶉珮浼?
+            conf = 0.8 if conf_level == '高' else 0.6 if conf_level == '中' else 0.4
+            predicted_prob = round(imp * conf, 4)
+
             bt.record_prediction(
                 match_id=str(mid), play_type='1X2', pick=pick,
                 predicted_prob=predicted_prob, odds=odds,
@@ -49,15 +50,15 @@ def run_pipeline():
                 home_team=m.get('home_team'), away_team=m.get('away_team')
             )
             saved += 1
-        logger.info('[pipeline] 澶勭悊 %d 鍦猴紙蹇収+棰勬祴锛?, saved)
+        logger.info('[pipeline] processed %d matches (snapshot+prediction)', saved)
         return saved
     except Exception as e:
-        logger.warning('[pipeline] 寮傚父: %s', e)
+        logger.warning('[pipeline] run error: %s', e)
         return 0
 
 
 def settle_finished():
-    """璧涘悗缁撶畻锛氭媺鍙栬繎7澶╁凡瀹岃禌锛屾寜闃熷悕鍥炲～ bt_bets銆?""
+    """赛后结算：拉取近7天已完赛，按队名回填 bt_bets。"""
     try:
         from bizzoiro_client import API_KEY, fetch_actionable_results
         if not API_KEY:
@@ -71,27 +72,25 @@ def settle_finished():
         settled = 0
         seen = set()
         for key, val in results.items():
-            # key 褰㈠ 'home|away'锛堝惈鍙嶅悜 key锛夛紝鍙鐞嗘鍚戜竴娆★紝閬垮厤閲嶅
             parts = key.split('|')
             if len(parts) != 2:
                 continue
-            norm_key = key
-            if norm_key in seen:
+            if key in seen:
                 continue
-            seen.add(norm_key)
+            seen.add(key)
             settled += bt.settle_bet(
                 match_id='', home_score=val['home'], away_score=val['away'],
                 home_team=parts[0], away_team=parts[1]
             ) or 0
-        logger.info('[pipeline] 缁撶畻瀹屾垚 %d', settled)
+        logger.info('[pipeline] settled %d', settled)
         return settled
     except Exception as e:
-        logger.warning('[pipeline] 缁撶畻寮傚父: %s', e)
+        logger.warning('[pipeline] settle error: %s', e)
         return 0
 
 
 def run_full():
-    """瀹屾暣娴佹按绾匡紙瀹氭椂浠诲姟鍏ュ彛锛夈€?""
+    """完整流水线（定时任务入口）。"""
     n1 = run_pipeline()
     n2 = settle_finished()
     return {'snapshots': n1, 'settled': n2}
