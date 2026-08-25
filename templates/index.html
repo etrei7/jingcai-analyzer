@@ -1148,7 +1148,46 @@ function showData(data){
   renderRecommendations(data.recommendations);
   renderTotalGoals(data.total_goals_recs);
   renderHistoryPanel(data.history_stats);
+  loadBacktestPanel();
   renderParlay();
+}
+
+async function loadBacktestPanel(){
+  var c = document.getElementById('historyContainer');
+  try{
+    var resp = await fetch('/api/backtest');
+    if(!resp.ok){ c.innerHTML='<div class="loading">加载战绩…</div>'; return; }
+    var s = await resp.json();
+    renderBacktestPanel(s);
+  }catch(e){
+    renderHistoryPanel && renderHistoryPanel(null);
+  }
+}
+
+function renderBacktestPanel(s){
+  var c = document.getElementById('historyContainer');
+  if(!s || s.total_bets === 0){
+    c.innerHTML = '<div style="padding:12px;background:var(--card-stripe);border-radius:8px;font-size:0.78rem;color:var(--text-muted)">尚无验证记录，回测将在比赛结束后自动结算并更新 ROI</div>';
+    return;
+  }
+  var roi = s.roi || 0;
+  var rate = s.hit_rate || 0;
+  var roiColor = roi > 0 ? 'var(--high)' : roi < 0 ? 'var(--low)' : 'var(--text)';
+  var rateColor = rate >= 50 ? 'var(--high)' : rate >= 40 ? 'var(--medium)' : 'var(--low)';
+  var pnl = s.total_pnl || 0;
+  c.innerHTML = `
+    <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:14px 18px">
+      <div style="text-align:center"><div style="font-size:1.5rem;font-weight:700;color:${roiColor}">${roi>0?'+':''}${roi}%</div><div style="font-size:0.65rem;color:var(--text-muted)">ROI 盈利率</div></div>
+      <div style="text-align:center"><div style="font-size:1.1rem;font-weight:700;color:var(--text)">${s.total_bets||0}</div><div style="font-size:0.65rem;color:var(--text-muted)">样本(结算)</div></div>
+      <div style="text-align:center"><div style="font-size:1.1rem;font-weight:700;color:${rateColor}">${rate}%</div><div style="font-size:0.65rem;color:var(--text-muted)">命中率</div></div>
+      <div style="text-align:center"><div style="font-size:1.1rem;font-weight:700;color:var(--text)">${s.wins||0}/${s.losses||0}</div><div style="font-size:0.65rem;color:var(--text-muted)">胜/负</div></div>
+      <div style="text-align:center"><div style="font-size:1.1rem;font-weight:700;color:var(--text)">${pnl>0?'+':''}${pnl}</div><div style="font-size:0.65rem;color:var(--text-muted)">累计盈亏(元)</div></div>
+      <div style="text-align:center"><div style="font-size:1rem;font-weight:600;color:var(--text-muted)">均赔 ${s.avg_odds||0}</div><div style="font-size:0.65rem;color:var(--text-muted)">平均赔率</div></div>
+    </div>
+    <div style="margin-top:6px;font-size:0.66rem;color:var(--text-muted)">
+      待结算 ${s.pending||0} 场 ｜ 模型 ${s.model_name||'—'} ｜ 玩法 ${s.play_type||'all'} ｜ 更新 ${s.computed_at||'—'}
+    </div>
+    <div style="margin-top:4px;font-size:0.62rem;color:var(--text-light)">命中率≠盈利：只看命中率可能亏，ROI=总盈亏/总投入，&gt;0 才长期为正期望</div>`;
 }
 
 function toggleTheme() {
