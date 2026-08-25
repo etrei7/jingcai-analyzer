@@ -95,12 +95,53 @@ def get_data(force=False, ttl=None):
         if cached and (now() - cached['ts']) < ttl and not force:
             logger.info('[cache] 命中缓存 age=%.1fs', now() - cached['ts'])
             return cached['payload']
-    # 锁释放重建（避免长时间占锁）
+    # 锁释放重建（避免长时间占锁）；带超时保护，防止外部 API 慢导致请求卡死
     logger.info('[cache] 重建数据（冷启动/过期）')
-    payload = _build_payload()
+    payload = _build_payload_with_timeout()
     with _lock:
         _cache['data'] = {'ts': now(), 'payload': payload}
     return payload
+
+
+def _build_payload_with_timeout(timeout=15):
+    """在独立线程构建 payload，超时则返回降级 payload（避免阻塞请求）。"""
+    result = {'payload': None, 'done': False}
+
+    def target():
+        try:
+            result['payload'] = _build_payload()
+        except Exception as e:
+            logger.warning('[cache] 构建失败: %s', e)
+        finally:
+            result['done'] = True
+
+    t = threading.Thread(target=target, daemon=True)
+    t.start()
+    t.join(timeout)
+    if result['done'] and result['payload'] is not None:
+        return result['payload']
+    # 超时降级
+    logger.warning('[cache] 构建超时，返回降级数据')
+    try:
+        from data_generator import generate_matches as generate_mock_matches
+        matches = generate_mock_matches(12)
+    except Exception:
+        matches = []
+    from analysis import analyze_matches, generate_parlay_recommendations, generate_total_goals_recommendations
+    analyzed = analyze_matches(matches, {}, {})
+    return {
+        'matches': analyzed,
+        'recommendations': generate_parlay_recommendations(analyzed),
+        'total_goals_recs': generate_total_goals_recommendations(analyzed),
+        'history_stats': {},
+        'stats': {
+            'total_matches': len(analyzed),
+            'update_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'source': '模拟数据 (数据源超时)',
+            'data_priority': 'fallback',
+            'data_note': '数据源超时降级',
+        }
+    }
 
 
 def warmup():
