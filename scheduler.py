@@ -32,31 +32,57 @@ def daily_settlement():
         BASE_URL = os.environ.get('BZZOIRO_BASE_URL', 'https://sports.bzzoiro.com/api')
         headers = {'Authorization': f'Token {api_key}'}
 
+        # 预取近期完赛结果表（按队名匹配，兼容竞彩场次）
+        results_map = {}
+        try:
+            from bizzoiro_client import fetch_actionable_results
+            results_map = fetch_actionable_results(
+                (datetime.now(CST) - timedelta(days=7)).strftime('%Y-%m-%d'),
+                today
+            )
+        except Exception:
+            results_map = {}
+
+        def _norm(s):
+            return (s or '').replace(' ', '').replace('-', '').lower()
+
+        verified = 0
         for p in unverified[:50]:  # 最多验证50条
             eid = p.get('raw_event_id', '')
-            if not eid:
-                continue
-            try:
-                r = requests.get(f'{BASE_URL}/events/{eid}/', headers=headers, timeout=15)
-                if r.status_code == 200:
-                    ev = r.json()
-                    hs = ev.get('home_score')
-                    aw = ev.get('away_score')
-                    if hs is not None and aw is not None:
-                        if hs > aw: actual = '胜'
-                        elif hs == aw: actual = '平'
-                        else: actual = '负'
-                        p['verified'] = True
-                        p['actual'] = actual
-                        p['score'] = f'{hs}-{aw}'
-                        p['hit'] = (p['predicted'] == actual)
-                        logger.info(f'[结算] {p["match_id"]} {p["home_team"]}vs{p["away_team"]}: {p["predicted"]}→{actual} hit={p["hit"]}')
-            except Exception:
-                continue
+            home = p.get('home_team', '')
+            away = p.get('away_team', '')
+            hs = aw = None
+            # 优先按队名匹配（竞彩/任意来源通用）
+            if home and away:
+                key = f'{_norm(home)}|{_norm(away)}'
+                m = results_map.get(key)
+                if m:
+                    hs, aw = m['home'], m['away']
+            # 其次按 Bzzoiro eid 精确匹配
+            if (hs is None or aw is None) and eid:
+                try:
+                    r = requests.get(f'{BASE_URL}/events/{eid}/', headers=headers, timeout=15)
+                    if r.status_code == 200:
+                        ev = r.json()
+                        hs = ev.get('home_score')
+                        aw = ev.get('away_score')
+                except Exception:
+                    pass
+
+            if hs is not None and aw is not None:
+                if hs > aw: actual = '胜'
+                elif hs == aw: actual = '平'
+                else: actual = '负'
+                p['verified'] = True
+                p['actual'] = actual
+                p['score'] = f'{hs}-{aw}'
+                p['hit'] = (p['predicted'] == actual)
+                verified += 1
+                logger.info(f'[结算] {p["match_id"]} {p["home_team"]}vs{p["away_team"]}: {p["predicted"]}→{actual} hit={p["hit"]}')
 
         _recalc_stats(hist)
         _save_history(hist)
-        logger.info(f'[定时任务] 结算完成')
+        logger.info(f'[定时任务] 结算完成，本次验证 {verified} 条')
     except Exception as e:
         logger.warning(f'[定时任务] 结算异常: {e}')
 
