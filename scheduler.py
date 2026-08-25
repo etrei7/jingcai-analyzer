@@ -96,11 +96,30 @@ def init_scheduler(app):
         minute=30,
         id='daily_settlement'
     )
+    # 回测流水线：定时采集快照 + 生成预测 + 赛后结算（内部有 API 超时保护,不阻塞 worker）
+    scheduler.add_job(
+        backtest_pipeline,
+        'interval',
+        minutes=30,
+        id='backtest_pipeline',
+        max_instances=1,
+        coalesce=True,
+    )
     # 说明：不额外加定时缓存预热任务。uWSGI 单 worker 环境下，后台高频拉取
     # 会阻塞请求处理；缓存改为「请求时按需构建 + 手动 /cache-refresh 强制刷新」。
     scheduler.start()
     app.extensions['scheduler'] = scheduler
-    logger.info('[定时任务] APScheduler 已启动：每日 2:30 执行结算')
+    logger.info('[定时任务] APScheduler 已启动：每日 2:30 结算，每 30 分钟回测流水线')
+
+
+def backtest_pipeline():
+    """回测流水线定时任务：采集预测与赔率快照 + 结算已完赛。"""
+    try:
+        from data_pipeline import run_full
+        res = run_full()
+        logger.info('[定时任务] 回测流水线完成: %s', res)
+    except Exception as e:
+        logger.warning('[定时任务] 回测流水线异常: %s', e)
 
 
 def warmup_cache():
