@@ -340,6 +340,20 @@ def health():
     return jsonify({'status': 'ok', 'time': datetime.now().strftime('%Y-%m-%d %H:%M:%S')})
 
 
+@app.route('/api/db-check')
+def db_check():
+    """临时诊断：输出 Web 进程实际连接的数据库 URI 与回测表行数。"""
+    info = {'uri': app.config.get('SQLALCHEMY_DATABASE_URI')}
+    try:
+        from backtest import compute_summary
+        s = compute_summary()
+        info['pending'] = s.get('pending')
+        info['total_bets'] = s.get('total_bets')
+    except Exception as e:
+        info['error'] = str(e)
+    return jsonify(info)
+
+
 @app.route('/api/backtest')
 def backtest_stats():
     """回测战绩汇总：命中率 + ROI + 累计盈亏 + 样本量。供战绩面板读取。"""
