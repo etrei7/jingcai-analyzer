@@ -32,6 +32,14 @@ def index():
 
 @app.route('/api/data')
 def get_data():
+    # 优先读内存缓存（定时任务预拉取），解决冷启动/多次请求性能问题
+    try:
+        from cache import get_data as get_cached_data
+        force = request.args.get('force', '').lower() == '1'
+        payload = get_cached_data(force=force)
+        return jsonify(payload)
+    except Exception as e:
+        logging.warning('[API] 缓存读取失败，降级直连: %s', e)
     matches = []
     source = ''
 
@@ -102,6 +110,18 @@ def get_data():
         }
     })
     # /api/data end
+
+
+@app.route('/api/cache-refresh')
+def cache_refresh():
+    """前端手动刷新时强制重建缓存（?1 触发）。"""
+    try:
+        from cache import get_data as get_cached_data
+        payload = get_cached_data(force=True)
+        return jsonify({'success': True, 'cached': True, 'update_time': payload['stats']['update_time']})
+    except Exception as e:
+        logging.warning('[API] cache-refresh: %s', e)
+        return jsonify({'success': False}), 500
 
 
 @app.route('/api/jingcai-token')
@@ -299,6 +319,23 @@ def _filter_by_jingcai(matches, jc_list):
     if matched:
         return matched, True
     return matches, False
+
+
+@app.route('/robots.txt')
+def robots():
+    return """
+User-agent: *
+Disallow: /api/
+Disallow: /robots.txt
+Allow: /
+
+# 本站内容仅供娱乐参考，非投注平台，不提供实质购彩服务。
+""".strip()
+
+
+@app.route('/health')
+def health():
+    return jsonify({'status': 'ok', 'time': datetime.now().strftime('%Y-%m-%d %H:%M:%S')})
 
 
 if __name__ == '__main__':
