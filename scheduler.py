@@ -96,6 +96,23 @@ def init_scheduler(app):
         minute=30,
         id='daily_settlement'
     )
+    # 缓存预拉取：定期刷新赛事数据缓存，避免冷启动/首次访问卡顿
+    scheduler.add_job(
+        warmup_cache,
+        'interval',
+        minutes=10,
+        id='cache_warmup',
+        next_run_time=datetime.now()
+    )
     scheduler.start()
     app.extensions['scheduler'] = scheduler
-    logger.info('[定时任务] APScheduler 已启动，每日凌晨 2:30 执行结算')
+    logger.info('[定时任务] APScheduler 已启动：每日 2:30 结算，每 10 分钟预拉取缓存')
+
+
+def warmup_cache():
+    """定时预拉取赛事数据到内存缓存。"""
+    try:
+        from cache import warmup
+        warmup()
+    except Exception as e:
+        logger.warning('[定时任务] 缓存预拉取异常: %s', e)
