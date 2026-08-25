@@ -96,21 +96,15 @@ def init_scheduler(app):
         minute=30,
         id='daily_settlement'
     )
-    # 缓存预拉取：定期刷新赛事数据缓存，避免冷启动/首次访问卡顿
-    scheduler.add_job(
-        warmup_cache,
-        'interval',
-        minutes=10,
-        id='cache_warmup',
-        next_run_time=datetime.now()
-    )
+    # 说明：不额外加定时缓存预热任务。uWSGI 单 worker 环境下，后台高频拉取
+    # 会阻塞请求处理；缓存改为「请求时按需构建 + 手动 /cache-refresh 强制刷新」。
     scheduler.start()
     app.extensions['scheduler'] = scheduler
-    logger.info('[定时任务] APScheduler 已启动：每日 2:30 结算，每 10 分钟预拉取缓存')
+    logger.info('[定时任务] APScheduler 已启动：每日 2:30 执行结算')
 
 
 def warmup_cache():
-    """定时预拉取赛事数据到内存缓存。"""
+    """定时预拉取赛事数据到内存缓存（保留入口，供需要时手动调用）。"""
     try:
         from cache import warmup
         warmup()
