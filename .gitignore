@@ -4,3 +4,5 @@ __pycache__/
 *.db
 instance/
 .env
+predictions_history.json
+predictions_history.json.*
