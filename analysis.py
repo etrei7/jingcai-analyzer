@@ -144,10 +144,11 @@ def _fundamental_pick(home_rank, away_rank, home_form, away_form,
     # 3. 状态差（form 字符串）
     if home_form and away_form:
         hf = _format_string(home_form)
+        af = _format_string(away_form)
         hw = int(hf.split('胜')[0]) if '胜' in hf else 0
         hl = int(hf.split('负')[0].split('平')[-1]) if '负' in hf else 0
-        aw = sum(1 for ch in away_form if ch in 'Ww')
-        al = sum(1 for ch in away_form if ch in 'Ll')
+        aw = int(af.split('胜')[0]) if '胜' in af else 0
+        al = int(af.split('负')[0].split('平')[-1]) if '负' in af else 0
         score_diff = (hw - hl) - (aw - al)
         if abs(score_diff) >= 2:
             sig = '主' if score_diff > 0 else '客'
@@ -416,14 +417,15 @@ def analyze_single_match(match, standings=None, prediction=None):
     implied_prob = 1.0 / min_odds if min_odds > 0 else 0.33
     confidence_score = min(0.95, max(0.05, implied_prob))
 
+    predicted_option = None
     if prediction:
         pred_conf = prediction.get('confidence', 0) or 0
         if pred_conf > 0:
             confidence_score = (confidence_score + pred_conf) / 2
             pr = prediction.get('predicted_result', '')
             predicted_option = '胜' if pr == 'home' else '平' if pr == 'draw' else '负' if pr == 'away' else None
-    else:
-        # 无 AI 预测时：以市场赔率最低方作为默认倾向，保证预测可保存
+    # prediction 缺失或无法解析出有效倾向时，兜底为市场最低赔率方（保证每场都有预测）
+    if not predicted_option:
         predicted_option = min_option[0] if min_option else None
 
     confidence_score *= league_quality
