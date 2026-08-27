@@ -1177,19 +1177,55 @@ function renderBacktestPanel(s){
   var roiColor = roi > 0 ? 'var(--high)' : roi < 0 ? 'var(--low)' : 'var(--text)';
   var rateColor = rate >= 50 ? 'var(--high)' : rate >= 40 ? 'var(--medium)' : 'var(--low)';
   var pnl = s.total_pnl || 0;
-  var recHtml = records.map(function(r){
+  // 按玩法分组展示（玩法顺序：胜平负 -> 让胜平负 -> 比分 -> 半全场，未结算优先在前）
+  var playOrder = ['胜平负', '让胜平负', '比分', '半全场', '大小球'];
+  var groups = {};
+  records.forEach(function(r){
+    var pt = r.play_type_cn || '其他';
+    (groups[pt] = groups[pt] || []).push(r);
+  });
+  var groupHtml = '';
+  playOrder.forEach(function(pt){
+    if(!groups[pt] || !groups[pt].length) return;
+    // 组内排序：待结算在前，未结算按结果排序
+    var list = groups[pt].slice().sort(function(a,b){
+      var ra = a.outcome? (a.outcome==='win'?2:1) : 0;
+      var rb = b.outcome? (b.outcome==='win'?2:1) : 0;
+      return rb - ra;
+    });
+    // 目标 win 数（命中），ROI 仅统计该玩法
+    var w = list.filter(function(x){return x.outcome==='win';}).length;
+    var l = list.filter(function(x){return x.outcome==='lose';}).length;
+    var p = list.filter(function(x){return !x.outcome;}).length;
+    var pnl = 0; list.forEach(function(x){ if(x.pnl) pnl += x.pnl; });
+    var stake = 0; list.forEach(function(x){ if(x.outcome==='win'||x.outcome==='lose'&&x.stake) stake += x.stake; });
+    var roll = stake? Math.round(pnl/stake*1000)/10 : 0;
+    var head = '<div style="display:flex;align-items:center;justify-content:space-between;margin:8px 0 5px;padding-bottom:3px;border-bottom:1px solid var(--border-light)">' +
+      '<span style="font-weight:700;font-size:0.78rem;color:var(--accent)">'+pt+'</span>' +
+      '<span style="font-size:0.62rem;color:var(--text-muted)">命中 '+w+'/'+l+'（'+p+'待结算）｜ 盈亏 '+(pnl>0?'+':'')+pnl+' ｜ 玩法ROI '+roll+'%</span>' +
+    '</div>';
+    var body = list.map(rElemFn).join('');
+    groupHtml += head + body;
+  });
+  // 未识别玩法兜底
+  Object.keys(groups).forEach(function(pt){
+    if(playOrder.indexOf(pt) >= 0) return;
+    var list = groups[pt];
+    groupHtml += '<div style="margin:8px 0 5px;font-weight:700;font-size:0.78rem;color:var(--accent)">'+pt+'</div>' + list.map(rElemFn).join('');
+  });
+
+  function rElemFn(r){
     var bg, fg;
     if(r.outcome === 'win'){ bg='var(--high-bg)'; fg='#166534'; }
     else if(r.outcome === 'lose'){ bg='var(--low-bg)'; fg='#b91c1c'; }
     else { bg='var(--card-stripe)'; fg='var(--text-muted)'; }
     var team = (r.home_team || '?') + ' vs ' + (r.away_team || '?');
-    var ptTag = '<span style="display:inline-block;margin-right:6px;padding:1px 5px;border-radius:3px;background:var(--tag-bg);color:var(--text-muted);font-size:0.6rem">'+(r.play_type_cn||'胜平负')+'</span>';
     return '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;border-radius:6px;margin-bottom:3px;background:'+bg+';color:'+fg+';font-size:0.7rem">' +
-      '<span style="font-weight:600">'+ptTag+team+'</span>' +
+      '<span style="font-weight:600">'+team+'</span>' +
       '<span style="margin-left:6px">'+r.pick_cn+' @'+(r.odds||'—')+'</span>' +
       '<span style="margin-left:auto">'+(r.outcome==='win'?'✓ 命中 +'+(r.pnl||0):r.outcome==='lose'?'✗ 未中 '+(r.pnl||0):'⏳ 待结算')+'</span>' +
     '</div>';
-  }).join('');
+  }
 
   c.innerHTML = `
     <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:14px 18px">
@@ -1200,7 +1236,7 @@ function renderBacktestPanel(s){
       <div style="text-align:center"><div style="font-size:1.1rem;font-weight:700;color:var(--text)">${pnl>0?'+':''}${pnl}</div><div style="font-size:0.65rem;color:var(--text-muted)">累计盈亏(元)</div></div>
       <div style="text-align:center"><div style="font-size:1rem;font-weight:600;color:var(--text-muted)">均赔 ${s.avg_odds||0}</div><div style="font-size:0.65rem;color:var(--text-muted)">平均赔率</div></div>
     </div>
-    <div style="margin-top:8px"><strong style="font-size:0.75rem">预测记录（${records.length}条，待结算 ${s.pending||0}）：</strong><div style="margin-top:4px">${recHtml}</div></div>
+    <div style="margin-top:8px"><strong style="font-size:0.75rem">预测记录（${records.length}条，待结算 ${s.pending||0}）：</strong><div style="margin-top:4px">${groupHtml}</div></div>
     <div style="margin-top:6px;font-size:0.66rem;color:var(--text-muted)">模型 ${s.model_name||'—'} ｜ 更新 ${s.computed_at||'—'}</div>
     <div style="margin-top:4px;font-size:0.62rem;color:var(--text-light)">命中率≠盈利：只看命中率可能亏，ROI=总盈亏/总投入，&gt;0 才长期为正期望</div>`;
 }
