@@ -379,13 +379,16 @@ def fetch_actionable_results(date_from, date_to, limit=60):
             aw = e.get('away_score')
             if hs is None or aw is None:
                 continue
+            hht = e.get('home_score_ht')
+            awt = e.get('away_score_ht')
             home_en = e.get('home_team', '')
             away_en = e.get('away_team', '')
             home = TEAM_NAME_CN.get(home_en, home_en)
             away = TEAM_NAME_CN.get(away_en, away_en)
+            val = {'home': hs, 'away': aw, 'home_ht': hht, 'away_ht': awt}
             # 存双方向键，便于双向匹配
-            result[f'{norm(home)}|{norm(away)}'] = {'home': hs, 'away': aw}
-            result[f'{norm(away)}|{norm(home)}'] = {'home': hs, 'away': aw}
+            result[f'{norm(home)}|{norm(away)}'] = val
+            result[f'{norm(away)}|{norm(home)}'] = val
         logger.info(f'[Bzzoiro] 已完赛匹配表 {len(result)} 条')
         return result
     except Exception as e:
