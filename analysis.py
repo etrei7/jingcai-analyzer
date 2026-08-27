@@ -105,6 +105,87 @@ def _team_confidence_10(form_str=None, rank=None, xgd=None,
     return {'score': min(total, 10), 'breakdown': breakdown, 'reasons': reasons}
 
 
+def _format_string(forms):
+    w = sum(1 for ch in (forms or '') if ch in 'Ww')
+    l = sum(1 for ch in (forms or '') if ch in 'Ll')
+    d = len((forms or '')) - w - l
+    return f'{w}胜{d}平{l}负'
+
+
+def _fundamental_pick(home_rank, away_rank, home_form, away_form,
+                      home_pts, away_pts, home_xgd, away_xgd,
+                      home_gf, away_gf, home_ga, away_ga, home_played, away_played,
+                      h_inj, a_inj, h_home=None, a_away=None):
+    """基于基本面（排名/状态/进球差/xG差/伤病/积分）输出独立于赔率的倾向。
+    返回 {'pick': 'H'/'D'/'A' 或 None(数据不足), 'score': 强度0-1, 'signals': {}}
+    仅当有足够基本面数据时有效；杯赛/无积分榜场次返回 None（交由赔率决定）。
+    """
+    signals = {}
+    # 1. 排名差（主流联赛有 rank）
+    if home_rank is not None and away_rank is not None and home_rank > 0 and away_rank > 0:
+        rank_diff = away_rank - home_rank   # >0 主队排名更靠前(数字小=靠前)
+        if abs(rank_diff) >= 10:
+            sig = '主' if rank_diff > 0 else '客'
+            signals['rank'] = (sig, min(0.7, 0.3 + abs(rank_diff) / 40))
+        elif abs(rank_diff) >= 4:
+            sig = '主' if rank_diff > 0 else '客'
+            signals['rank'] = (sig, 0.3)
+    # 2. 积分差（per-game 更公平）
+    if (home_pts is not None and away_pts is not None and home_played and away_played):
+        hppg = home_pts / home_played
+        appg = away_pts / away_played
+        ppg_diff = hppg - appg
+        if abs(ppg_diff) >= 0.6:
+            sig = '主' if ppg_diff > 0 else '客'
+            signals['points'] = (sig, min(0.7, 0.3 + abs(ppg_diff)))
+        elif abs(ppg_diff) >= 0.3:
+            sig = '主' if ppg_diff > 0 else '客'
+            signals['points'] = (sig, 0.3)
+    # 3. 状态差（form 字符串）
+    if home_form and away_form:
+        hf = _format_string(home_form)
+        hw = int(hf.split('胜')[0]) if '胜' in hf else 0
+        hl = int(hf.split('负')[0].split('平')[-1]) if '负' in hf else 0
+        aw = sum(1 for ch in away_form if ch in 'Ww')
+        al = sum(1 for ch in away_form if ch in 'Ll')
+        score_diff = (hw - hl) - (aw - al)
+        if abs(score_diff) >= 2:
+            sig = '主' if score_diff > 0 else '客'
+            signals['form'] = (sig, 0.35)
+        elif abs(score_diff) >= 1:
+            sig = '主' if score_diff > 0 else '客'
+            signals['form'] = (sig, 0.2)
+    # 4. xG 差（进攻端）
+    if home_xgd is not None and away_xgd is not None:
+        xgd_diff = home_xgd - away_xgd
+        if abs(xgd_diff) >= 1.5:
+            sig = '主' if xgd_diff > 0 else '客'
+            signals['xg'] = (sig, 0.4)
+        elif abs(xgd_diff) >= 0.5:
+            sig = '主' if xgd_diff > 0 else '客'
+            signals['xg'] = (sig, 0.2)
+    # 5. 伤病差
+    inj_diff = (a_inj or 0) - (h_inj or 0)  # >0 客队伤停多→利主
+    if abs(inj_diff) >= 2:
+        sig = '主' if inj_diff > 0 else '客'
+        signals['injury'] = (sig, 0.3)
+
+    # 汇总：统计各倾向信号
+    if not signals:
+        return {'pick': None, 'score': 0.0, 'signals': {}}
+    tally = {'主': 0.0, '客': 0.0}
+    for sig, w in signals.values():
+        tally[sig] += w
+    # 主场加成（默认主队有主场优势）
+    tally['主'] += 0.15
+    total = tally['主'] + tally['客']
+    if total <= 0:
+        return {'pick': None, 'score': 0.0, 'signals': {}}
+    pick = 'H' if tally['主'] >= tally['客'] else 'A' if tally['客'] > tally['主'] else 'D'
+    strength = min(0.9, abs(tally['主'] - tally['客']) / total + 0.2)
+    return {'pick': pick, 'score': strength, 'signals': signals}
+
+
 def _estimate_team_value(league_quality, rank, odds_ratio, confidence, team_name=''):
     """估算球队身价（百万欧元）。优先使用真实数据集，缺失时基于联赛+排名推算"""
     # Real data from team_values.json (Transfermarkt-based)
@@ -346,7 +427,6 @@ def analyze_single_match(match, standings=None, prediction=None):
         predicted_option = min_option[0] if min_option else None
 
     confidence_score *= league_quality
-    confidence_level = '高' if confidence_score > 0.48 else '中' if confidence_score > 0.32 else '低'
 
     # 2. 热度标签
     if min_odds < 1.4:
@@ -379,6 +459,8 @@ def analyze_single_match(match, standings=None, prediction=None):
     away_pts = None
     home_xgd = None
     away_xgd = None
+    home_gf = home_ga = home_played = None
+    away_gf = away_ga = away_played = None
 
     if standings and match.get('league_id'):
         ls = standings.get(str(match['league_id']), {})
@@ -392,11 +474,13 @@ def analyze_single_match(match, standings=None, prediction=None):
                 home_form = hi.get('form', '') or home_form
                 home_pts = hi.get('pts')
                 home_xgd = hi.get('xgd')
+                home_gf, home_ga, home_played = hi.get('gf'), hi.get('ga'), hi.get('played')
             if ai and ai.get('position') is not None:
                 away_rank = ai.get('position')
                 away_form = ai.get('form', '') or away_form
                 away_pts = ai.get('pts')
                 away_xgd = ai.get('xgd')
+                away_gf, away_ga, away_played = ai.get('gf'), ai.get('ga'), ai.get('played')
 
     # 5. 球队信心 10分制
     home_odds_ratio = 1.0 / match['win_odds'] if match['win_odds'] > 0 else 0.5
@@ -412,6 +496,43 @@ def analyze_single_match(match, standings=None, prediction=None):
     away_confidence = away_conf_result['score']
     home_breakdown = home_conf_result['breakdown']
     away_breakdown = away_conf_result['breakdown']
+
+    # 4.5 基本面倾向与赔率倾向交叉验证（提升命中率的关键）
+    # 基于排名/状态/积分/xG/伤病独立的博弈倾向，与市场赔率倾向比对。
+    fund = _fundamental_pick(
+        home_rank, away_rank, home_form, away_form,
+        home_pts, away_pts, home_xgd, away_xgd,
+        home_gf, away_gf, home_ga, away_ga, home_played, away_played,
+        h_inj, a_inj
+    )
+    fund_pick = fund['pick']   # 'H'/'D'/'A' 或 None
+    fund_sig = fund['signals']
+    # 预测倾向(中文) -> 'H/D/A'
+    opt_map = {'胜': 'H', '平': 'D', '负': 'A'}
+    odds_pick = opt_map.get(predicted_option)
+    if fund_pick and odds_pick:
+        if fund_pick == odds_pick:
+            # 市场与基本面一致：主信号，提升信心（可信预测）
+            confidence_score = min(0.95, confidence_score * (1 + 0.35 * fund['score']))
+            cross_signal = '一致'
+        else:
+            # 市场与基本面相悖：警惕爆冷，降低信心；基本面强信号时改用基本面倾向
+            if fund['score'] >= 0.5 and fund_pick != 'D':
+                predicted_option = '胜' if fund_pick == 'H' else '负'
+                cross_signal = f'基本面上风→改判'
+                confidence_score = min(0.9, confidence_score * 0.9)
+            else:
+                cross_signal = '背离·谨慎'
+                confidence_score = min(0.95, confidence_score * 0.72)
+    elif fund_pick and not odds_pick:
+        # 无确定赔率倾向（平局为最低）但基本面有倾向
+        cross_signal = '基本面参考'
+    else:
+        cross_signal = '赔率主导'
+
+    # 交叉修正后重新评估信心等级与分值
+    confidence_level = '高' if confidence_score > 0.48 else '中' if confidence_score > 0.32 else '低'
+    result_extra = {'cross_signal': cross_signal, 'fund_signals': fund_sig, 'fund_strength': fund['score']}
 
     # 6. 总进球分析（盘口+球队状态驱动）
     tg = _compute_total_goals(match, prediction, home_confidence / 10.0, away_confidence / 10.0, h_inj, a_inj)
@@ -513,6 +634,9 @@ def analyze_single_match(match, standings=None, prediction=None):
     result['away_confidence'] = away_confidence
     result['home_breakdown'] = home_breakdown
     result['away_breakdown'] = away_breakdown
+    result['cross_signal'] = result_extra.get('cross_signal', '')
+    result['fund_signals'] = result_extra.get('fund_signals', {})
+    result['fund_strength'] = result_extra.get('fund_strength', 0.0)
     result['home_reasons'] = home_conf_result.get('reasons', {})
     result['away_reasons'] = away_conf_result.get('reasons', {})
     result['home_xgd'] = home_xgd
