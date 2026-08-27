@@ -12,8 +12,8 @@ logger = logging.getLogger(__name__)
 # 全局缓存
 _cache = {}
 _lock = threading.Lock()
-# 默认缓存有效期（秒）；竞彩官方赔率更新快，用较短 TTL
-_CACHE_TTL = 45
+# 默认缓存有效期（秒）；竞彩官方赔率更新较快，适中TTL避免频繁重建
+_CACHE_TTL = 180
 
 
 def now():
@@ -51,6 +51,35 @@ def _build_payload():
         logger.warning('[cache] Bzzoiro 拉取失败: %s', e)
         matches = []
 
+    # API-Football 富化：补充基本面数据（排名/状态/主客场/净胜球），
+    # 这些是最缺的高价值信号，用于高信心判断与预测。
+    try:
+        from api_football_client import match_row, enrich_form_data
+        injected = 0
+        for m in matches:
+            hrow, arow = match_row(m)
+            hd, ad = enrich_form_data(hrow, arow)
+            if not hd and not ad:
+                continue
+            # 直接注入到 match，供 analysis 的 _fundamental_pick 使用
+            if hd:
+                m['home_rank'] = m.get('home_rank') or hd.get('rank')
+                m['home_form'] = m.get('home_form') or hd.get('form') or ''
+                m['home_xgd'] = m.get('home_xgd') or hd.get('goals_diff')
+                m['home_played'] = m.get('home_played') or hd.get('played')
+                m.setdefault('_afb_home', hd)
+            if ad:
+                m['away_rank'] = m.get('away_rank') or ad.get('rank')
+                m['away_form'] = m.get('away_form') or ad.get('form') or ''
+                m['away_xgd'] = m.get('away_xgd') or ad.get('goals_diff')
+                m['away_played'] = m.get('away_played') or ad.get('played')
+                m.setdefault('_afb_away', ad)
+            injected += 1
+        if injected:
+            logger.info('[cache] API-Football 富化 %d 场基本面', injected)
+    except Exception as e:
+        logger.warning('[cache] API-Football 富化失败: %s', e)
+
     # 模拟数据最终兜底
     if not matches or len(matches) < 3:
         from data_generator import generate_matches as generate_mock_matches
@@ -66,7 +95,9 @@ def _build_payload():
 
     try:
         from history import save_predictions, get_stats
-        save_predictions(analyzed)
+        # 仅真实数据源写入历史，模拟数据不污染战绩
+        if source in ('竞彩官方', 'Bzzoiro API'):
+            save_predictions(analyzed)
         history_stats = get_stats()
     except Exception as e:
         logger.warning('[cache] 保存预测/统计失败: %s', e)
