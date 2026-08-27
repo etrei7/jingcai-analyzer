@@ -471,6 +471,21 @@ def analyze_single_match(match, standings=None, prediction=None):
     away_xgd = None
     home_gf = home_ga = home_played = None
     away_gf = away_ga = away_played = None
+    # API-Football 注入的基本面兜底（_afb_home/_afb_away，含积分/净胜球/主客场）
+    _afb_h = match.get('_afb_home') or {}
+    _afb_a = match.get('_afb_away') or {}
+    if _afb_h:
+        home_pts = home_pts or _afb_h.get('points')
+        home_xgd = home_xgd if home_xgd is not None else _afb_h.get('goals_diff')
+        home_gf = home_gf or _afb_h.get('home_goals_for') or _afb_h.get('goals_for')
+        home_ga = home_ga or _afb_h.get('home_goals_against')
+        home_played = home_played or _afb_h.get('played')
+    if _afb_a:
+        away_pts = away_pts or _afb_a.get('points')
+        away_xgd = away_xgd if away_xgd is not None else _afb_a.get('goals_diff')
+        away_gf = away_gf or _afb_a.get('away_goals_for') or _afb_a.get('goals_for')
+        away_ga = away_ga or _afb_a.get('away_goals_against')
+        away_played = away_played or _afb_a.get('played')
 
     if standings and match.get('league_id'):
         ls = standings.get(str(match['league_id']), {})
