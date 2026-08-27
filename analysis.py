@@ -541,7 +541,24 @@ def analyze_single_match(match, standings=None, prediction=None):
         cross_signal = '赔率主导'
 
     # 交叉修正后重新评估信心等级与分值（阈值收紧，避免"高信心"过泛）
-    confidence_level = '高' if confidence_score > 0.55 else '中' if confidence_score > 0.38 else '低'
+    # 数据质量约束：浅数据（低联赛质量）不允许"高信噪"——没有基本面信息支撑的
+    # 推荐，即便赔率极端也不应标为高信心（避免盲目跟赔率/诱盘）。
+    league_quality_now = league_quality
+    conf_level = '高' if confidence_score > 0.55 else '中' if confidence_score > 0.38 else '低'
+    # 浅数据封顶：league_quality < 0.7 的场次最多只能到"中"
+    if league_quality_now < 0.7 and conf_level == '高':
+        conf_level = '中'
+        confidence_score = min(confidence_score, 0.55)
+        cross_signal = (cross_signal + '·浅数据') if cross_signal else '浅数据'
+    # 极端热门(诱盘)降级：赔率<1.25 且基本面信号不强一致时降为谨慎
+    if min_odds < 1.25 and conf_level == '高' and fund.get('score', 0) < 0.4:
+        conf_level = '中'
+        confidence_score = min(confidence_score, 0.55)
+        cross_signal = '极端热门·谨慎'
+    elif min_odds < 1.4 and conf_level == '高' and fund.get('score', 0) < 0.3:
+        conf_level = '中'
+        confidence_score = min(confidence_score, 0.5)
+    confidence_level = conf_level
     result_extra = {'cross_signal': cross_signal, 'fund_signals': fund_sig, 'fund_strength': fund['score']}
 
     # 6. 总进球分析（盘口+球队状态驱动）
