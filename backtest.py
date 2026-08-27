@@ -83,10 +83,11 @@ def record_prediction(match_id, play_type, pick, predicted_prob, odds,
         return {'value': value, 'edge': round(edge, 4)}
 
 
-def settle_bet(match_id, home_score, away_score, home_team=None, away_team=None):
-    """赛后结算：根据 1X2 结果回填投注 outcome 与 pnl。
-    优先按 match_id 匹配；若 match_id 匹配不到（竞彩 vs Bzzoiro 编号差异），
-    则按 (home_team, away_team) 规约匹配，兼容回测闭环。
+def settle_bet(match_id, home_score, away_score, home_team=None, away_team=None,
+               home_score_ht=None, away_score_ht=None):
+    """赛后结算：按玩法类型回填投注 outcome 与 pnl。
+    支持 1X2(胜平负)、AH(让胜平负)、CS(正确比分)、HTFT(半全场)、OU(大小球)。
+    优先按 match_id 匹配；匹配不到则按 (home_team, away_team) 规约匹配。
     pnl = (odds-1)*stake if win else -stake if lose else 0 (void)
     """
     if not USE_DB:
@@ -118,15 +119,8 @@ def settle_bet(match_id, home_score, away_score, home_team=None, away_team=None)
                 continue
             seen.add(b.id)
             stake = b.stake or 1.0
-            if b.pick == actual:
-                outcome = 'win'
-                pnl = round((b.odds - 1) * stake, 4)
-            elif b.pick in ('H', 'D', 'A'):
-                outcome = 'lose'
-                pnl = round(-stake, 4)
-            else:
-                outcome = 'void'
-                pnl = 0.0
+            outcome, pnl = _eval_play(b, actual, home_score, away_score,
+                                     home_score_ht, away_score_ht, stake)
             b.outcome = outcome
             b.pnl = pnl
             b.settled_at = _now_str()
@@ -137,6 +131,80 @@ def settle_bet(match_id, home_score, away_score, home_team=None, away_team=None)
     except Exception as e:
         logger.warning('[backtest] settle failed: %s', e)
         return 0
+
+
+def _eval_play(b, actual, hs, aw, hht, awt, stake):
+    """按玩法判定单条投注结果。返回 (outcome, pnl)。"""
+    pt = b.play_type or '1X2'
+    pick = b.pick or ''
+
+    # 1X2 胜平负
+    if pt == '1X2':
+        if pick == actual:
+            return 'win', round((b.odds - 1) * stake, 4)
+        elif pick in ('H', 'D', 'A'):
+            return 'lose', round(-stake, 4)
+        return 'void', 0.0
+
+    # AH 让胜平负（pick 形如 'H', 'D', 'A'，按实际让球后结果判定；无让球线时用 1X2）
+    if pt == 'AH':
+        # pick 以 '|' 分隔：如 'H|-1' 表示主让1球，实际让球结果 = 主净胜 - line
+        if '|' in pick:
+            p, line = pick.split('|', 1)
+            try:
+                line = float(line)
+            except Exception:
+                line = 0
+            diff = hs - aw
+            # 让球后：主队实际盘口净胜 = diff - line（主让负line，受让加）
+            adj = diff - line
+            ah_actual = 'H' if adj > 0 else 'A' if adj < 0 else 'D'
+            if p == ah_actual:
+                return 'win', round((b.odds - 1) * stake, 4)
+            elif p in ('H', 'D', 'A'):
+                return 'lose', round(-stake, 4)
+            return 'void', 0.0
+        # 无让球线，按 1X2
+        if pick == actual:
+            return 'win', round((b.odds - 1) * stake, 4)
+        elif pick in ('H', 'D', 'A'):
+            return 'lose', round(-stake, 4)
+        return 'void', 0.0
+
+    # CS 正确比分（pick 形如 '2-1'）
+    if pt == 'CS':
+        if pick == f'{hs}-{aw}':
+            return 'win', round((b.odds - 1) * stake, 4)
+        return 'lose', round(-stake, 4)
+
+    # HTFT 半全场（pick 形如 'HH','HD','HA','DH'...，即 半场结果+全场结果）
+    if pt == 'HTFT':
+        hh, awt_h = hht, awt
+        ht_actual = 'H' if (hh is not None and awt_h is not None and hh > awt_h) else \
+                    'D' if (hh is not None and awt_h is not None and hh == awt_h) else \
+                    'A' if (hh is not None and awt_h is not None and hh < awt_h) else None
+        if ht_actual is None:
+            return 'void', 0.0
+        if pick == (ht_actual + actual):
+            return 'win', round((b.odds - 1) * stake, 4)
+        return 'lose', round(-stake, 4)
+
+    # OU 大小球（pick 形如 'O25' 表示大2.5，'U25' 表示小2.5）
+    if pt == 'OU':
+        total = hs + aw
+        try:
+            if pick.startswith('O'):
+                line = float(pick[1:]) / 10.0
+                return ('win', round((b.odds - 1) * stake, 4)) if total > line else ('lose', round(-stake, 4))
+            elif pick.startswith('U'):
+                line = float(pick[1:]) / 10.0
+                return ('win', round((b.odds - 1) * stake, 4)) if total < line else ('lose', round(-stake, 4))
+        except Exception:
+            return 'void', 0.0
+        return 'void', 0.0
+
+    # 未知玩法兜底
+    return 'void', 0.0
 
 
 def compute_summary(period='all', model_name=None, play_type=None):
@@ -159,8 +227,36 @@ def compute_summary(period='all', model_name=None, play_type=None):
         odds_list = [b.odds for b in settled if b.odds]
         avg_odds = round(sum(odds_list) / len(odds_list), 2) if odds_list else 0.0
 
-        # 预测明细：供面板展示历史战绩
-        pick_map = {'H': '主胜', 'D': '平', 'A': '客胜'}
+        # 预测明细：供面板展示历史战绩（按玩法解释 pick）
+        def describe(play_type, pick):
+            pt = play_type or '1X2'
+            if pt == '1X2':
+                p = {'H': '主胜', 'D': '平', 'A': '客胜'}.get(pick, pick)
+                return p
+            if pt == 'AH':
+                if '|' in pick:
+                    p, line = pick.split('|', 1)
+                    side = {'H': '主', 'D': '平', 'A': '客'}.get(p, p)
+                    try:
+                        line = float(line)
+                        lab = (-line) if line > 0 else abs(line)
+                        return f'{side}让{lab:.0f}' if line < 0 else f'{side}受让{lab:.0f}'
+                    except Exception:
+                        return side
+                return {'H': '主胜', 'D': '平', 'A': '客胜'}.get(pick, pick)
+            if pt == 'CS':
+                return f'比分{pick}'
+            if pt == 'HTFT':
+                m = {'H': '胜', 'D': '平', 'A': '负'}
+                if len(pick) >= 2:
+                    return '半场' + m.get(pick[0], pick[0]) + '/全场' + m.get(pick[1], pick[1])
+                return pick
+            if pt == 'OU':
+                return ('大' + str(float(pick[1:]) / 10.0) + '球') if pick.startswith('O') else \
+                       ('小' + str(float(pick[1:]) / 10.0) + '球') if pick.startswith('U') else pick
+            return pick
+
+        play_cn = {'1X2': '胜平负', 'AH': '让胜平负', 'CS': '比分', 'HTFT': '半全场', 'OU': '大小球'}
         records = []
         for b in bets:
             rec = {
@@ -168,8 +264,9 @@ def compute_summary(period='all', model_name=None, play_type=None):
                 'home_team': b.home_team,
                 'away_team': b.away_team,
                 'play_type': b.play_type,
+                'play_type_cn': play_cn.get(b.play_type, b.play_type or '胜平负'),
                 'pick': b.pick,
-                'pick_cn': pick_map.get(b.pick, b.pick),
+                'pick_cn': describe(b.play_type, b.pick),
                 'odds': b.odds,
                 'stake': b.stake,
                 'outcome': b.outcome,
