@@ -234,6 +234,8 @@ def _parse_event_to_match(event):
         'match_time': _format_time_cst(event_date),
         'home_team': home_cn,
         'away_team': away_cn,
+        'home_team_en': home_en,
+        'away_team_en': away_en,
         'home_team_id': event.get('home_team_obj', {}).get('id') if isinstance(event.get('home_team_obj'), dict) else None,
         'away_team_id': event.get('away_team_obj', {}).get('id') if isinstance(event.get('away_team_obj'), dict) else None,
         'win_odds': float(event.get('odds_home', 0) or 0),
