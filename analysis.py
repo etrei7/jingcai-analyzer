@@ -838,6 +838,19 @@ def generate_total_goals_recommendations(matches):
         top3 = m.get('top3_goals', [])
         if not top3 or top3[0]['prob'] <= 0:
             continue
+        # 主推档 = 概率最高；确定性 = 最高档与次档差距
+        main = top3[0]
+        second = top3[1] if len(top3) > 1 else None
+        margin = round(main['prob'] - (second['prob'] if second else 0), 1)
+        # 确定性标签：档位差距大 => 高确定性（更值得关注）
+        if margin >= 5:
+            cert = '高'
+        elif margin >= 2.5:
+            cert = '中'
+        else:
+            cert = '低'   # 档位接近，需谨慎
+        # 备选档位（除主推外的其余两个）
+        alt = [g['label'] for g in top3[1:3]]
         rec = {
             'match_id': m['match_id'],
             'league': m['league'],
@@ -847,11 +860,17 @@ def generate_total_goals_recommendations(matches):
             'expected_goals': m.get('expected_goals', ''),
             'tendency': m.get('over_under_tendency', ''),
             'over25_prob': m.get('over25_prob', 0),
+            'main_pick': main['label'],
+            'main_prob': main['prob'],
+            'alt_picks': alt,
+            'cert': cert,
+            'margin': margin,
             'top3': top3,
             'goal_distribution': m.get('goal_distribution', {}),
         }
         tg_recs.append(rec)
-    tg_recs.sort(key=lambda r: r['top3'][0]['prob'] if r['top3'] else 0, reverse=True)
+    # 排序：确定性高（档位领先大）优先，其次超高概率；避免全是 2/3 球刷屏
+    tg_recs.sort(key=lambda r: (r['margin'], r['main_prob']), reverse=True)
     return tg_recs
 
 
