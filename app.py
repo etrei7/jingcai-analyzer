@@ -12,7 +12,6 @@ from scheduler import init_scheduler
 from history import save_predictions, get_stats
 from bizzoiro_client import _parse_event_to_match, _assign_match_ids, LEAGUE_NAME_MAP
 import backtest_models  # noqa: F401  确保回测表 bt_* 随 db.create_all() 创建
-import backtest_models  # noqa: F401  确保回测表 bt_* 随 db.create_all() 创建
 
 logging.basicConfig(level=logging.INFO)
 
@@ -28,8 +27,7 @@ init_scheduler(app)
 
 @app.route('/')
 def index():
-    api_key = os.environ.get('BZZOIRO_API_KEY', '')
-    return render_template('index.html', api_key=api_key)
+    return render_template('index.html')
 
 
 @app.route('/api/data')
@@ -39,7 +37,9 @@ def get_data():
         from cache import get_data as get_cached_data
         force = request.args.get('force', '').lower() == '1'
         payload = get_cached_data(force=force)
-        return jsonify(payload)
+        if payload and payload.get('stats', {}).get('source') != '模拟数据 (数据源超时)':
+            return jsonify(payload)
+        logging.warning('[API] 缓存失效或为模拟数据，重新构建')
     except Exception as e:
         logging.warning('[API] 缓存读取失败，降级直连: %s', e)
     matches = []
@@ -92,10 +92,12 @@ def get_data():
     recommendations = generate_parlay_recommendations(analyzed)
     total_goals_recs = generate_total_goals_recommendations(analyzed)
 
-    try:
-        save_predictions(analyzed)
-    except Exception:
-        pass
+    # 仅真实数据源（竞彩官方 / Bzzoiro）写入历史，模拟数据不污染战绩
+    if source in ('竞彩官方', 'Bzzoiro API'):
+        try:
+            save_predictions(analyzed)
+        except Exception:
+            pass
     history_stats = get_stats()
 
     return jsonify({
@@ -120,10 +122,13 @@ def cache_refresh():
     try:
         from cache import get_data as get_cached_data
         payload = get_cached_data(force=True)
+        # 如果返回模拟数据，标记让前端知道需要重新拉取
+        if payload and payload.get('stats', {}).get('source', '').startswith('模拟'):
+            return jsonify({'success': True, 'cached': True, 'update_time': payload['stats']['update_time'], 'is_mock': True})
         return jsonify({'success': True, 'cached': True, 'update_time': payload['stats']['update_time']})
     except Exception as e:
         logging.warning('[API] cache-refresh: %s', e)
-        return jsonify({'success': False}), 500
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @app.route('/api/jingcai-token')
@@ -133,6 +138,19 @@ def get_jingcai_token():
     if token:
         return jsonify({'token': token, 'success': True})
     return jsonify({'token': None, 'success': False})
+
+
+@app.route('/api/jingcai')
+def get_jingcai():
+    """后端代理竞彩官方场单+赔率：同源返回，规避浏览器 CORS；
+    服务器端若能访问 sporttery 则优先，否则返回空（前端降级到缓存源）。"""
+    try:
+        from jingcai_scraper import fetch_jingcai_matches
+        matches = fetch_jingcai_matches()
+        return jsonify({'matches': matches or [], 'count': len(matches or []), 'odds_time': ''})
+    except Exception as e:
+        logging.warning('[API] /api/jingcai 失败: %s', e)
+        return jsonify({'matches': [], 'count': 0, 'error': str(e)})
 
 
 @app.route('/api/analyze', methods=['POST'])
@@ -209,7 +227,9 @@ def analyze_data():
             'matches': analyzed, 'recommendations': recommendations,
             'total_goals_recs': total_goals_recs, 'history_stats': get_stats(),
             'stats': {'total_matches': len(analyzed),
-                       'update_time': fetch_ts, 'source': source}  # jingcai path
+                       'update_time': fetch_ts, 'source': source,
+                       'data_priority': 'primary',
+                       'data_note': '主数据源：中国体育彩票官方赔率'}  # jingcai path
         })
 
     # 路径2：Bzzoiro 原始数据 + 竞彩场单匹配
@@ -218,7 +238,7 @@ def analyze_data():
     jc_list = data.get('jingcai_list', [])
 
     if not raw_events:
-        return jsonify({'error': 'no events provided'}), 400
+        return jsonify({'error': '未提供任何赛事数据，请从赛事看板加载后再分析', 'success': False}), 400
 
     matches = []
     for e in raw_events:
@@ -271,10 +291,12 @@ def analyze_data():
     recommendations = generate_parlay_recommendations(analyzed)
     total_goals_recs = generate_total_goals_recommendations(analyzed)
 
-    try:
-        save_predictions(analyzed)
-    except Exception:
-        pass
+    # 仅对真实数据源（Bzzoiro）写入历史，模拟数据不污染战绩
+    if 'Bzzoiro' in source:
+        try:
+            save_predictions(analyzed)
+        except Exception:
+            pass
     history_stats = get_stats()
 
     return jsonify({
@@ -381,4 +403,8 @@ def backtest_run():
 
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=8000)
+    # 生产环境务必通过环境变量设置 SECRET_KEY 与关闭 debug
+    if app.config.get('SECRET_KEY') == 'jingcai-dev-secret-2024':
+        logging.warning('[安全] 正在使用默认 SECRET_KEY，生产环境请设置环境变量 SECRET_KEY')
+    debug_mode = os.environ.get('FLASK_DEBUG', '0') == '1'
+    app.run(debug=debug_mode, host='0.0.0.0', port=int(os.environ.get('PORT', 8000)))
