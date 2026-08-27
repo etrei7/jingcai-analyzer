@@ -541,12 +541,14 @@ def analyze_single_match(match, standings=None, prediction=None):
         cross_signal = '赔率主导'
 
     # 交叉修正后重新评估信心等级与分值（阈值收紧，避免"高信心"过泛）
-    # 数据质量约束：浅数据（低联赛质量）不允许"高信噪"——没有基本面信息支撑的
-    # 推荐，即便赔率极端也不应标为高信心（避免盲目跟赔率/诱盘）。
+    # 数据质量约束：浅数据（无基本面信号或低联赛质量）不允许"高信心"——
+    # 没有基本面信息支撑的推荐，即便赔率极端也不应标为高信心（避免盲目跟赔率/诱盘）。
     league_quality_now = league_quality
     conf_level = '高' if confidence_score > 0.55 else '中' if confidence_score > 0.38 else '低'
-    # 浅数据封顶：league_quality < 0.7 的场次最多只能到"中"
-    if league_quality_now < 0.7 and conf_level == '高':
+    # 浅数据判断：无基本面信号（无排名/状态/xG/伤病差支撑）即为浅数据 → 封顶"中"
+    # 优先用 fund_sig 是否为空判断（比 league_quality 更准确，杯赛无积分榜也是浅数据）
+    is_shalow = (not fund_sig) or league_quality_now < 0.7
+    if is_shalow and conf_level == '高':
         conf_level = '中'
         confidence_score = min(confidence_score, 0.55)
         cross_signal = (cross_signal + '·浅数据') if cross_signal else '浅数据'
