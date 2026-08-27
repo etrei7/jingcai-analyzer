@@ -22,71 +22,88 @@ def run_pipeline():
             return 0
 
         analyzed = analyze_matches(matches, None, {})
-        save_plays = []
+        saved = 0
         for m in analyzed:
             mid = m.get('raw_event_id') or m.get('match_id')
             if not mid:
                 continue
-
-            bt.record_odds_snapshot(
-                match_id=str(mid), market='1X2',
-                home=m.get('win_odds'), draw=m.get('draw_odds'), away=m.get('lose_odds'),
-                source='Bzzoiro'
-            )
-
-            home, away = m.get('home_team'), m.get('away_team')
-            conf_level = m.get('confidence_level', '')
-            conf = 0.8 if conf_level == '高' else 0.6 if conf_level == '中' else 0.4
-            win, draw, loss = m.get('win_odds'), m.get('draw_odds'), m.get('lose_odds')
-
-            # 1X2 胜平负
-            best = min((o for o in [('H', win), ('D', draw), ('A', loss)] if o[1] and o[1] > 0),
-                       key=lambda x: x[1])
-            pick1x2, odds1x2 = best
-            bt.record_prediction(str(mid), '1X2', pick1x2,
-                                 round(bt.implied_prob(odds1x2) * conf, 4), odds1x2,
-                                 model_name='jingcai-value', confidence=conf,
-                                 home_team=home, away_team=away)
-
-            # AH 让胜平负（有盘口则记录盘口+推荐）
-            hp = m.get('handicap', {}) or {}
-            line = hp.get('handicap_line', 0)
-            hwin, hdraw, hloss = hp.get('handicap_win_odds'), hp.get('handicap_draw_odds'), hp.get('handicap_lose_odds')
-            hcp_pick = hp.get('hcp_pick', {})
-            if hcp_pick and hcp_pick.get('odds'):
-                hside = {'让胜': 'H', '让平': 'D', '让负': 'A'}.get(hcp_pick.get('side'), 'H')
-                # pick 编码：让球结果 | 让球线（主让为负，主受让为正）
-                hline = line if line else 0
-                pick_ah = f'{hside}|{hline}'
-                bt.record_prediction(str(mid), 'AH', pick_ah,
-                                     round((hcp_pick.get('prob', 0) or 0) / 100 * conf, 4),
-                                     hcp_pick.get('odds'),
-                                     model_name='jingcai-value', confidence=conf,
-                                     home_team=home, away_team=away)
-
-            # CS 正确比分（推荐的比分）
-            rec_score = m.get('recommended_score', '')
-            if rec_score and '-' in rec_score:
-                h, a = rec_score.split('-', 1)
-                # 用模型概率估算比分赔率（隐含：1/概率）
-                bt.record_prediction(str(mid), 'CS', rec_score,
-                                     round(0.12 * conf, 4), None,
-                                     model_name='jingcai-value', confidence=conf,
-                                     home_team=home, away_team=away)
-
-            # HTFT 半全场（半场期望≈全场*0.45 简化模拟，取最可能组合）
-            htft = _predict_htft(m, conf)
-            if htft:
-                pick_htft, prob_htft, odds_htft = htft
-                bt.record_prediction(str(mid), 'HTFT', pick_htft, prob_htft, odds_htft,
-                                     model_name='jingcai-value', confidence=conf,
-                                     home_team=home, away_team=away)
-            saved += 1
+            try:
+                _record_match_plays(bt, m, str(mid))
+                saved += 1
+            except Exception as e:
+                logger.warning('[pipeline] match %s play record error: %s', mid, e)
+                continue
         logger.info('[pipeline] processed %d matches with multi-play predictions', saved)
         return saved
     except Exception as e:
         logger.warning('[pipeline] run error: %s', e)
         return 0
+
+
+def _record_match_plays(bt, m, mid):
+    """为单场比赛记录赔率快照 + 多玩法预测（1X2/AH/CS/HTFT）。单场异常不影响他场。"""
+    bt.record_odds_snapshot(
+        match_id=mid, market='1X2',
+        home=m.get('win_odds'), draw=m.get('draw_odds'), away=m.get('lose_odds'),
+        source='Bzzoiro'
+    )
+    home, away = m.get('home_team'), m.get('away_team')
+    conf_level = m.get('confidence_level', '')
+    conf = 0.8 if conf_level == '高' else 0.6 if conf_level == '中' else 0.4
+    win, draw, loss = m.get('win_odds'), m.get('draw_odds'), m.get('lose_odds')
+
+    # 1X2 胜平负
+    best = min((o for o in [('H', win), ('D', draw), ('A', loss)] if o[1] and o[1] > 0),
+               key=lambda x: x[1])
+    pick1x2, odds1x2 = best
+    bt.record_prediction(mid, '1X2', pick1x2,
+                         round(bt.implied_prob(odds1x2) * conf, 4), odds1x2,
+                         model_name='jingcai-value', confidence=conf,
+                         home_team=home, away_team=away)
+
+    # AH 让胜平负
+    try:
+        hp = m.get('handicap')
+        if not isinstance(hp, dict):
+            hp = {} if hp in (None, '', '未知') else {'handicap_label': str(hp)}
+        line = hp.get('handicap_line', 0)
+        hcp_pick = hp.get('hcp_pick')
+        if isinstance(hcp_pick, dict) and (hcp_pick.get('odds') or hcp_pick.get('side')):
+            hside = {'让胜': 'H', '让平': 'D', '让负': 'A'}.get(hcp_pick.get('side'), 'H')
+            try:
+                hline = float(line) if line else 0.0
+            except (TypeError, ValueError):
+                hline = 0.0
+            pick_ah = f'{hside}|{hline}'
+            bt.record_prediction(mid, 'AH', pick_ah,
+                                 round((hcp_pick.get('prob', 0) or 0) / 100 * conf, 4),
+                                 hcp_pick.get('odds'),
+                                 model_name='jingcai-value', confidence=conf,
+                                 home_team=home, away_team=away)
+    except Exception:
+        pass
+
+    # CS 正确比分
+    try:
+        rec_score = str(m.get('recommended_score', ''))
+        if rec_score and '-' in rec_score:
+            bt.record_prediction(mid, 'CS', rec_score,
+                                 round(0.12 * conf, 4), None,
+                                 model_name='jingcai-value', confidence=conf,
+                                 home_team=home, away_team=away)
+    except Exception:
+        pass
+
+    # HTFT 半全场
+    try:
+        htft = _predict_htft(m, conf)
+        if htft:
+            pick_htft, prob_htft, odds_htft = htft
+            bt.record_prediction(mid, 'HTFT', pick_htft, prob_htft, odds_htft,
+                                 model_name='jingcai-value', confidence=conf,
+                                 home_team=home, away_team=away)
+    except Exception:
+        pass
 
 
 def _predict_htft(m, conf, max_goals=5):
