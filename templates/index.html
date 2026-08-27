@@ -7,6 +7,14 @@
 <meta name="description" content="基于中国体育彩票竞彩数据的足球赛事分析工具，提供胜平负、总进球、串关参考，仅供娱乐学习研究。">
 <meta name="robots" content="index, follow">
 <link rel="canonical" href="https://LS7.pythonanywhere.com/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="竞彩足球智能分析">
+<meta property="og:description" content="基于公开赛事数据的足球分析参考工具，提供胜平负、总进球、串关分析，仅供娱乐学习研究，不构成投注建议。">
+<meta property="og:url" content="https://LS7.pythonanywhere.com/">
+<meta property="og:site_name" content="竞彩足球智能分析">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="竞彩足球智能分析">
+<meta name="twitter:description" content="足球赛事分析参考工具，仅供娱乐学习研究。">
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -268,6 +276,24 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .footer .disclaimer{font-weight:600;letter-spacing:.5px}
 .footer{max-width:1400px;margin:0 auto;padding:16px 24px 24px;text-align:center;font-size:0.72rem;color:var(--text-muted)}
 .risk-banner{background:linear-gradient(90deg,rgba(220,38,38,.08),rgba(138,43,226,.08));border:1px solid var(--low);color:var(--low);font-weight:600;padding:12px 16px;border-radius:8px;margin-bottom:10px;font-size:0.8rem;line-height:1.5;letter-spacing:.3px}
+/* ===== 深色模式下标签类深色适配(修复硬编码浅色背景) ===== */
+[data-theme="dark"] .rank-badge.top3{background:#064e3b;color:#6fbf8c}
+[data-theme="dark"] .rank-badge.mid{background:#0b3d27;color:#7fd0a0}
+[data-theme="dark"] .rank-badge.low{background:#3d2c12;color:#e0a94e}
+[data-theme="dark"] .rank-badge.bottom{background:#3c2018;color:#e07a63}
+[data-theme="dark"] .tag-over{background:#3d2c12;color:#f0a45e}
+[data-theme="dark"] .tag-moderate{background:#3d2c12;color:#e0a94e}
+[data-theme="dark"] .tag-extreme{background:#3c2018;color:#e07a63}
+[data-theme="dark"] .tag-cold{background:#3d2c12;color:#f0a45e}
+[data-theme="dark"] .tag-injury{background:#3c2018;color:#e07a63}
+[data-theme="dark"] .league-q.t1{background:#064e3b;color:#6fbf8c}
+[data-theme="dark"] .league-q.t2{background:#3d2c12;color:#e0a94e}
+[data-theme="dark"] .league-q.t3{background:#3c2018;color:#e07a63}
+[data-theme="dark"] .market-tag.balanced{background:#0b3d27;color:#7fd0a0}
+[data-theme="dark"] .market-tag.away-tendency{background:#3d2c12;color:#f0a45e}
+[data-theme="dark"] .market-tag.home-tendency{background:#3d2c12;color:#f0a45e}
+[data-theme="dark"] .market-tag.draw-tendency{background:#2a2333;color:#b8a8d8}
+[data-theme="dark"] .derby-tag{background:#3d2c12;color:#e0a94e}
 </style>
 </head>
 <body>
@@ -365,32 +391,9 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 </div>
 
 <script>
-const BZZOIRO_API_KEY = "{{ api_key }}";
-const BZZOIRO_BASE_URL = "https://sports.bzzoiro.com/api";
-
 let currentMatches = [];
 let parlaySelections = {};
 let autoRefreshTimer = null;
-
-async function fetchBzzoiroEvents(limit) {
-  limit = limit || 15;
-  const today = new Date().toISOString().slice(0, 10);
-  const dt = new Date(Date.now() + 2 * 86400000);
-  const twoDays = dt.toISOString().slice(0, 10);
-  const url = BZZOIRO_BASE_URL + '/events/?date_from=' + today + '&date_to=' + twoDays + '&status=notstarted&limit=' + limit;
-  const resp = await fetch(url, { headers: { 'Authorization': 'Token ' + BZZOIRO_API_KEY } });
-  if (!resp.ok) throw new Error('Bzzoiro events ' + resp.status);
-  const data = await resp.json();
-  return (data.results || []).slice(0, limit);
-}
-
-async function fetchBzzoiroPredictions() {
-  const url = BZZOIRO_BASE_URL + '/predictions/?upcoming=true';
-  const resp = await fetch(url, { headers: { 'Authorization': 'Token ' + BZZOIRO_API_KEY } });
-  if (!resp.ok) { console.warn('Bzzoiro predictions ' + resp.status); return []; }
-  const data = await resp.json();
-  return data.results || [];
-}
 
 var JINGCAI_TOKEN = '';
 var JINGCAI_ODDS_TIME = '';
