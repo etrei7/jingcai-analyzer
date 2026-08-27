@@ -173,6 +173,21 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .tg-pick{background:var(--btn-bg);border:1px solid var(--border);padding:4px 10px;border-radius:6px;text-align:center;cursor:default}
 .tg-pick .tg-key{font-weight:700;font-size:0.82rem;color:var(--home)}
 .tg-pick .tg-prob{font-size:0.62rem;color:var(--text-muted)}
+/* 精简总进球卡片：主推档 + 确定性 */
+.tg-card{display:flex;flex-direction:column;gap:4px}
+.tg-mainpick{display:flex;align-items:baseline;gap:8px;padding:8px 0}
+.tg-pickbig{font-size:1.7rem;font-weight:900;color:var(--home);font-family:var(--serif);line-height:1}
+.tg-pickpct{font-size:0.85rem;font-weight:700;color:var(--text-muted);font-family:var(--mono)}
+.tg-certainty{display:inline-flex;align-items:center;gap:5px;font-size:0.62rem;font-weight:700;padding:2px 8px;border-radius:0;border:1px solid currentColor;font-family:var(--mono);width:fit-content}
+.tg-certainty .cert-mark{letter-spacing:0}
+.tg-certainty.cert-high{color:#16a34a;background:#dcfce7}
+.tg-certainty.cert-mid{color:#d97706;background:#fef3c7}
+.tg-certainty.cert-low{color:#6b7280;background:#f3f4f6}
+[data-theme="dark"] .tg-certainty.cert-high{color:#22c55e;background:#064e3b}
+[data-theme="dark"] .tg-certainty.cert-mid{color:#f59e0b;background:#451a03}
+[data-theme="dark"] .tg-certainty.cert-low{color:#94a3b8;background:#334155}
+.tg-alt{font-size:0.62rem;color:var(--text-muted);font-family:var(--mono)}
+.tg-tend{font-size:0.6rem;color:var(--amber);font-weight:600}
 .parlay-panel{position:fixed;right:20px;top:80px;width:300px;max-height:calc(100vh - 120px);background:var(--panel-bg);border:1px solid var(--border);border-radius:12px;display:flex;flex-direction:column;z-index:200;box-shadow:var(--shadow-lg)}
 .parlay-panel.collapsed .parlay-list,.parlay-panel.collapsed .parlay-footer{display:none}
 .parlay-panel.collapsed{width:auto;min-width:160px}
@@ -874,11 +889,16 @@ function renderTotalGoals(tgRecs) {
   const c = document.getElementById('tgContainer');
   if(!tgRecs||!tgRecs.length){c.innerHTML='<div class="loading">暂无总进球分析</div>';return}
   c.innerHTML='<div class="tg-grid">'+tgRecs.map(tg=>{
-    const top3 = tg.top3||[];
+    const certCls = tg.cert==='高'?'cert-high':tg.cert==='中'?'cert-mid':'cert-low';
+    const certTxt = tg.cert==='高'?'高把握':tg.cert==='中'?'中等':'接近';
+    const alt = (tg.alt_picks||[]).join(' / ');
     return `<div class="tg-card">
       <div class="tg-teams"><span class="h">${tg.home_team}</span> vs <span class="a">${tg.away_team}</span></div>
-      <div class="tg-meta">#${tg.match_id} ${tg.league} | ${tg.match_time} | 预期 ${tg.expected_goals} 球 | 大2.5: ${tg.over25_prob}%</div>
-      <div class="tg-picks">${top3.map(g=>`<div class="tg-pick"><div class="tg-key">${g.label}</div><div class="tg-prob">概率 ${g.prob}%</div></div>`).join('')}</div>
+      <div class="tg-meta">#${tg.match_id} ${tg.league} ${tg.match_time} · 预期${tg.expected_goals}球 · 大2.5${tg.over25_prob}%</div>
+      <div class="tg-mainpick"><span class="tg-pickbig">${tg.main_pick}</span><span class="tg-pickpct">${tg.main_prob}%</span></div>
+      <div class="tg-certainty ${certCls}">${certTxt}把握 <span class="cert-mark">${tg.cert==='高'?'◆◆◆':tg.cert==='中'?'◆◆':'◆'}</span></div>
+      ${alt?'<div class="tg-alt">次选：'+alt+'</div>':''}
+      <div class="tg-tend">${tg.tendency||''}</div>
     </div>`;
   }).join('')+'</div>';
 }
