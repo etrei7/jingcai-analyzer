@@ -279,10 +279,13 @@ def _compute_handicap(match, prediction=None, home_state=0.5, away_state=0.5, h_
         return ph, pd, pl
 
     ph, pd, pl = _probs_for_line(line)
-    # 保险下限，避免赔率爆炸
-    odds_win = round(1.0 / max(ph, 0.03), 2)
-    odds_draw = round(1.0 / max(pd, 0.03), 2)
-    odds_lose = round(1.0 / max(pl, 0.03), 2)
+    # 保险上下限，避免概率趋零时赔率虚高（如 1/0.03≈33）或趋一时赔率过低
+    def _safe_odds(p):
+        p = max(min(p, 0.95), 0.06)
+        return round(1.0 / p, 2)
+    odds_win = _safe_odds(ph)
+    odds_draw = _safe_odds(pd)
+    odds_lose = _safe_odds(pl)
 
     label = f'让球{line:+d}' if line != 0 else '不让球'
     pick_side = max([('让胜', ph, odds_win), ('让平', pd, odds_draw), ('让负', pl, odds_lose)],
@@ -329,10 +332,15 @@ def _compute_total_goals(match, prediction, home_state=0.5, away_state=0.5, h_in
         total_imp = imp_w + imp_d + imp_l
         home_str = imp_w / total_imp if total_imp > 0 else 0.33
         away_str = imp_l / total_imp if total_imp > 0 else 0.33
-        # 真实基准：主队期望1.15-2.15，客队0.75-1.75，实力差只影响1球左右
-        # 悬殊战(巴黎1.19 vs 弱旅)总期望≈2.7，均衡战≈2.55，接近联赛真实场均
-        home_exp = (1.15 + home_str * 1.0) * (0.95 + home_state * 0.1) - 0.06 * h_inj
-        away_exp = (0.75 + away_str * 1.0) * (0.95 + away_state * 0.1) - 0.06 * a_inj
+        # 实力差驱动：用赔率隐含胜率比拉开主客期望进球差异
+        # 悬殊战(home_str≈0.75) → 主1.9/客0.6；均衡(home_str≈0.35) → 主1.25/客0.95
+        home_exp = (0.85 + home_str * 1.5) * (0.95 + home_state * 0.1) - 0.06 * h_inj
+        away_exp = (0.55 + away_str * 1.5) * (0.95 + away_state * 0.1) - 0.06 * a_inj
+        # 主队状态/排名占优时进一步拉开主场攻击力，避免比分千篇一律
+        if home_state > away_state + 0.08:
+            home_exp += 0.12
+        elif away_state > home_state + 0.08:
+            away_exp += 0.12
         expected = home_exp + away_exp
 
     expected = round(expected * 2) / 2 if expected > 2.8 else round(expected, 2)
@@ -532,8 +540,8 @@ def analyze_single_match(match, standings=None, prediction=None):
     else:
         cross_signal = '赔率主导'
 
-    # 交叉修正后重新评估信心等级与分值
-    confidence_level = '高' if confidence_score > 0.48 else '中' if confidence_score > 0.32 else '低'
+    # 交叉修正后重新评估信心等级与分值（阈值收紧，避免"高信心"过泛）
+    confidence_level = '高' if confidence_score > 0.55 else '中' if confidence_score > 0.38 else '低'
     result_extra = {'cross_signal': cross_signal, 'fund_signals': fund_sig, 'fund_strength': fund['score']}
 
     # 6. 总进球分析（盘口+球队状态驱动）
@@ -737,24 +745,20 @@ def generate_parlay_recommendations(matches):
                 'expected_return': f"投2元返{round(co * 2, 2)}元"
             })
 
-    # 方案三：混合高信心2串1
+    # 方案三：高信心双选2串1（两场高信心赛事各自最低赔组合，使用真实赔率，不编造大小球盘口）
     hc = [m for m in matches if m['confidence_level'] == '高']
-    co_match = [m for m in matches if m['over_under_tendency'] in ('大球倾向', '小球倾向')]
-    if hc and co_match:
+    if len(hc) >= 2:
         hc.sort(key=lambda m: m.get('confidence_score', 0), reverse=True)
-        spf = hc[0]
-        opts = [('胜', spf['win_odds']), ('平', spf['draw_odds']), ('负', spf['lose_odds'])]
-        bs = min(opts, key=lambda x: x[1])
-        co_match.sort(key=lambda m: abs(m.get('over25_prob', 50) - 50), reverse=True)
-        ou = co_match[0]
-        ou_odds = round(bs[1] * 0.7, 2) if bs[1] > 0 else 1.80
-        co = round(bs[1] * ou_odds, 2)
+        a, b = hc[0], hc[1]
+        a_opt = min([('胜', a['win_odds']), ('平', a['draw_odds']), ('负', a['lose_odds'])], key=lambda x: x[1])
+        b_opt = min([('胜', b['win_odds']), ('平', b['draw_odds']), ('负', b['lose_odds'])], key=lambda x: x[1])
+        co = round(a_opt[1] * b_opt[1], 2)
         recommendations.append({
-            'name': f"混合2串1-{spf['match_id']}({bs[0]})+{ou['match_id']}({ou['over_under_tendency']})",
-            'plan_type': '混合高信心2串1', 'combo_odds': co, 'risk_level': '中风险',
-            'logic': '胜平负高信心场次 + 大小球倾向场次交叉组合，分散风险',
-            'matches_detail': [_make_rec_detail({'match': spf, 'option': bs[0], 'odds': bs[1]}),
-                               _make_rec_detail({'match': ou, 'option': ou['over_under_tendency'], 'odds': ou_odds})],
+            'name': f"高信心2串1-{a['match_id']}+{b['match_id']}",
+            'plan_type': '高信心2串1', 'combo_odds': co, 'risk_level': '中风险',
+            'logic': '筛选两场高信心赛事，取各自胜平负最低赔组合，分散单场风险',
+            'matches_detail': [_make_rec_detail({'match': a, 'option': a_opt[0], 'odds': a_opt[1]}),
+                               _make_rec_detail({'match': b, 'option': b_opt[0], 'odds': b_opt[1]})],
             'expected_return': f"投2元返{round(co * 2, 2)}元"
         })
 
