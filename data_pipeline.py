@@ -61,23 +61,29 @@ def _record_match_plays(bt, m, mid):
                          model_name='jingcai-value', confidence=conf,
                          home_team=home, away_team=away)
 
-    # AH 让胜平负
+    # AH 让胜平负（_compute_handicap 推算，始终有值）
     try:
-        hp = m.get('handicap')
-        if not isinstance(hp, dict):
-            hp = {} if hp in (None, '', '未知') else {'handicap_label': str(hp)}
-        line = hp.get('handicap_line', 0)
-        hcp_pick = hp.get('hcp_pick')
+        line = m.get('handicap_line', 0)
+        hwin, hdraw, hloss = m.get('handicap_win_odds'), m.get('handicap_draw_odds'), m.get('handicap_lose_odds')
+        hcp_pick = m.get('hcp_pick')
         if isinstance(hcp_pick, dict) and (hcp_pick.get('odds') or hcp_pick.get('side')):
             hside = {'让胜': 'H', '让平': 'D', '让负': 'A'}.get(hcp_pick.get('side'), 'H')
+            pt_odds = hcp_pick.get('odds')
+        elif hwin and (hwin > 0 or hdraw or hloss):
+            # 无 hcp_pick 时用最小赔率方向
+            opts = [('H', hwin), ('D', hdraw), ('A', hloss)]
+            best_h = min((o for o in opts if o[1] and o[1] > 0), key=lambda x: x[1])
+            hside, pt_odds = best_h[0], best_h[1]
+        else:
+            pt_odds = None
+        if pt_odds:
             try:
                 hline = float(line) if line else 0.0
             except (TypeError, ValueError):
                 hline = 0.0
             pick_ah = f'{hside}|{hline}'
             bt.record_prediction(mid, 'AH', pick_ah,
-                                 round((hcp_pick.get('prob', 0) or 0) / 100 * conf, 4),
-                                 hcp_pick.get('odds'),
+                                 round(bt.implied_prob(pt_odds) * conf, 4), pt_odds,
                                  model_name='jingcai-value', confidence=conf,
                                  home_team=home, away_team=away)
     except Exception:
