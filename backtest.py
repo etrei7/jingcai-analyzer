@@ -159,6 +159,27 @@ def compute_summary(period='all', model_name=None, play_type=None):
         odds_list = [b.odds for b in settled if b.odds]
         avg_odds = round(sum(odds_list) / len(odds_list), 2) if odds_list else 0.0
 
+        # 预测明细：供面板展示历史战绩
+        pick_map = {'H': '主胜', 'D': '平', 'A': '客胜'}
+        records = []
+        for b in bets:
+            rec = {
+                'match_id': b.match_id,
+                'home_team': b.home_team,
+                'away_team': b.away_team,
+                'play_type': b.play_type,
+                'pick': b.pick,
+                'pick_cn': pick_map.get(b.pick, b.pick),
+                'odds': b.odds,
+                'stake': b.stake,
+                'outcome': b.outcome,
+                'pnl': b.pnl,
+                'settled_at': b.settled_at,
+                'hit': (b.outcome == 'win'),
+                'result_cn': ('命中' if b.outcome == 'win' else '未中' if b.outcome == 'lose' else '待结算') if b.outcome else '待结算',
+            }
+            records.append(rec)
+
         return {
             'period': period,
             'model_name': model_name,
@@ -174,10 +195,11 @@ def compute_summary(period='all', model_name=None, play_type=None):
             'avg_odds': avg_odds,
             'computed_at': _now_str(),
             'pending': len(bets) - total,
+            'records': records,
         }
     except Exception as e:
         logger.warning('[backtest] summary failed: %s', e)
-        return {'period': period, 'total_bets': 0, 'total_pnl': 0, 'roi': 0, 'hit_rate': 0, 'pending': 0}
+        return {'period': period, 'total_bets': 0, 'total_pnl': 0, 'roi': 0, 'hit_rate': 0, 'pending': 0, 'records': []}
 
 
 def persist_summary(period='all', model_name=None, play_type=None):
