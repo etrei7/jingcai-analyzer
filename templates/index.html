@@ -1183,9 +1183,10 @@ function renderBacktestPanel(s){
     else if(r.outcome === 'lose'){ bg='var(--low-bg)'; fg='#b91c1c'; }
     else { bg='var(--card-stripe)'; fg='var(--text-muted)'; }
     var team = (r.home_team || '?') + ' vs ' + (r.away_team || '?');
+    var ptTag = '<span style="display:inline-block;margin-right:6px;padding:1px 5px;border-radius:3px;background:var(--tag-bg);color:var(--text-muted);font-size:0.6rem">'+(r.play_type_cn||'胜平负')+'</span>';
     return '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;border-radius:6px;margin-bottom:3px;background:'+bg+';color:'+fg+';font-size:0.7rem">' +
-      '<span style="font-weight:600">'+team+'</span>' +
-      '<span style="margin-left:6px">'+r.pick_cn+' @'+r.odds+'</span>' +
+      '<span style="font-weight:600">'+ptTag+team+'</span>' +
+      '<span style="margin-left:6px">'+r.pick_cn+' @'+(r.odds||'—')+'</span>' +
       '<span style="margin-left:auto">'+(r.outcome==='win'?'✓ 命中 +'+(r.pnl||0):r.outcome==='lose'?'✗ 未中 '+(r.pnl||0):'⏳ 待结算')+'</span>' +
     '</div>';
   }).join('');
