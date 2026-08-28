@@ -250,32 +250,38 @@ def _compute_handicap(match, prediction=None, home_state=0.5, away_state=0.5, h_
     home_exp = max(0.2, 1.15 + home_str * 1.0 + h_adj)
     away_exp = max(0.2, 0.75 + away_str * 1.0 + a_adj)
 
-    # 选择让球线：期望净胜球
+    # 选择让球线：期望净胜球（支持深盘 -2/+2）
     net = home_exp - away_exp
-    if net >= 0.75:
+    if net >= 1.25:
+        line = -2
+        direction = '主让'
+    elif net >= 0.6:
         line = -1
         direction = '主让'
-    elif net <= -0.75:
+    elif net <= -1.25:
+        line = +2
+        direction = '客让'
+    elif net <= -0.6:
         line = +1
         direction = '客让'
     else:
         line = 0
         direction = '平手'
 
-    # Skellam 计算让球后胜平负概率
+    # Skellam 计算让球后胜平负概率（支持任意整数让球线，含 -2/+2 深盘）
+    # 约定：line 为主队视角。line<0 主让|line|球；line>0 主受让line球；line=0 平手
     def _probs_for_line(ln):
-        if ln == -1:  # 主让1球: 主队净胜2+ / 净胜1 / 平或负
-            ph = sum(_skellam_prob(d, home_exp, away_exp) for d in range(2, 11))
-            pd = _skellam_prob(1, home_exp, away_exp)
-            pl = 1 - ph - pd
-        elif ln == +1:  # 客让1球: 客队净胜2+ / 净胜1 / 平或负
-            ph = sum(_skellam_prob(d, away_exp, home_exp) for d in range(2, 11))
-            pd = _skellam_prob(1, away_exp, home_exp)
-            pl = 1 - ph - pd
-        else:  # 平手盘
-            ph = sum(_skellam_prob(d, home_exp, away_exp) for d in range(1, 11))
-            pd = _skellam_prob(0, home_exp, away_exp)
-            pl = 1 - ph - pd
+        ln = int(ln)
+        if ln <= 0:  # 平手或主让球：主队需净胜 > |ln| 才算让胜
+            need = -ln                      # 主队净胜需要达到 need+1 才让胜
+            ph = sum(_skellam_prob(d, home_exp, away_exp) for d in range(need + 1, 16))
+            pd = _skellam_prob(need, home_exp, away_exp)
+            pl = max(0.0, 1 - ph - pd)
+        else:  # 主受让 ln 球：主队获得 ln 球优势，负值算客队净胜 > ln
+            need = ln                       # 客队净胜需要达到 need+1 才客让胜
+            pl = sum(_skellam_prob(d, away_exp, home_exp) for d in range(need + 1, 16))
+            pd = _skellam_prob(need, away_exp, home_exp)
+            ph = max(0.0, 1 - pl - pd)
         return ph, pd, pl
 
     ph, pd, pl = _probs_for_line(line)
