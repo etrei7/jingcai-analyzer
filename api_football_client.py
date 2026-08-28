@@ -1,8 +1,7 @@
-"""API-Football 数据客户端：为分析模型补充基本面数据（积分榜排名/状态/主客场/净胜球）。
-免费版 100 次/天。设计：
-- 队名/联赛 ID 用内存缓存，避免重复请求
-- standings 按联赛整榜拉取一次，供该联赛所有比赛复用（省额度）
-- 按 Bzzoiro 原始英文队名匹配 API-Football 的 team
+"""API-Football 鏁版嵁瀹㈡埛绔細涓哄垎鏋愭ā鍨嬭ˉ鍏呭熀鏈潰鏁版嵁锛堢Н鍒嗘鎺掑悕/鐘舵€?涓诲鍦?鍑€鑳滅悆锛夈€?鍏嶈垂鐗?100 娆?澶┿€傝璁★細
+- 闃熷悕/鑱旇禌 ID 鐢ㄥ唴瀛樼紦瀛橈紝閬垮厤閲嶅璇锋眰
+- standings 鎸夎仈璧涙暣姒滄媺鍙栦竴娆★紝渚涜鑱旇禌鎵€鏈夋瘮璧涘鐢紙鐪侀搴︼級
+- 鎸?Bzzoiro 鍘熷鑻辨枃闃熷悕鍖归厤 API-Football 鐨?team
 """
 import os
 import logging
@@ -13,27 +12,25 @@ logger = logging.getLogger(__name__)
 
 API_KEY = os.environ.get('API_FOOTBALL_KEY', '')
 BASE = 'https://v3.football.api-sports.io'
-TIMEOUT = 15
+TIMEOUT = 6
 
-# 联赛名(中文) → API-Football league id（主流竞彩联赛，官方稳定ID）
-LEAGUE_ID_MAP = {
-    # 主流五大
-    '英超': 39, '西甲': 140, '德甲': 78, '意甲': 135, '法甲': 61,
-    # 次级
-    '英冠': 40, '西乙': 141, '德乙': 79, '意乙': 136, '法乙': 60,
-    # 欧洲主流
-    '荷甲': 88, '葡超': 94, '土超': 203, '比甲': 144, '苏超': 179,
-    '瑞超': 113, '挪超': 103, '丹超': 119, '波甲': 106,
-    '奥甲': 204, '瑞士超': 96, '希超': 197,
-    # 美洲
-    '巴甲': 71, '阿甲': 128, '墨西超': 262, '美职联': 253,
-    # 亚洲/大洋洲
-    '日职': 233, '韩K联': 292, '中超': 169, '澳超': 188,
-    # 杯赛（欧战）
-    '欧冠': 2, '欧联': 3, '欧协联': 3, '解放者杯': 12,
+# 鑱旇禌鍚?涓枃) 鈫?API-Football league id锛堜富娴佺珵褰╄仈璧涳紝瀹樻柟绋冲畾ID锛?LEAGUE_ID_MAP = {
+    # 涓绘祦浜斿ぇ
+    '鑻辫秴': 39, '瑗跨敳': 140, '寰风敳': 78, '鎰忕敳': 135, '娉曠敳': 61,
+    # 娆＄骇
+    '鑻卞啝': 40, '瑗夸箼': 141, '寰蜂箼': 79, '鎰忎箼': 136, '娉曚箼': 60,
+    # 娆ф床涓绘祦
+    '鑽风敳': 88, '钁¤秴': 94, '鍦熻秴': 203, '姣旂敳': 144, '鑻忚秴': 179,
+    '鐟炶秴': 113, '鎸秴': 103, '涓硅秴': 119, '娉㈢敳': 106,
+    '濂ョ敳': 204, '鐟炲＋瓒?: 96, '甯岃秴': 197,
+    # 缇庢床
+    '宸寸敳': 71, '闃跨敳': 128, '澧ㄨタ瓒?: 262, '缇庤亴鑱?: 253,
+    # 浜氭床/澶ф磱娲?    '鏃ヨ亴': 233, '闊㎏鑱?: 292, '涓秴': 169, '婢宠秴': 188,
+    # 鏉禌锛堟鎴橈級
+    '娆у啝': 2, '娆ц仈': 3, '娆у崗鑱?: 3, '瑙ｆ斁鑰呮澂': 12,
 }
 
-# 队名(中文) → 队名(英文)，用于反查；优先用比赛自带的 home_team_en
+# 闃熷悕(涓枃) 鈫?闃熷悕(鑻辨枃)锛岀敤浜庡弽鏌ワ紱浼樺厛鐢ㄦ瘮璧涜嚜甯︾殑 home_team_en
 TEAM_CN_TO_EN = {}
 
 
@@ -68,12 +65,19 @@ _CACHE = _Cache()
 
 
 def _fetch(path, params):
+    """鎷夊彇 API-Football銆傞檺娴?rateLimit)鏃跺揩閫熼檷绾ц繑鍥炵┖锛屼笉鎷栨參涓绘祦绋嬨€?""
     try:
-        resp = requests.get(BASE + path, headers=_headers(), params=params, timeout=TIMEOUT)
+        resp = requests.get(BASE + path, headers=_headers(), params=params, timeout=6)
         resp.raise_for_status()
         data = resp.json()
-        if data.get('errors'):
-            logger.warning('[apifb] errors: %s', data['errors'])
+        errors = data.get('errors') or {}
+        if errors:
+            # 闄愭祦鏍囪锛氳缃喎鍗达紝鍚庣画璇锋眰鐩存帴璺宠繃
+            if any('rateLimit' in str(e).lower() or 'limit' in str(e).lower() for e in errors.values() if isinstance(e, str)):
+                _set_rate_limited(60)
+                logger.warning('[apifb] rate-limited, cooldown 60s')
+            else:
+                logger.warning('[apifb] errors: %s', errors)
             return None
         return data.get('response') or []
     except Exception as e:
@@ -81,14 +85,29 @@ def _fetch(path, params):
         return []
 
 
+_RATE_LIMIT_UNTIL = 0.0
+import time as _time
+
+
+def _set_rate_limited(seconds):
+    global _RATE_LIMIT_UNTIL
+    _RATE_LIMIT_UNTIL = _time.time() + seconds
+
+
+def _rate_limited():
+    return _time.time() < _RATE_LIMIT_UNTIL
+
+
 def _season_for(league_id):
-    """确定当前可用赛季：本站用2024赛季（API-Football 免费版稳定提供）。"""
+    """纭畾褰撳墠鍙敤璧涘锛氭湰绔欑敤2024璧涘锛圓PI-Football 鍏嶈垂鐗堢ǔ瀹氭彁渚涳級銆?""
     return 2024
 
 
 def fetch_league_standings(league_cn):
-    """按联赛中文名拉取整榜 teams: {name_en: row}。整榜缓存，供同联赛复用。"""
+    """鎸夎仈璧涗腑鏂囧悕鎷夊彇鏁存 teams: {name_en: row}銆傛暣姒滅紦瀛橈紝渚涘悓鑱旇禌澶嶇敤銆?""
     if not _enabled():
+        return {}
+    if _rate_limited():
         return {}
     lid = LEAGUE_ID_MAP.get(league_cn)
     if not lid:
@@ -111,14 +130,12 @@ def fetch_league_standings(league_cn):
                     by_name[tname] = row
                     by_name[tname.lower()] = row
     _CACHE.set(key, by_name)
-    logger.info('[apifb] standings league=%s(%s) → %d队', league_cn, lid, len(by_name))
+    logger.info('[apifb] standings league=%s(%s) 鈫?%d闃?, league_cn, lid, len(by_name))
     return by_name
 
 
 def match_row(match):
-    """从比赛(含 home_team/away_team/home_team_en) 提取两队 standings 行。
-    优先用英文队名匹配 API-Football；退化用中文名反查。
-    """
+    """浠庢瘮璧?鍚?home_team/away_team/home_team_en) 鎻愬彇涓ら槦 standings 琛屻€?    浼樺厛鐢ㄨ嫳鏂囬槦鍚嶅尮閰?API-Football锛涢€€鍖栫敤涓枃鍚嶅弽鏌ャ€?    """
     league = match.get('league', '')
     by_name = fetch_league_standings(league)
     if not by_name:
@@ -133,7 +150,7 @@ def match_row(match):
                 return by_name[cand]
             if cand.lower() in by_name:
                 return by_name[cand.lower()]
-            # 部分匹配（队名包含关系）
+            # 閮ㄥ垎鍖归厤锛堥槦鍚嶅寘鍚叧绯伙級
             for k, v in by_name.items():
                 if cand and (cand in k or k in cand):
                     return v
@@ -145,7 +162,7 @@ def match_row(match):
 
 
 def enrich_form_data(hrow, arow):
-    """从 standings 行提取基本面字段，供 _fundamental_pick 增强。返回 dict 或 None。"""
+    """浠?standings 琛屾彁鍙栧熀鏈潰瀛楁锛屼緵 _fundamental_pick 澧炲己銆傝繑鍥?dict 鎴?None銆?""
     def extract(row):
         if not row:
             return None
