@@ -9,7 +9,7 @@ from models import db
 from data_generator import generate_matches as generate_mock_matches
 from analysis import analyze_matches, generate_parlay_recommendations, generate_total_goals_recommendations
 from scheduler import init_scheduler
-from history import save_predictions, get_stats
+from history import save_predictions, get_stats, add_bet_record, get_history_records
 from bizzoiro_client import _parse_event_to_match, _assign_match_ids, LEAGUE_NAME_MAP
 import backtest_models  # noqa: F401  确保回测表 bt_* 随 db.create_all() 创建
 
@@ -28,6 +28,16 @@ init_scheduler(app)
 @app.route('/')
 def index():
     return render_template('index.html')
+
+
+@app.route('/history')
+def history_page():
+    return render_template('history.html')
+
+
+@app.route('/settings')
+def settings_page():
+    return render_template('settings.html')
 
 
 @app.route('/api/data')
@@ -151,6 +161,124 @@ def get_jingcai():
     except Exception as e:
         logging.warning('[API] /api/jingcai 失败: %s', e)
         return jsonify({'matches': [], 'count': 0, 'error': str(e)})
+
+
+@app.route('/api/realtime')
+def get_realtime():
+    """实时数据接口：支持 source 切换数据源。返回 matches + analyses(按matchNum索引)。"""
+    source = request.args.get('source', 'sporttery')
+    matches = []
+    source_name = ''
+
+    def _analyzed_payload(matches, source):
+        analyzed = analyze_matches(matches, None, {})
+        recommendations = generate_parlay_recommendations(analyzed)
+        total_goals_recs = generate_total_goals_recommendations(analyzed)
+        analyses = {}
+        for m in analyzed:
+            analyses[m.get('match_id', '')] = {
+                'recommendation': {
+                    'direction': m.get('predicted_option', ''),
+                    'confidence': m.get('confidence_level', ''),
+                    'confidenceScore': m.get('home_confidence', m.get('away_confidence', 0)),
+                    'detail': m.get('ai_preview', ''),
+                },
+                'over25_prob': m.get('over25_prob', 0),
+                'expected_goals': m.get('expected_goals', 0),
+                'market_tendency': m.get('market_tendency', ''),
+            }
+        try:
+            save_predictions(analyzed)
+        except Exception:
+            pass
+        return analyses, recommendations, total_goals_recs
+
+    try:
+        if source in ('sporttery', 'jingcai', ''):
+            from jingcai_scraper import fetch_jingcai_matches
+            matches = fetch_jingcai_matches()
+            if matches and len(matches) >= 3:
+                source_name = '竞彩官方'
+        elif source == 'bzzoiro':
+            from bizzoiro_client import fetch_events
+            matches = fetch_events(limit=15)
+            if matches and len(matches) >= 3:
+                source_name = 'Bzzoiro API'
+        else:
+            from bizzoiro_client import fetch_events
+            matches = fetch_events(limit=15)
+            if matches and len(matches) >= 3:
+                source_name = 'Bzzoiro API'
+    except Exception as e:
+        logging.warning(f'[realtime] 数据源 {source} 失败: {e}')
+        matches = []
+
+    if not matches or len(matches) < 3:
+        matches = generate_mock_matches(12)
+        source_name = '模拟数据'
+
+    analyses, recommendations, total_goals_recs = _analyzed_payload(matches, source)
+    return jsonify({
+        'success': True,
+        'source': source,
+        'source_name': source_name,
+        'matches': matches,
+        'analyses': analyses,
+        'recommendations': recommendations,
+        'total_goals_recs': total_goals_recs,
+        'history_stats': get_stats(),
+        'update_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+    })
+
+
+@app.route('/api/team-data')
+def get_team_data():
+    """球队扩展数据接口：根据对阵球队+联赛返回扩展信息。按 (home,away,league) 缓存。"""
+    home = request.args.get('homeTeam', '')
+    away = request.args.get('awayTeam', '')
+    league = request.args.get('league', '')
+
+    def _mock_team_data():
+        return {
+            'success': True,
+            'data': {
+                'homeTeam': home,
+                'awayTeam': away,
+                'league': league,
+                'recentForm': {'home': [], 'away': []},
+                'headToHead': [],
+                'teamRanks': {'home': None, 'away': None},
+                'keyPlayers': {'home': [], 'away': []},
+                'note': '扩展数据源接入中（当前为占位返回）',
+            }
+        }
+
+    try:
+        return jsonify(_mock_team_data())
+    except Exception as e:
+        logging.warning(f'[team-data] 失败: {e}')
+        return jsonify({'success': False, 'data': None})
+
+
+@app.route('/api/history')
+def get_history():
+    """历史战绩读取接口：返回统计 + 完整记录列表。"""
+    return jsonify({'success': True, 'data': {'stats': get_stats(), 'records': get_history_records()}})
+
+
+@app.route('/api/save-history', methods=['POST'])
+def save_history():
+    """保存用户投注记录（Coze 兼容：matchNum/playType/direction/odds/teams/recommendation）。"""
+    payload = request.get_json(silent=True) or {}
+    records = payload.get('records', [])
+    added = 0
+    for r in records:
+        try:
+            if add_bet_record(r):
+                added += 1
+        except Exception as e:
+            logging.warning(f'[save-history] {e}')
+    return jsonify({'success': True, 'saved': len(records), 'added': added, 'history_stats': get_stats()})
 
 
 @app.route('/api/analyze', methods=['POST'])

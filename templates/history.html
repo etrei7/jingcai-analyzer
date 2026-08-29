@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>历史战绩 - 竞彩足球智能分析</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root,[data-theme="light"]{
+  --bg:#f5f6fa;--card-bg:#fff;--border:#e5e7eb;--text:#1f2937;--text-muted:#6b7280;--text-light:#9ca3af;
+  --home:#2563eb;--away:#ea580c;--accent:#7c3aed;--high:#16a34a;--high-bg:#dcfce7;--low:#dc2626;--low-bg:#fee2e2;
+  --medium:#d97706;--medium-bg:#fef3c7;--btn-bg:#f3f4f6;--shadow:0 1px 3px rgba(0,0,0,.08);
+}
+[data-theme="dark"]{
+  --bg:#0f172a;--card-bg:#1e293b;--border:#334155;--text:#e2e8f0;--text-muted:#94a3b8;--text-light:#64748b;
+  --home:#60a5fa;--away:#f97316;--accent:#a78bfa;--high:#22c55e;--high-bg:#064e3b;--low:#ef4444;--low-bg:#450a0a;
+  --medium:#f59e0b;--medium-bg:#451a03;--btn-bg:#334155;--shadow:0 1px 3px rgba(0,0,0,.3);
+}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Microsoft YaHei',sans-serif;min-height:100vh}
+.header{position:sticky;top:0;z-index:100;background:var(--card-bg);border-bottom:1px solid var(--border);padding:10px 24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;box-shadow:var(--shadow)}
+.header .logo{font-size:1.2rem;font-weight:700;color:var(--home);letter-spacing:1px;cursor:pointer;text-decoration:none}
+.header .nav{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.nav-link{background:var(--btn-bg);color:var(--text);border:1px solid var(--border);padding:5px 14px;border-radius:6px;cursor:pointer;font-size:0.8rem;text-decoration:none;transition:all .15s}
+.nav-link:hover{background:var(--home);color:#fff;border-color:var(--home)}
+.nav-link.active{background:var(--home);color:#fff;border-color:var(--home)}
+.container{max-width:1100px;margin:0 auto;padding:24px}
+.section-title{font-size:1.1rem;font-weight:700;margin-bottom:16px;padding-left:10px;border-left:3px solid var(--home)}
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:24px}
+.stat-card{background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:18px;text-align:center;box-shadow:var(--shadow)}
+.stat-card .num{font-size:2rem;font-weight:700}
+.stat-card .label{font-size:0.75rem;color:var(--text-muted);margin-top:4px}
+.rate-good{color:var(--high)}.rate-mid{color:var(--medium)}.rate-bad{color:var(--low)}
+.card{background:var(--card-bg);border:1px solid var(--border);border-radius:10px;margin-bottom:14px;box-shadow:var(--shadow);overflow:hidden}
+.card-head{padding:12px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+.card-teams{font-size:1rem;font-weight:600}
+.card-meta{font-size:0.75rem;color:var(--text-muted)}
+.card-body{padding:14px 18px}
+.badge{padding:3px 10px;border-radius:5px;font-size:0.72rem;font-weight:600}
+.badge.hit{background:var(--high-bg);color:var(--high)}
+.badge.miss{background:var(--low-bg);color:var(--low)}
+.badge.pending{background:var(--medium-bg);color:var(--medium)}
+.record-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;font-size:0.8rem}
+.record-row .item{color:var(--text-muted)}
+.record-row .item strong{color:var(--text);font-weight:600}
+.empty{text-align:center;padding:50px;color:var(--text-muted)}
+.back-btn{display:inline-block;background:var(--home);color:#fff;border:none;padding:8px 18px;border-radius:6px;cursor:pointer;font-size:0.85rem;text-decoration:none;margin-top:20px}
+.type-tag{font-size:0.65rem;padding:2px 7px;border-radius:3px;margin-right:6px}
+.type-prediction{background:var(--high-bg);color:var(--high)}
+.type-bet{background:var(--medium-bg);color:var(--medium)}
+.filter-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:18px;padding:10px 14px;background:var(--card-bg);border:1px solid var(--border);border-radius:8px}
+.filter-btn{background:var(--btn-bg);color:var(--text-muted);border:1px solid var(--border);padding:4px 12px;border-radius:6px;cursor:pointer;font-size:0.72rem;transition:all .15s;white-space:nowrap}
+.filter-btn:hover,.filter-btn.active{background:var(--home);color:#fff;border-color:var(--home)}
+</style>
+</head>
+<body>
+<div class="header">
+  <a class="logo" href="/">&#9917; 竞彩智析</a>
+  <div class="nav">
+    <a class="nav-link" href="/">今日赛事</a>
+    <a class="nav-link active" href="/history">历史战绩</a>
+    <a class="nav-link" href="/settings">系统设置</a>
+    <button class="nav-link" onclick="toggleTheme()">&#127769;</button>
+  </div>
+</div>
+
+<div class="container">
+  <div class="section-title">&#128200; 历史战绩</div>
+  <div class="stat-grid" id="statGrid">
+    <div class="stat-card"><div class="num" style="color:var(--text)">--</div><div class="label">已验证</div></div>
+    <div class="stat-card"><div class="num" style="color:var(--high)">--</div><div class="label">命中</div></div>
+    <div class="stat-card"><div class="num" style="color:var(--low)">--</div><div class="label">未中</div></div>
+    <div class="stat-card"><div class="num" style="color:var(--text)">--%</div><div class="label">命中率</div></div>
+    <div class="stat-card"><div class="num" style="color:var(--medium)">--</div><div class="label">总推荐</div></div>
+  </div>
+
+  <div class="filter-bar">
+    <button class="filter-btn active" data-f="all" onclick="setType(this,'all')">全部</button>
+    <button class="filter-btn" data-f="prediction" onclick="setType(this,'prediction')">AI推荐</button>
+    <button class="filter-btn" data-f="bet" onclick="setType(this,'bet')">我的投注</button>
+    <span style="font-size:0.7rem;color:var(--text-muted);margin-left:auto">共 <strong id="totalCount">0</strong> 条</span>
+  </div>
+
+  <div id="recordList"><div class="empty">加载中...</div></div>
+</div>
+
+<script>
+let allRecords = [];
+let currentType = 'all';
+
+function toggleTheme(){
+  const html = document.documentElement;
+  const next = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+  html.setAttribute('data-theme', next);
+  localStorage.setItem('theme', next);
+}
+(function(){
+  const saved = localStorage.getItem('theme');
+  if(saved) document.documentElement.setAttribute('data-theme', saved);
+})();
+
+function setType(btn, type){
+  currentType = type;
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  render();
+}
+
+function render(){
+  const list = currentType === 'all' ? allRecords : allRecords.filter(r=>r.type === currentType);
+  document.getElementById('totalCount').textContent = list.length;
+  const c = document.getElementById('recordList');
+  if(!list.length){ c.innerHTML = '<div class="empty">暂无记录<br><button class="back-btn" onclick="location.href=\'/\'">返回今日赛事</button></div>'; return; }
+  c.innerHTML = list.map(r=>{
+    let badge, meta = '', teams = '';
+    if(r.type === 'prediction'){
+      teams = (r.homeTeam||'') + ' vs ' + (r.awayTeam||'');
+      meta = (r.league||'') + ' | #' + (r.matchNum||r.match_id||'') + ' | ' + (r.date||'');
+      badge = r.verified
+        ? (r.hit ? '<span class="badge hit">命中</span>' : '<span class="badge miss">未中</span>')
+        : '<span class="badge pending">待验证</span>';
+    } else {
+      teams = r.teams || ('投注 #' + (r.matchNum||''));
+      meta = (r.playTypeLabel||r.playType||'') + ' | #' + (r.matchNum||'') + ' | ' + (r.updatedAt||r.createdAt||'');
+      badge = r.result === 'pending' ? '<span class="badge pending">未结算</span>'
+            : r.result === 'win' ? '<span class="badge hit">命中</span>'
+            : r.result === 'lose' ? '<span class="badge miss">未中</span>'
+            : r.actualScore ? '<span class="badge pending">' + r.actualScore + '</span>'
+            : '<span class="badge pending">未结算</span>';
+    }
+    const typeTag = r.type === 'prediction' ? '<span class="type-tag type-prediction">AI推荐</span>' : '<span class="type-tag type-bet">投注</span>';
+    return '<div class="card">' +
+      '<div class="card-head"><div><span class="card-teams">' + teams + '</span>' + typeTag + '</div>' + badge + '</div>' +
+      '<div class="card-body"><div class="record-row">' +
+      '<div class="item">方向：<strong>' + (r.direction||'-') + '</strong></div>' +
+      '<div class="item">赔率：<strong>' + (r.odds||'-') + '</strong></div>' +
+      (r.confidence ? '<div class="item">信心：<strong>' + r.confidence + '</strong></div>' : '') +
+      (r.actual ? '<div class="item">赛果：<strong>' + r.actual + (r.score?(' ('+r.score+')'):'') + '</strong></div>' : '') +
+      '</div><div style="font-size:0.72rem;color:var(--text-light);margin-top:8px">' + meta + '</div></div></div>';
+  }).join('');
+}
+
+async function loadHistory(){
+  try{
+    const resp = await fetch('/api/history', {cache:'no-store'});
+    const data = await resp.json();
+    if(!data.success) throw new Error('接口错误');
+    const stats = data.data.stats || {};
+    allRecords = data.data.records || [];
+    const rate = stats.total_rate || 0;
+    const rateCls = rate>=60?'rate-good':rate>=45?'rate-mid':'rate-bad';
+    document.querySelector('#statGrid .stat-card:nth-child(1) .num').textContent = stats.total||0;
+    document.querySelector('#statGrid .stat-card:nth-child(2) .num').textContent = stats.hits||0;
+    document.querySelector('#statGrid .stat-card:nth-child(3) .num').textContent = stats.misses||0;
+    const rateEl = document.querySelector('#statGrid .stat-card:nth-child(4) .num');
+    rateEl.textContent = rate + '%'; rateEl.className = 'num ' + rateCls;
+    document.querySelector('#statGrid .stat-card:nth-child(5) .num').textContent = stats.total_predictions||0;
+    render();
+  }catch(e){
+    document.getElementById('recordList').innerHTML = '<div class="empty">加载失败：' + e.message + '</div>';
+  }
+}
+loadHistory();
+</script>
+</body>
+</html>

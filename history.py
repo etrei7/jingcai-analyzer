@@ -81,6 +81,74 @@ def get_stats():
     return hist.get('stats', {'total': 0, 'hits': 0, 'misses': 0, 'total_rate': 0, 'recent': []})
 
 
+def get_history_records():
+    """返回所有历史记录（含用户投注记录），按时间倒序"""
+    hist = _load_history()
+    records = hist.get('predictions', [])
+    bets = hist.get('bets', [])
+    combined = []
+    for p in records:
+        combined.append({
+            'type': 'prediction',
+            'match_id': p.get('match_id', ''),
+            'matchNum': p.get('raw_event_id', ''),
+            'homeTeam': p.get('home_team', ''),
+            'awayTeam': p.get('away_team', ''),
+            'league': p.get('league', ''),
+            'direction': p.get('predicted', ''),
+            'odds': p.get('odds', 0),
+            'confidence': p.get('confidence', ''),
+            'verified': p.get('verified', False),
+            'actual': p.get('actual', None),
+            'score': p.get('score', None),
+            'hit': p.get('hit', None),
+            'date': p.get('date', ''),
+        })
+    for b in bets:
+        combined.append({
+            'type': 'bet',
+            'matchNum': b.get('matchNum', ''),
+            'playType': b.get('playType', ''),
+            'playTypeLabel': b.get('playTypeLabel', ''),
+            'direction': b.get('direction', ''),
+            'odds': b.get('odds', 0),
+            'teams': b.get('teams', ''),
+            'actualScore': b.get('actualScore', None),
+            'result': b.get('result', 'pending'),
+            'createdAt': b.get('createdAt', ''),
+            'updatedAt': b.get('updatedAt', ''),
+        })
+    combined.sort(key=lambda x: x.get('date') or x.get('createdAt') or '', reverse=True)
+    return combined
+
+
+def add_bet_record(record):
+    """保存一条用户投注记录，去重 (matchNum+playType)"""
+    hist = _load_history()
+    bets = hist.setdefault('bets', [])
+    match_num = record.get('matchNum', '')
+    play_type = record.get('playType', '')
+    if not match_num or not play_type:
+        return False
+    # 去重：同场同玩法更新
+    updated = False
+    for b in bets:
+        if b.get('matchNum') == match_num and b.get('playType') == play_type:
+            b.update(record)
+            b['updatedAt'] = datetime.now().isoformat()
+            updated = True
+            break
+    if not updated:
+        rec = dict(record)
+        rec.setdefault('createdAt', datetime.now().isoformat())
+        rec.setdefault('updatedAt', datetime.now().isoformat())
+        rec.setdefault('result', 'pending')
+        bets.append(rec)
+    _save_history(hist)
+    logger.info(f'[History] bet saved: {match_num} {play_type}')
+    return True
+
+
 def _recalc_stats(hist):
     """重新计算命中率统计"""
     preds = hist['predictions']

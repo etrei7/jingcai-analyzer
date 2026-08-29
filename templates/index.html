@@ -61,6 +61,13 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 .btn-refresh{background:var(--home);color:#fff;border:none;padding:6px 16px;border-radius:6px;cursor:pointer;font-size:0.8rem;font-weight:500}
 .btn-theme{background:var(--btn-bg);color:var(--text);border:1px solid var(--border);padding:5px 10px;border-radius:6px;cursor:pointer;font-size:0.75rem}
+.nav-links{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.nav-link{background:var(--btn-bg);color:var(--text-muted);border:1px solid var(--border);padding:5px 14px;border-radius:6px;cursor:pointer;font-size:0.78rem;text-decoration:none;transition:all .15s;white-space:nowrap}
+.nav-link:hover,.nav-link.active{background:var(--home);color:#fff;border-color:var(--home)}
+.mini-toggle{position:relative;width:30px;height:17px;border-radius:9px;background:var(--btn-bg);border:1px solid var(--border);display:inline-block;transition:all .2s}
+.mini-toggle .mk{position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:#fff;transition:all .2s;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.mini-toggle.on{background:var(--home);border-color:var(--home)}
+.mini-toggle.on .mk{left:15px}
 .main-container{display:flex;gap:20px;padding:18px 24px;max-width:1400px;margin:0 auto}
 .content-area{flex:1;min-width:0;margin-right:340px}
 .section-title{font-size:1rem;font-weight:700;margin-bottom:12px;padding-left:10px;border-left:3px solid var(--home)}
@@ -321,6 +328,11 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 
 <div class="header">
   <div class="logo">竞彩足球智能分析</div>
+  <div class="nav-links">
+    <a class="nav-link active" href="/">今日赛事</a>
+    <a class="nav-link" href="/history">历史战绩</a>
+    <a class="nav-link" href="/settings">系统设置</a>
+  </div>
   <div class="stats">
     <div class="stat-item"><span class="dot"></span><span id="liveClock">--:--</span></div>
     <div class="stat-item" style="font-size:0.62rem;color:var(--text-light)">数据：<span id="updateTime">--</span></div>
@@ -349,6 +361,10 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
         <option value="odds">按赔率</option>
       </select>
       <span style="font-size:0.65rem;color:var(--text-muted);margin-left:auto" id="filterCount"></span>
+      <label style="display:flex;align-items:center;gap:5px;font-size:0.65rem;color:var(--text-muted);cursor:pointer;user-select:none;margin-left:10px" title="自动刷新已由系统设置控制">
+        <span>自动刷新</span>
+        <span class="mini-toggle" id="autoRefreshToggle" onclick="toggleAutoRefresh(this)"><span class="mk"></span></span>
+      </label>
     </div>
     <div id="matchesContainer"><div class="loading"><div class="spinner"></div><p style="margin-top:10px">加载赛事数据…</p></div></div>
     <div class="tg-section">
@@ -1307,7 +1323,23 @@ function toggleTheme() {
   const saved = localStorage.getItem('theme');
   if(saved) document.documentElement.setAttribute('data-theme', saved);
 })();
-function startAutoRefresh(){if(autoRefreshTimer)clearInterval(autoRefreshTimer);autoRefreshTimer=setInterval(refreshData,60000)}
+function startAutoRefresh(){if(autoRefreshTimer)clearInterval(autoRefreshTimer);autoRefreshTimer=setInterval(refreshData,30000)}
+function toggleAutoRefresh(el){
+  const on = !el.classList.contains('on');
+  el.classList.toggle('on', on);
+  // 与设置页联动：存取 localStorage app-settings
+  let s = {}; try{ s = JSON.parse(localStorage.getItem('app-settings')||'{}'); }catch(e){}
+  s.autoRefresh = on;
+  localStorage.setItem('app-settings', JSON.stringify(s));
+  if(on) startAutoRefresh(); else if(autoRefreshTimer){clearInterval(autoRefreshTimer); autoRefreshTimer=null;}
+}
+function initAutoRefreshToggle(){
+  let s = {}; try{ s = JSON.parse(localStorage.getItem('app-settings')||'{}'); }catch(e){}
+  const on = s.autoRefresh !== false;
+  const el = document.getElementById('autoRefreshToggle');
+  if(el) el.classList.toggle('on', on);
+  if(on) startAutoRefresh();
+}
 function startLiveClock(){
   function tick(){
     var now=new Date();
@@ -1319,7 +1351,7 @@ function startLiveClock(){
   tick(); setInterval(tick,1000);
 }
 document.addEventListener('keydown',function(e){if(e.key==='Escape')document.getElementById('modalOverlay').style.display='none'});
-refreshData().then(startAutoRefresh);
+refreshData().then(initAutoRefreshToggle);
 startLiveClock();
 </script>
 </body>
