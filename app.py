@@ -31,18 +31,29 @@ db.init_app(app)
 
 def _migrate_bt_bets():
     """轻量迁移：为已有数据库的 bt_bets 补充 estimated 列（区分真实/估算赔率），
-    避免表结构变更后查询报 "no such column"。"""
+    避免表结构变更后查询报 "no such column"。并对历史估算赔率玩法（HTFT/CS）回填标记。"""
     try:
         from sqlalchemy import inspect, text
         insp = inspect(db.engine)
         cols = [c['name'] for c in insp.get_columns('bt_bets')]
+        need_backfill = False
         if 'estimated' not in cols:
             with db.engine.connect() as conn:
                 conn.execute(text("ALTER TABLE bt_bets ADD COLUMN estimated BOOLEAN DEFAULT 0"))
                 conn.commit()
+            need_backfill = True
             logging.info('[迁移] bt_bets 已补充 estimated 列')
+        # 回填历史估算玩法（半全场 HTFT / 比分 CS）为 estimated=1，
+        # 修复旧记录被误计入真实赔率 ROI 的问题
+        with db.engine.connect() as conn:
+            res = conn.execute(text(
+                "UPDATE bt_bets SET estimated = 1 WHERE play_type IN ('HTFT','CS') AND (estimated IS NULL OR estimated = 0)"
+            ))
+            if res.rowcount:
+                conn.commit()
+                logging.info('[迁移] 回填 %d 条估算赔率记录为 estimated=1', res.rowcount)
     except Exception as e:
-        logging.warning('[迁移] bt_bets estimated 列检查失败: %s', e)
+        logging.warning('[迁移] bt_bets estimated 列检查/回填失败: %s', e)
 
 
 with app.app_context():
