@@ -277,13 +277,19 @@ button{font-family:inherit}
 .rec-odds-display .ret{font-size:0.74rem;color:var(--text-muted);margin-top:3px}
 
 /* ===== 总进球 ===== */
-.tg-section{margin-top:30px}
-.tg-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
-.tg-card{background:var(--card-bg);border:1px solid var(--border);border-radius:14px;padding:12px 14px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:4px}
-.tg-card .tg-teams{font-weight:700;font-size:0.84rem;margin-bottom:2px}
-.tg-card .tg-teams .h{color:var(--home)}.tg-card .tg-teams .a{color:var(--away)}
-.tg-card .tg-meta{font-size:0.64rem;color:var(--text-muted);margin-bottom:4px}
-.tg-mainpick{display:flex;align-items:baseline;gap:9px;padding:6px 0}
+/* ===== 卡片内嵌总进球条 ===== */
+.tg-inline{margin-top:12px;padding:12px 14px;background:linear-gradient(0deg,var(--card-stripe),var(--primary-soft));border:1px solid var(--primary-border);border-radius:12px;display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.tg-inline-head{display:flex;flex-direction:column;gap:6px;flex-shrink:0}
+.tg-inline-title{font-size:0.68rem;font-weight:800;color:var(--primary-dark);display:flex;align-items:center;gap:5px;letter-spacing:.5px}
+.tg-inline-title svg{width:13px;height:13px}
+.tg-inline-body{flex:1;min-width:220px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.tg-inline-pick{display:flex;align-items:baseline;gap:9px}
+.tg-inline-quick{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.tg-kv{display:inline-flex;align-items:baseline;gap:4px;background:var(--card-bg);border:1px solid var(--border-light);border-radius:7px;padding:3px 9px;font-size:0.68rem}
+.tg-klab{color:var(--text-muted);font-size:0.6rem;font-weight:700}
+.tg-kval{color:var(--text);font-weight:800;font-size:0.72rem}
+.tg-inline-body .tg-pickbig{font-size:1.5rem;font-weight:900;color:var(--primary-dark);line-height:1}
+.tg-inline-body .tg-pickpct{font-size:0.8rem;font-weight:800;color:var(--text-muted)}
 .tg-pickbig{font-size:1.9rem;font-weight:900;color:var(--primary-dark);line-height:1}
 .tg-pickpct{font-size:0.82rem;font-weight:800;color:var(--text-muted)}
 .tg-certainty{display:inline-flex;align-items:center;gap:5px;font-size:0.6rem;font-weight:800;padding:2px 8px;border:1px solid currentColor;width:fit-content}
@@ -291,10 +297,6 @@ button{font-family:inherit}
 .tg-certainty.cert-high{color:var(--high);background:var(--high-bg)}
 .tg-certainty.cert-mid{color:var(--amber);background:var(--medium-bg)}
 .tg-certainty.cert-low{color:var(--text-muted);background:var(--tag-bg)}
-.tg-alt{font-size:0.6rem;color:var(--text-muted);margin-top:2px}
-.tg-tend{font-size:0.58rem;color:var(--amber-text);font-weight:700;margin-top:2px}
-.tg-ou{display:flex;gap:4px;margin-top:3px}
-.tg-ou .ou-lab{font-size:0.58rem;padding:1px 6px;border-radius:4px;background:var(--btn-bg);color:var(--text-muted);font-weight:600}
 
 /* ===== 战绩面板 ===== */
 .backtest-card{background:var(--card-bg);border:1px solid var(--border);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow)}
@@ -412,7 +414,7 @@ button{font-family:inherit}
   .main-container{padding:10px;padding-bottom:100px}.content-area{margin-right:0}
   .match-content{flex-direction:column;gap:10px}
   .match-teams,.match-center{flex:none}
-  .rec-grid{grid-template-columns:1fr}.tg-grid{grid-template-columns:1fr}
+  .rec-grid{grid-template-columns:1fr}
   .page-head{padding:6px 0}.page-title{font-size:1.25rem}
   .header{padding:8px 12px}.header .stats{gap:8px}
   .parlay-panel{position:fixed;right:0;top:auto;bottom:0;left:0;width:100%;max-height:45vh;border-radius:16px 16px 0 0;border-bottom:none}
@@ -511,12 +513,6 @@ button{font-family:inherit}
     <div class="section-title">今日赛事 <span class="st-tag">实时</span><span class="st-count" id="matchCountLabel"></span></div>
     <div id="matchesContainer"><div class="loading"><div class="spinner"></div><p style="margin-top:10px">加载赛事数据…</p></div></div>
 
-    <!-- 总进球推荐 -->
-    <div class="tg-section">
-      <div class="section-title">单关总进球推荐</div>
-      <div id="tgContainer"><div class="loading">分析总进球…</div></div>
-    </div>
-
     <!-- AI 串关 -->
     <div class="rec-section">
       <div class="section-title">AI 串关推荐</div>
@@ -596,6 +592,7 @@ let parlaySelections = {};
 let autoRefreshTimer = null;
 let countdownTimer = null;
 let countdownSec = 30;
+let allTotalGoals = {};   // 总进球推荐, 按 match_id 索引
 
 var JINGCAI_TOKEN = '';
 var JINGCAI_ODDS_TIME = '';
@@ -1067,6 +1064,7 @@ function renderMatchesInternal(matches) {
         </div>
       </div>
       ${dims}
+      ${renderCardTotalGoals(m)}
       <div class="detail-toggle" onclick="toggleDetail(this,'detail_${hid}')"><span class="arrow">&#9654;</span> 展开详情（伤停·裁判·天气·泊松·信心·交锋）</div>
       <div class="detail-panel" id="detail_${hid}">${renderDetailPanel(m)}</div>
     </div>`;
@@ -1104,23 +1102,31 @@ function renderRecommendations(recs) {
 }
 
 /* ===== 总进球 ===== */
-function renderTotalGoals(tgRecs) {
-  const c = document.getElementById('tgContainer');
-  if(!tgRecs||!tgRecs.length){c.innerHTML='<div class="loading">暂无总进球分析</div>';return}
-  c.innerHTML='<div class="tg-grid">'+tgRecs.map(tg=>{
-    const certCls = tg.cert==='高'?'cert-high':tg.cert==='中'?'cert-mid':'cert-low';
-    const certTxt = tg.cert==='高'?'高把握':tg.cert==='中'?'中等':'接近';
-    const alt = (tg.alt_picks||[]).join(' / ');
-    return `<div class="tg-card">
-      <div class="tg-teams"><span class="h">${tg.home_team}</span> vs <span class="a">${tg.away_team}</span></div>
-      <div class="tg-meta">#${tg.match_id} ${tg.league} ${tg.match_time} · 预期${tg.expected_goals}球</div>
-      <div class="tg-mainpick"><span class="tg-pickbig">${tg.main_pick}</span><span class="tg-pickpct">${tg.main_prob}%</span></div>
-      <div><span class="tg-certainty ${certCls}">${certTxt}把握 <span class="cert-mark">${tg.cert==='高'?'◆◆◆':tg.cert==='中'?'◆◆':'◆'}</span></span></div>
-      <div class="tg-ou"><span class="ou-lab">大2.5 ${tg.over25_prob||0}%</span></div>
-      ${alt?'<div class="tg-alt">次选：'+alt+'</div>':''}
-      <div class="tg-tend">${tg.tendency||''}</div>
-    </div>`;
-  }).join('')+'</div>';
+/* ===== 每场比赛卡片内的总进球推荐 ===== */
+function renderCardTotalGoals(m) {
+  const tg = allTotalGoals[m.match_id];
+  if (!tg) return '';
+  const certCls = tg.cert==='高'?'cert-high':tg.cert==='中'?'cert-mid':'cert-low';
+  const certTxt = tg.cert==='高'?'高把握':tg.cert==='中'?'中等':'接近';
+  const certDots = tg.cert==='高'?'◆◆◆':tg.cert==='中'?'◆◆':'◆';
+  const alt = (tg.alt_picks||[]).join(' / ');
+  const over = tg.over25_prob!=null ? `<span class="tg-kv"><span class="tg-klab">大2.5</span><span class="tg-kval">${tg.over25_prob}%</span></span>` : '';
+  const under = tg.over25_prob!=null ? `<span class="tg-kv"><span class="tg-klab">小2.5</span><span class="tg-kval">${(100-tg.over25_prob).toFixed(1)}%</span></span>` : '';
+  const exp = tg.expected_goals ? `<span class="tg-kv"><span class="tg-klab">预期</span><span class="tg-kval">${tg.expected_goals}球</span></span>` : '';
+  return `<div class="tg-inline">
+    <div class="tg-inline-head">
+      <span class="tg-inline-title">&#9917; 总进球推荐</span>
+      <span class="tg-certainty ${certCls}">${certTxt}把握 <span class="cert-mark">${certDots}</span></span>
+    </div>
+    <div class="tg-inline-body">
+      <div class="tg-inline-pick"><span class="tg-pickbig">${tg.main_pick}</span><span class="tg-pickpct">${tg.main_prob}%</span></div>
+      <div class="tg-inline-quick">
+        ${over}${under}${exp}
+        ${alt?`<span class="tg-kv"><span class="tg-klab">次选</span><span class="tg-kval">${alt}</span></span>`:''}
+        ${tg.tendency?`<span class="tg-kv"><span class="tg-klab">趋势</span><span class="tg-kval">${tg.tendency}</span></span>`:''}
+      </div>
+    </div>
+  </div>`;
 }
 
 /* ===== 串关计算 ===== */
@@ -1313,7 +1319,6 @@ function renderSkeleton(){
   for (var j = 0; j < 2; j++) rec += '<div class="sk-card sk-rec skeleton" style="margin-bottom:8px"></div>';
   document.getElementById('matchesContainer').innerHTML = sk;
   document.getElementById('recContainer').innerHTML = rec;
-  document.getElementById('tgContainer').innerHTML = '<div class="loading">分析总进球…</div>';
   var hint = document.getElementById('loadHint');
   if (hint) setTimeout(function(){ if (hint) { hint.textContent = '加载较慢，正在连接数据源…'; hint.className = 'loading-hint loading-slow'; } }, 6000);
 }
@@ -1370,7 +1375,8 @@ function showData(data){
   renderMatches(data.matches);
   fillAnalystMatches(data.matches);
   renderRecommendations(data.recommendations);
-  renderTotalGoals(data.total_goals_recs);
+  allTotalGoals = {};
+  (data.total_goals_recs||[]).forEach(function(tg){ if(tg && tg.match_id) allTotalGoals[tg.match_id] = tg; });
   renderHistoryPanel(data.history_stats);
   loadBacktestPanel();
   renderParlay();
