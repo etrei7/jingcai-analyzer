@@ -26,19 +26,43 @@ def _save_history(hist):
         logger.warning(f'Failed to save history: {e}')
 
 
+def _norm_key(s):
+    """规范化的去重字符串：小写、去空格/连字符"""
+    return (s or '').replace(' ', '').replace('-', '').lower()
+
+
+def _match_dedup_key(m):
+    """构造跨数据源的统一去重键：球队+联赛+时间。
+    竞彩源与 Bzzoiro 源的 raw_event_id 不同，但同一场比赛可通过该键去重。"""
+    home = _norm_key(m.get('home_team', ''))
+    away = _norm_key(m.get('away_team', ''))
+    league = _norm_key(m.get('league', ''))
+    time = _norm_key(m.get('match_time') or m.get('time') or '')
+    return f'{home}|{away}|{league}|{time}'
+
+
 def save_predictions(matches):
-    """保存本次推荐预测到历史记录，去重已有记录"""
+    """保存本次推荐预测到历史记录，去重已有记录（按跨数据源统一键 + raw_event_id）"""
     hist = _load_history()
     existing_ids = {p.get('raw_event_id') for p in hist['predictions'] if p.get('raw_event_id')}
+    existing_keys = {p.get('_dedup_key') for p in hist['predictions'] if p.get('_dedup_key')}
     today = datetime.now(CST).strftime('%Y-%m-%d')
 
+    added = 0
     for m in matches:
         eid = m.get('raw_event_id', '')
-        if not eid or eid in existing_ids or not m.get('predicted_option'):
+        dkey = _match_dedup_key(m)
+        if not m.get('predicted_option'):
             continue
-        hist['predictions'].append({
+        # 优先用统一键去重，兜底用 raw_event_id
+        if dkey and dkey in existing_keys:
+            continue
+        if eid and eid in existing_ids:
+            continue
+        pred = {
             'match_id': m.get('match_id', ''),
-            'raw_event_id': str(eid),
+            'raw_event_id': str(eid) if eid else '',
+            '_dedup_key': dkey,
             'home_team': m.get('home_team', ''),
             'away_team': m.get('away_team', ''),
             'league': m.get('league', ''),
@@ -52,12 +76,16 @@ def save_predictions(matches):
             'actual': None,
             'score': None,
             'hit': None,
-        })
+        }
+        hist['predictions'].append(pred)
         existing_ids.add(eid)
+        if dkey:
+            existing_keys.add(dkey)
+        added += 1
 
     _recalc_stats(hist)
     _save_history(hist)
-    logger.info(f'[History] saved {len(hist["predictions"])} total predictions')
+    logger.info(f'[History] saved {added} new, {len(hist["predictions"])} total predictions')
 
 
 def verify_prediction(raw_event_id, actual_result, score=''):

@@ -1,5 +1,6 @@
 import logging
 import os
+import secrets
 from datetime import datetime
 
 from flask import Flask, jsonify, render_template, request
@@ -17,6 +18,14 @@ logging.basicConfig(level=logging.INFO)
 
 app = Flask(__name__)
 app.config.from_object(Config)
+
+# 安全：生产环境（非 DEBUG）禁止使用默认 SECRET_KEY，改用随机生成的会话密钥，
+# 避免硬编码密钥泄露导致 session 伪造风险。
+if not os.environ.get('FLASK_DEBUG', '0') == '1':
+    if app.config.get('SECRET_KEY') == 'jingcai-dev-secret-2024':
+        app.config['SECRET_KEY'] = secrets.token_hex(32)
+        logging.warning('[安全] 使用默认 SECRET_KEY，已自动替换为随机密钥（重启后会话将失效；建议设置环境变量 SECRET_KEY）')
+
 db.init_app(app)
 
 with app.app_context():

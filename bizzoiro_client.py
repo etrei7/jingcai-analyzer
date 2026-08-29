@@ -261,24 +261,59 @@ def _parse_event_to_match(event):
 
 
 def enrich_jingcai_matches(matches):
-    """用 Bzzoiro 数据富化竞彩场次：伤病/裁判/天气/球队状态（不改动竞彩编号与赔率）"""
+    """用 Bzzoiro 数据富化竞彩场次：伤病/裁判/天气/球队状态（不改动竞彩编号与赔率）。
+    优化：先按主队名建立哈希索引，将匹配从 O(N×M) 降为近 O(N)。"""
     if not API_KEY or not matches:
         return matches, 0
     try:
-        bz_list = fetch_events(date_from=None, date_to=None, limit=60)
+        bz_list = fetch_events(date_from=None, date_to=None, limit=40)
         if not bz_list:
             return matches, 0
 
+        # 建立 (主队名->事件) 与 (客队名->事件) 的索引，供快速前缀匹配
+        def _norm(s):
+            return (s or '').replace(' ', '').lower()
+
+        bz_by_home = {}
+        bz_by_away = {}
+        for b in bz_list:
+            h = _norm(b.get('home_team'))
+            a = _norm(b.get('away_team'))
+            if h:
+                bz_by_home.setdefault(h, []).append(b)
+            if a:
+                bz_by_away.setdefault(a, []).append(b)
+
+        # 竞彩队名可能是 Bzzoiro 名的子串或超集，做一次小规模候选筛选
+        def _candidates(mh, ma):
+            cands = []
+            seen = set()
+            for store in (bz_by_home, bz_by_away):
+                for nm in (mh, ma):
+                    if not nm:
+                        continue
+                    for cand in store.get(nm, []):
+                        if id(cand) not in seen:
+                            seen.add(id(cand))
+                            cands.append(cand)
+                    for key, lst in store.items():
+                        if nm != key and (nm in key or key in nm):
+                            for cand in lst:
+                                if id(cand) not in seen:
+                                    seen.add(id(cand))
+                                    cands.append(cand)
+            return cands
+
         matched = 0
         for m in matches:
+            mh = _norm(m.get('home_team'))
+            ma = _norm(m.get('away_team'))
+            cands = _candidates(mh, ma)
             best = None
             best_score = 0
-            for b in bz_list:
-                # 队名匹配：中文全名互相包含 + 时间接近
-                mh = (m.get('home_team') or '').replace(' ', '')
-                ma = (m.get('away_team') or '').replace(' ', '')
-                bh = (b.get('home_team') or '').replace(' ', '')
-                ba = (b.get('away_team') or '').replace(' ', '')
+            for b in cands:
+                bh = _norm(b.get('home_team'))
+                ba = _norm(b.get('away_team'))
                 score = 0
                 if mh and (mh in bh or bh in mh):
                     score += 2

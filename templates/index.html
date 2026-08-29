@@ -3,23 +3,23 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>竞彩足球智能分析</title>
-<meta name="description" content="基于中国体育彩票竞彩数据的足球赛事分析工具，提供胜平负、总进球、串关参考，仅供娱乐学习研究。">
+<title>足彩智析 - 竞彩足球智能分析</title>
+<meta name="description" content="足彩智析：基于中国体育彩票竞彩数据的足球赛事分析工具，提供胜平负、总进球、让球、大小球、串关、七维智能分析与历史回测，仅供娱乐学习研究。">
 <meta name="robots" content="index, follow">
 <link rel="canonical" href="https://LS7.pythonanywhere.com/">
 <meta property="og:type" content="website">
-<meta property="og:title" content="竞彩足球智能分析">
-<meta property="og:description" content="基于公开赛事数据的足球分析参考工具，提供胜平负、总进球、串关分析，仅供娱乐学习研究，不构成投注建议。">
+<meta property="og:title" content="足彩智析 - 竞彩足球智能分析">
+<meta property="og:description" content="基于公开赛事数据的足球分析参考工具，提供胜平负、总进球、串关、七维智能分析，仅供娱乐学习研究，不构成投注建议。">
 <meta property="og:url" content="https://LS7.pythonanywhere.com/">
-<meta property="og:site_name" content="竞彩足球智能分析">
+<meta property="og:site_name" content="足彩智析">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="竞彩足球智能分析">
-<meta name="twitter:description" content="足球赛事分析参考工具，仅供娱乐学习研究。">
+<meta name="twitter:title" content="足彩智析 - 竞彩足球智能分析">
+<meta name="twitter:description" content="足球赛事七维智能分析参考工具，仅供娱乐学习研究。">
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
   "@type": "WebApplication",
-  "name": "竞彩足球智能分析",
+  "name": "足彩智析",
   "description": "基于公开赛事数据的足球分析参考工具，仅供娱乐学习研究，不构成投注建议。",
   "applicationCategory": "SportsApplication",
   "url": "https://LS7.pythonanywhere.com/"
@@ -507,6 +507,11 @@ button{font-family:inherit}
         <option value="value">按价值</option>
       </select>
       <div class="fbar-right"><span id="filterCount"></span></div>
+    </div>
+
+    <!-- 数据源降级提示横幅 -->
+    <div id="sourceBanner" style="display:none;margin-bottom:12px;padding:10px 14px;border-radius:10px;font-size:0.74rem;line-height:1.5;border:1px solid var(--low-border,var(--amber-border));background:var(--amber-soft);color:var(--amber-text);font-weight:600">
+      &#9888;&#65039; <span id="sourceBannerText">数据源降级</span>
     </div>
 
     <!-- 赛事看板 -->
@@ -1331,7 +1336,8 @@ async function refreshData(force){
   try{
     renderSkeleton();
     setConnStatus(false);
-    var data = null;
+
+    // 竞彩官方（后端 /api/analyze 优先）：成功可获最真实赔率与场单
     var jcResp = fetchJingcaiList().then(async function(jc){
       if(jc&&jc.length>=3){
         var r=await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({jingcai_matches:jc,client_time:new Date().toISOString(),odds_time:JINGCAI_ODDS_TIME})});
@@ -1339,13 +1345,27 @@ async function refreshData(force){
       }
       return null;
     }).catch(function(){return null});
-    data = await Promise.race([jcResp,new Promise(function(r){setTimeout(function(){r(null)},8000)})]);
-    if(data&&data.matches&&data.matches.length>0){ showData(data); return; }
+
+    // 竞彩官方设置短超时；同时并行拉缓存兜底，避免竞彩慢时长时间白屏
+    var jcData = await Promise.race([jcResp,new Promise(function(r){setTimeout(function(){r(null)},6000)})]);
+    if(jcData&&jcData.matches&&jcData.matches.length>0){ showData(jcData); return; }
+
+    // 竞彩失败/超时 → 用缓存数据（快速首屏展示），并让竞彩请求在后台继续，成功后增量替换
     var cacheUrl = force ? '/api/data?force=1' : '/api/data';
     data = await Promise.race([fetch(cacheUrl).then(function(r){return r.ok?r.json():null}).catch(function(){return null}),new Promise(function(r){setTimeout(function(){r(null)},10000)})]);
-    if(data) showData(data);
-    else setConnStatus(false, '数据暂不可用');
-    if(!data) document.getElementById('matchesContainer').innerHTML='<div style="text-align:center;padding:60px;color:var(--text-muted)"><p>数据加载失败</p><button class="btn-refresh" onclick="refreshData()" style="margin-top:12px">重试</button></div>';
+    if(data){
+      showData(data);
+      // 竞彩仍在后台：若成功则覆盖为更完整数据
+      jcResp.then(function(jd){
+        if(jd && jd.matches && jd.matches.length>0){
+          showData(jd);
+          setConnStatus(true, '已连接（官方源）');
+        }
+      }).catch(function(){});
+    } else {
+      setConnStatus(false, '数据暂不可用');
+      document.getElementById('matchesContainer').innerHTML='<div style="text-align:center;padding:60px;color:var(--text-muted)"><p>数据加载失败</p><button class="btn-refresh" onclick="refreshData()" style="margin-top:12px">重试</button></div>';
+    }
   }catch(err){
     setConnStatus(false, '数据暂不可用');
     document.getElementById('matchesContainer').innerHTML='<div style="text-align:center;padding:40px;color:var(--text-muted)">加载异常: '+err.message+'<br><button class="btn-refresh" onclick="refreshData()" style="margin-top:8px">重试</button></div>';
@@ -1370,6 +1390,7 @@ function showData(data){
   else if(pri==='secondary'){priTag.style.display='inline';priTag.innerHTML='<span style="background:var(--medium-bg);color:#92400e;padding:2px 8px;border-radius:4px;font-size:0.6rem">备用源</span>';}
   else if(pri==='fallback'){priTag.style.display='inline';priTag.innerHTML='<span style="background:var(--low-bg);color:#b91c1c;padding:2px 8px;border-radius:4px;font-size:0.6rem">模拟</span>';}
   else{priTag.style.display='none';}
+  updateSourceBanner(pri, data.stats);
   document.getElementById('dataSource').title=data.stats.data_note||'';
   updateTimeNote(data.stats);
   renderMatches(data.matches);
@@ -1381,6 +1402,31 @@ function showData(data){
   loadBacktestPanel();
   renderParlay();
   setConnStatus(true, '已连接');
+}
+
+function updateSourceBanner(pri, stats){
+  var banner = document.getElementById('sourceBanner');
+  var txt = document.getElementById('sourceBannerText');
+  var note = (stats && stats.data_note) || '';
+  var src = (stats && stats.source) || '';
+  if(!banner || !txt) return;
+  if(pri === 'primary'){
+    banner.style.display = 'none';
+  } else if(pri === 'secondary'){
+    banner.style.display = 'flex';
+    banner.style.borderColor = 'var(--amber-border)';
+    banner.style.background = 'var(--amber-soft)';
+    banner.style.color = 'var(--amber-text)';
+    txt.textContent = '主数据源暂不可用，当前使用备用源 (' + src + ')。' + note;
+  } else if(pri === 'fallback'){
+    banner.style.display = 'flex';
+    banner.style.borderColor = 'var(--red-border)';
+    banner.style.background = 'var(--low-bg)';
+    banner.style.color = '#b91c1c';
+    txt.textContent = '所有外部数据源暂不可用，当前展示模拟数据，仅用于演示，不代表真实赛事。' + note;
+  } else {
+    banner.style.display = 'none';
+  }
 }
 
 function updateTimeNote(stats){

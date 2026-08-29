@@ -94,7 +94,10 @@ def init_scheduler(app):
         'cron',
         hour=2,
         minute=30,
-        id='daily_settlement'
+        id='daily_settlement',
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=3600,
     )
     # 回测流水线：定时采集快照 + 生成预测 + 赛后结算（内部有 API 超时保护,不阻塞 worker）
     scheduler.add_job(
