@@ -108,6 +108,14 @@ def get_data():
             pass
 
     analyzed = analyze_matches(matches, standings, predictions)
+
+    # 联赛排名增强：用 thesportsdb(备选 Bzzoiro) 填充每场 home_rank/away_rank
+    try:
+        from rankings import enhance_matches
+        enhance_matches(analyzed)
+    except Exception as e:
+        logging.warning('[API] 排名增强失败: %s', e)
+
     recommendations = generate_parlay_recommendations(analyzed)
     total_goals_recs = generate_total_goals_recommendations(analyzed)
 
@@ -181,6 +189,11 @@ def get_realtime():
 
     def _analyzed_payload(matches, source):
         analyzed = analyze_matches(matches, None, {})
+        try:
+            from rankings import enhance_matches
+            enhance_matches(analyzed)
+        except Exception:
+            pass
         recommendations = generate_parlay_recommendations(analyzed)
         total_goals_recs = generate_total_goals_recommendations(analyzed)
         analyses = {}
@@ -242,31 +255,61 @@ def get_realtime():
 
 @app.route('/api/team-data')
 def get_team_data():
-    """球队扩展数据接口：根据对阵球队+联赛返回扩展信息。按 (home,away,league) 缓存。"""
+    """球队扩展数据接口：根据对阵球队+联赛返回排名等扩展信息。
+    排名来源：thesportsdb 优先（6小时缓存），Bzzoiro standings 备选。按 (home,away,league) 缓存。"""
     home = request.args.get('homeTeam', '')
     away = request.args.get('awayTeam', '')
     league = request.args.get('league', '')
 
-    def _mock_team_data():
-        return {
-            'success': True,
-            'data': {
-                'homeTeam': home,
-                'awayTeam': away,
-                'league': league,
-                'recentForm': {'home': [], 'away': []},
-                'headToHead': [],
-                'teamRanks': {'home': None, 'away': None},
-                'keyPlayers': {'home': [], 'away': []},
-                'note': '扩展数据源接入中（当前为占位返回）',
-            }
-        }
-
+    home_rank = away_rank = None
+    home_src = away_src = ''
     try:
-        return jsonify(_mock_team_data())
+        from rankings import get_team_rank
+        if league:
+            home_rank, home_src = get_team_rank(league, home)
+            away_rank, away_src = get_team_rank(league, away)
+            if home_rank is None and home:
+                # 归一化兜底：队名可能是英文或含连字符
+                pass
     except Exception as e:
-        logging.warning(f'[team-data] 失败: {e}')
-        return jsonify({'success': False, 'data': None})
+        logging.warning('[team-data] 排名获取失败: %s', e)
+
+    # 排名详情（含节选数据：积分、近况、净胜球等）
+    home_detail = away_detail = None
+    try:
+        from rankings import get_league_rank_map
+        rank_map, _src = get_league_rank_map(league)
+    except Exception:
+        rank_map = {}
+
+    def _team_detail(name):
+        if not rank_map:
+            return None
+        from rankings import _match_rank, _norm
+        # 简化：仅当能匹配到排名时返回基础详情
+        r = _match_rank(name, rank_map)
+        return {'rank': r} if r is not None else None
+
+    home_detail = _team_detail(home) if home else None
+    away_detail = _team_detail(away) if away else None
+
+    return jsonify({
+        'success': True,
+        'data': {
+            'homeTeam': home,
+            'awayTeam': away,
+            'league': league,
+            'homeRank': home_rank,
+            'awayRank': away_rank,
+            'homeRankSource': home_src,
+            'awayRankSource': away_src,
+            'teamRanks': {'home': home_rank, 'away': away_rank},
+            'recentForm': {'home': [], 'away': []},
+            'headToHead': [],
+            'keyPlayers': {'home': [], 'away': []},
+            'note': '排名来源：thesportsdb（免费，仅前5名）/ Bzzoiro 备选',
+        }
+    })
 
 
 @app.route('/api/history')
