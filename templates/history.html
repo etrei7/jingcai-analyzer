@@ -7,80 +7,127 @@
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root,[data-theme="light"]{
-  --bg:#f5f6fa;--card-bg:#fff;--border:#e5e7eb;--text:#1f2937;--text-muted:#6b7280;--text-light:#9ca3af;
-  --home:#2563eb;--away:#ea580c;--accent:#7c3aed;--high:#16a34a;--high-bg:#dcfce7;--low:#dc2626;--low-bg:#fee2e2;
-  --medium:#d97706;--medium-bg:#fef3c7;--btn-bg:#f3f4f6;--shadow:0 1px 3px rgba(0,0,0,.08);
+  --bg:#f5f7fa;--card-bg:#fff;--border:#e2e8f0;--border-light:#eef2f7;
+  --text:#1a1a2e;--text-muted:#64748b;--text-light:#94a3b8;
+  --primary:#22c55e;--primary-dark:#16a34a;--primary-soft:#f0fdf4;--primary-border:#bbf7d0;
+  --amber:#f59e0b;--amber-soft:#fffbeb;--amber-border:#fde68a;--amber-text:#b45309;
+  --high:#16a34a;--high-bg:#dcfce7;--medium:#d97706;--medium-bg:#fef3c7;--low:#dc2626;--low-bg:#fee2e2;
+  --btn-bg:#f1f5f9;--btn-hover:#e2e8f0;--shadow:0 1px 2px rgba(26,26,46,.06);--shadow-lg:0 4px 16px rgba(26,26,46,.1);
 }
 [data-theme="dark"]{
-  --bg:#0f172a;--card-bg:#1e293b;--border:#334155;--text:#e2e8f0;--text-muted:#94a3b8;--text-light:#64748b;
-  --home:#60a5fa;--away:#f97316;--accent:#a78bfa;--high:#22c55e;--high-bg:#064e3b;--low:#ef4444;--low-bg:#450a0a;
-  --medium:#f59e0b;--medium-bg:#451a03;--btn-bg:#334155;--shadow:0 1px 3px rgba(0,0,0,.3);
+  --bg:#0b1220;--card-bg:#111a2e;--border:#233049;--border-light:#1e2940;
+  --text:#e2e8f0;--text-muted:#94a3b8;--text-light:#64748b;
+  --primary:#4ade80;--primary-dark:#22c55e;--primary-soft:#0f2618;--primary-border:#14532d;
+  --amber:#fbbf24;--amber-soft:#291b06;--amber-border:#6b4d12;--amber-text:#f59e0b;
+  --high:#22c55e;--high-bg:#064e3b;--medium:#f59e0b;--medium-bg:#451a03;--low:#ef4444;--low-bg:#450a0a;
+  --btn-bg:#1e2940;--btn-hover:#233049;--shadow:0 1px 2px rgba(0,0,0,.4);--shadow-lg:0 6px 24px rgba(0,0,0,.5);
 }
 body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Microsoft YaHei',sans-serif;min-height:100vh}
-.header{position:sticky;top:0;z-index:100;background:var(--card-bg);border-bottom:1px solid var(--border);padding:10px 24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;box-shadow:var(--shadow)}
-.header .logo{font-size:1.2rem;font-weight:700;color:var(--home);letter-spacing:1px;cursor:pointer;text-decoration:none}
-.header .nav{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.nav-link{background:var(--btn-bg);color:var(--text);border:1px solid var(--border);padding:5px 14px;border-radius:6px;cursor:pointer;font-size:0.8rem;text-decoration:none;transition:all .15s}
-.nav-link:hover{background:var(--home);color:#fff;border-color:var(--home)}
-.nav-link.active{background:var(--home);color:#fff;border-color:var(--home)}
+a{text-decoration:none;color:inherit}
+
+/* 顶部警告栏 */
+.warn-bar{background:linear-gradient(90deg,var(--amber-soft),var(--amber-soft));border-bottom:1px solid var(--amber-border);padding:7px 16px;display:flex;align-items:center;justify-content:center;gap:8px;font-size:0.78rem;color:var(--amber-text);font-weight:500;text-align:center;letter-spacing:.3px}
+.warn-bar svg{flex-shrink:0}
+.warn-bar .bar-sep{opacity:.4;margin:0 4px}
+
+/* 头部 */
+.header{position:sticky;top:0;z-index:100;background:var(--card-bg);border-bottom:1px solid var(--border);padding:10px 24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;box-shadow:var(--shadow);backdrop-filter:blur(10px)}
+.header .brand{display:flex;align-items:center;gap:10px}
+.brand-icon{width:36px;height:36px;border-radius:9px;background:var(--primary-soft);display:flex;align-items:center;justify-content:center;color:var(--primary);flex-shrink:0}
+.brand-icon svg{width:20px;height:20px}
+.brand-text .t{font-size:1.05rem;font-weight:800;letter-spacing:.5px}
+.brand-text .s{font-size:0.62rem;color:var(--text-muted);letter-spacing:1px;text-transform:uppercase}
+.nav-links{display:flex;gap:6px;align-items:center;flex-wrap:wrap;background:var(--btn-bg);border-radius:10px;padding:4px}
+.nav-link{background:transparent;color:var(--text-muted);border:none;padding:6px 14px;border-radius:8px;cursor:pointer;font-size:0.8rem;font-weight:600;text-decoration:none;transition:all .15s;white-space:nowrap;display:inline-flex;align-items:center;gap:5px}
+.nav-link svg{width:14px;height:14px}
+.nav-link:hover{color:var(--text)}
+.nav-link.active{background:var(--primary);color:#fff;box-shadow:0 1px 3px rgba(34,197,94,.3)}
+.btn-ghost{background:var(--btn-bg);color:var(--text);border:1px solid var(--border);padding:5px 10px;border-radius:8px;cursor:pointer;font-size:0.78rem;transition:all .15s}
+.btn-ghost:hover{background:var(--btn-hover)}
+
 .container{max-width:1100px;margin:0 auto;padding:24px}
-.section-title{font-size:1.1rem;font-weight:700;margin-bottom:16px;padding-left:10px;border-left:3px solid var(--home)}
+.page-title{font-size:1.4rem;font-weight:800;margin-bottom:20px;display:flex;align-items:center;gap:8px}
+.page-title svg{width:26px;height:26px;color:var(--primary)}
+.section-title{font-size:1rem;font-weight:800;margin-bottom:16px;padding-left:11px;border-left:3px solid var(--primary)}
+
 .stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:24px}
-.stat-card{background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:18px;text-align:center;box-shadow:var(--shadow)}
-.stat-card .num{font-size:2rem;font-weight:700}
-.stat-card .label{font-size:0.75rem;color:var(--text-muted);margin-top:4px}
-.rate-good{color:var(--high)}.rate-mid{color:var(--medium)}.rate-bad{color:var(--low)}
-.card{background:var(--card-bg);border:1px solid var(--border);border-radius:10px;margin-bottom:14px;box-shadow:var(--shadow);overflow:hidden}
+.stat-card{background:var(--card-bg);border:1px solid var(--border);border-radius:14px;padding:20px;text-align:center;box-shadow:var(--shadow)}
+.stat-card .num{font-size:2rem;font-weight:900;line-height:1.1}
+.stat-card .label{font-size:0.74rem;color:var(--text-muted);margin-top:5px}
+.rate-good{color:var(--high)}.rate-mid{color:var(--amber)}.rate-bad{color:var(--low)}
+
+.card{background:var(--card-bg);border:1px solid var(--border);border-radius:14px;margin-bottom:14px;box-shadow:var(--shadow);overflow:hidden}
 .card-head{padding:12px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
-.card-teams{font-size:1rem;font-weight:600}
-.card-meta{font-size:0.75rem;color:var(--text-muted)}
+.card-teams{font-size:1rem;font-weight:700}
+.card-meta{font-size:0.74rem;color:var(--text-muted)}
 .card-body{padding:14px 18px}
-.badge{padding:3px 10px;border-radius:5px;font-size:0.72rem;font-weight:600}
-.badge.hit{background:var(--high-bg);color:var(--high)}
-.badge.miss{background:var(--low-bg);color:var(--low)}
-.badge.pending{background:var(--medium-bg);color:var(--medium)}
+.badge{padding:3px 10px;border-radius:6px;font-size:0.72rem;font-weight:700}
+.badge.hit{background:var(--high-bg);color:#166534}
+.badge.miss{background:var(--low-bg);color:#b91c1c}
+.badge.pending{background:var(--medium-bg);color:#92400e}
 .record-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;font-size:0.8rem}
 .record-row .item{color:var(--text-muted)}
-.record-row .item strong{color:var(--text);font-weight:600}
+.record-row .item strong{color:var(--text);font-weight:700}
 .empty{text-align:center;padding:50px;color:var(--text-muted)}
-.back-btn{display:inline-block;background:var(--home);color:#fff;border:none;padding:8px 18px;border-radius:6px;cursor:pointer;font-size:0.85rem;text-decoration:none;margin-top:20px}
-.type-tag{font-size:0.65rem;padding:2px 7px;border-radius:3px;margin-right:6px}
-.type-prediction{background:var(--high-bg);color:var(--high)}
-.type-bet{background:var(--medium-bg);color:var(--medium)}
-.filter-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:18px;padding:10px 14px;background:var(--card-bg);border:1px solid var(--border);border-radius:8px}
-.filter-btn{background:var(--btn-bg);color:var(--text-muted);border:1px solid var(--border);padding:4px 12px;border-radius:6px;cursor:pointer;font-size:0.72rem;transition:all .15s;white-space:nowrap}
-.filter-btn:hover,.filter-btn.active{background:var(--home);color:#fff;border-color:var(--home)}
+.back-btn{display:inline-block;background:var(--primary);color:#fff;border:none;padding:9px 18px;border-radius:9px;cursor:pointer;font-size:0.85rem;text-decoration:none;margin-top:20px;font-weight:600}
+.type-tag{font-size:0.62rem;padding:2px 7px;border-radius:5px;margin-right:6px;font-weight:700}
+.type-prediction{background:var(--high-bg);color:#166534}
+.type-bet{background:var(--medium-bg);color:#92400e}
+.filter-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:18px;padding:10px 14px;background:var(--card-bg);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow)}
+.filter-btn{background:var(--btn-bg);color:var(--text-muted);border:1px solid var(--border);padding:5px 13px;border-radius:8px;cursor:pointer;font-size:0.74rem;font-weight:500;transition:all .15s;white-space:nowrap}
+.filter-btn:hover,.filter-btn.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+.filter-meta{font-size:0.7rem;color:var(--text-muted);margin-left:auto}
+.footer{text-align:center;padding:20px 24px;color:var(--text-muted);font-size:0.72rem;border-top:1px solid var(--border);margin-top:36px;background:var(--card-bg);max-width:1100px;margin-left:auto;margin-right:auto}
+.footer .disclaimer{color:var(--low);font-weight:600;margin-bottom:5px}
+@media(max-width:900px){.header{padding:8px 12px}.nav-links{width:100%;justify-content:center}.container{padding:16px}.stat-grid{grid-template-columns:repeat(2,1fr)}}
 </style>
 </head>
 <body>
+
+<div class="warn-bar">
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
+  <span>本系统仅供数据分析参考，不构成投注建议，请理性购彩</span>
+  <span class="bar-sep">|</span>
+  <span>未满18周岁禁止购彩</span>
+</div>
+
 <div class="header">
-  <a class="logo" href="/">&#9917; 竞彩智析</a>
-  <div class="nav">
-    <a class="nav-link" href="/">今日赛事</a>
-    <a class="nav-link active" href="/history">历史战绩</a>
-    <a class="nav-link" href="/settings">系统设置</a>
-    <button class="nav-link" onclick="toggleTheme()">&#127769;</button>
+  <div class="brand">
+    <div class="brand-icon"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg></div>
+    <div class="brand-text"><div class="t">足彩智析</div><div class="s">AI Football Analytics</div></div>
   </div>
+  <div class="nav-links">
+    <a class="nav-link" href="/"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>今日赛事</a>
+    <a class="nav-link active" href="/history"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>历史战绩</a>
+    <a class="nav-link" href="/settings"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>系统设置</a>
+  </div>
+  <button class="btn-ghost" onclick="toggleTheme()" title="切换深/浅色模式">🌓</button>
 </div>
 
 <div class="container">
-  <div class="section-title">&#128200; 历史战绩</div>
+  <h2 class="page-title"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>历史战绩</h2>
+
   <div class="stat-grid" id="statGrid">
     <div class="stat-card"><div class="num" style="color:var(--text)">--</div><div class="label">已验证</div></div>
     <div class="stat-card"><div class="num" style="color:var(--high)">--</div><div class="label">命中</div></div>
     <div class="stat-card"><div class="num" style="color:var(--low)">--</div><div class="label">未中</div></div>
     <div class="stat-card"><div class="num" style="color:var(--text)">--%</div><div class="label">命中率</div></div>
-    <div class="stat-card"><div class="num" style="color:var(--medium)">--</div><div class="label">总推荐</div></div>
+    <div class="stat-card"><div class="num" style="color:var(--amber)">--</div><div class="label">总推荐</div></div>
   </div>
 
   <div class="filter-bar">
     <button class="filter-btn active" data-f="all" onclick="setType(this,'all')">全部</button>
     <button class="filter-btn" data-f="prediction" onclick="setType(this,'prediction')">AI推荐</button>
     <button class="filter-btn" data-f="bet" onclick="setType(this,'bet')">我的投注</button>
-    <span style="font-size:0.7rem;color:var(--text-muted);margin-left:auto">共 <strong id="totalCount">0</strong> 条</span>
+    <span class="filter-meta">共 <strong id="totalCount">0</strong> 条</span>
   </div>
 
   <div id="recordList"><div class="empty">加载中...</div></div>
+</div>
+
+<div class="footer">
+  <p class="disclaimer">免责声明：本网站所有数据及分析仅供娱乐参考，不构成任何投注建议。赛果与赔率实时变动，请以中国体育彩票官方发布为准。</p>
+  <p>&copy; 2024 竞彩足球智能分析 | AI生成内容仅供参考 | 数据来源于公开信息</p>
 </div>
 
 <script>
@@ -91,11 +138,10 @@ function toggleTheme(){
   const html = document.documentElement;
   const next = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
   html.setAttribute('data-theme', next);
-  localStorage.setItem('theme', next);
+  try{ localStorage.setItem('theme', next); }catch(e){}
 }
 (function(){
-  const saved = localStorage.getItem('theme');
-  if(saved) document.documentElement.setAttribute('data-theme', saved);
+  try{ const saved = localStorage.getItem('theme'); if(saved) document.documentElement.setAttribute('data-theme', saved); }catch(e){}
 })();
 
 function setType(btn, type){
@@ -115,9 +161,7 @@ function render(){
     if(r.type === 'prediction'){
       teams = (r.homeTeam||'') + ' vs ' + (r.awayTeam||'');
       meta = (r.league||'') + ' | #' + (r.matchNum||r.match_id||'') + ' | ' + (r.date||'');
-      badge = r.verified
-        ? (r.hit ? '<span class="badge hit">命中</span>' : '<span class="badge miss">未中</span>')
-        : '<span class="badge pending">待验证</span>';
+      badge = r.verified ? (r.hit ? '<span class="badge hit">命中</span>' : '<span class="badge miss">未中</span>') : '<span class="badge pending">待验证</span>';
     } else {
       teams = r.teams || ('投注 #' + (r.matchNum||''));
       meta = (r.playTypeLabel||r.playType||'') + ' | #' + (r.matchNum||'') + ' | ' + (r.updatedAt||r.createdAt||'');
