@@ -599,6 +599,7 @@ let autoRefreshTimer = null;
 let countdownTimer = null;
 let countdownSec = 30;
 let allTotalGoals = {};   // 总进球推荐, 按 match_id 索引
+let hasLoadedOnce = false;  // 已成功加载过（用于避免刷新时闪烁/转圈）
 
 var JINGCAI_TOKEN = '';
 var JINGCAI_ODDS_TIME = '';
@@ -1341,8 +1342,12 @@ async function refreshData(force){
   var lbl = document.getElementById('refreshLabel');
   if(btn){ btn.disabled = true; if(lbl) lbl.textContent = '刷新中...'; }
   try{
-    renderSkeleton();
-    setConnStatus(false);
+    // 仅在首次加载或空容器时显示骨架屏；已有数据刷新时静默更新，避免转圈/闪烁
+    var mcEl = document.getElementById('matchesContainer');
+    if(!hasLoadedOnce || !mcEl || !mcEl.innerHTML || mcEl.innerHTML.indexOf('match-card') < 0){
+      renderSkeleton();
+      setConnStatus(false);
+    }
 
     // 竞彩官方（后端 /api/analyze 优先）：成功可获最真实赔率与场单
     var jcResp = fetchJingcaiList().then(async function(jc){
@@ -1389,6 +1394,7 @@ function setConnStatus(ok, text){
 }
 
 function showData(data){
+  hasLoadedOnce = true;
   document.getElementById('totalMatches').textContent=data.stats.total_matches;
   document.getElementById('dataSource').textContent=data.stats.source;
   var pri=data.stats.data_priority||'';
