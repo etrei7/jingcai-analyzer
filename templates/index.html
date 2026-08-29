@@ -160,6 +160,7 @@ button{font-family:inherit}
 .team-line{display:flex;align-items:center;gap:7px}
 .team-name{font-size:1.02rem;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .team-name.home{color:var(--home)}.team-name.away{color:var(--away)}
+.team-meta{font-size:0.64rem;color:var(--text-muted);background:var(--card-stripe);border:1px solid var(--border-light);padding:1px 7px;border-radius:6px;white-space:nowrap;font-weight:600;flex-shrink:0;display:inline-flex;align-items:center;gap:3px}
 .rank-badge{font-size:0.62rem;padding:1px 8px;border-radius:10px;font-weight:700;flex-shrink:0}
 .rank-badge.top3{background:var(--high-bg);color:#166534}.rank-badge.mid{background:#f0fdf4;color:#15803d}
 .rank-badge.low{background:var(--medium-bg);color:#92400e}.rank-badge.bottom{background:var(--low-bg);color:#991b1b}
@@ -679,6 +680,14 @@ function zoneClass(r) { if(!r) return ''; if(r<=4) return 'zone-champions'; if(r
 function zoneLabel(r) { if(!r) return ''; if(r<=4) return '欧冠区'; if(r<=10) return '欧联区'; if(r>=18) return '降级区'; return ''; }
 function formStrHTML(f) { if(!f) return ''; return '<span class="form-str">'+f.split('').map(c=>`<span class="${c.toLowerCase()}">${c}</span>`).join('')+'</span>'; }
 function confBar(s) { const p=s/10*100; const c=s>=6?'green':s>=4?'yellow':'red'; return `<span class="bar ${c}" style="width:${Math.max(3,p*0.6)}px"></span>`; }
+function teamMetaHTML(v) {
+  // v = { rank, value } ；生成 "排名 身价" 小标签，无数据则隐藏
+  var parts = [];
+  if(v.rank != null && v.rank !== '') parts.push('#'+v.rank);
+  if(v.value && v.value.display) parts.push('身价 '+v.value.display);
+  if(!parts.length) return '';
+  return '<span class="team-meta">'+parts.join(' · ')+'</span>';
+}
 function refStrictClass(s) { if(s.includes('严格')) return 'strict-strict'; if(s.includes('适中')) return 'strict-moderate'; return 'strict-lenient'; }
 function leagueQualityTag(league) {
   const tier1 = ['英超','西甲','德甲','意甲','法甲','欧冠','欧联','欧协联'];
@@ -1010,8 +1019,6 @@ function renderMatchesInternal(matches) {
     const confCls = m.confidence_level==='高'?'tag-high':m.confidence_level==='中'?'tag-medium':'tag-low';
     const hotCls = m.hotness_label==='适度热门'?'tag-moderate':m.hotness_label==='极端热门'?'tag-extreme':'tag-cold';
     const mtCls = m.market_tendency==='主胜'?'home-tendency':m.market_tendency==='客胜'?'away-tendency':m.market_tendency==='平局'?'draw-tendency':'balanced';
-    const hr = m.home_rank?`<span class="rank-badge ${rankClass(m.home_rank)}" title="主队排名">#${m.home_rank}</span>`:'';
-    const ar = m.away_rank?`<span class="rank-badge ${rankClass(m.away_rank)}" title="客队排名">#${m.away_rank}</span>`:'';
     const ref = m.referee||{};
     const weather = m.weather||{};
     const inj = m.injuries||{};
@@ -1034,10 +1041,10 @@ function renderMatchesInternal(matches) {
       </div>
       <div class="match-content">
         <div class="match-teams">
-          <div class="team-line"><span class="team-name home">${m.home_team}</span>${hr}${inj.home_count>0?`<span class="injury-dot red" title="主队${inj.home_count}人伤停"></span>`.repeat(Math.min(inj.home_count,3)):''}</div>
+          <div class="team-line"><span class="team-name home">${m.home_team}</span>${teamMetaHTML({rank:m.home_rank, value:m.home_value})}${inj.home_count>0?`<span class="injury-dot red" title="主队${inj.home_count}人伤停"></span>`.repeat(Math.min(inj.home_count,3)):''}</div>
           <div class="team-conf">${confBar(m.home_confidence)}${m.home_confidence}/10 ${formStrHTML(m.home_form)}</div>
           <div class="vs-text">VS</div>
-          <div class="team-line"><span class="team-name away">${m.away_team}</span>${ar}${inj.away_count>0?`<span class="injury-dot red" title="客队${inj.away_count}人伤停"></span>`.repeat(Math.min(inj.away_count,3)):''}</div>
+          <div class="team-line"><span class="team-name away">${m.away_team}</span>${teamMetaHTML({rank:m.away_rank, value:m.away_value})}${inj.away_count>0?`<span class="injury-dot red" title="客队${inj.away_count}人伤停"></span>`.repeat(Math.min(inj.away_count,3)):''}</div>
           <div class="team-conf">${confBar(m.away_confidence)}${m.away_confidence}/10 ${formStrHTML(m.away_form)}</div>
         </div>
         <div class="match-center">
