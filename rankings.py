@@ -224,7 +224,9 @@ def _fetch_bzzoiro_rank_map(league_cn):
 
 
 def get_league_rank_map(league_cn):
-    """获取 联赛->(中文队名->排名, source) 带缓存。"""
+    """获取 联赛->(中文队名->排名, source) 带缓存。
+    来源合并：thesportsdb（免费仅前5）+ Bzzoiro standings（完整积分榜）互补，
+    覆盖排名前5后的球队。source 以主来源标记。"""
     if not league_cn:
         return {}, ''
     key = league_cn
@@ -233,15 +235,22 @@ def get_league_rank_map(league_cn):
         if cached and (_now() - cached['ts']) < CACHE_TTL:
             return cached['data'], cached['source']
 
-    rank_map, source = {}, ''
+    rank_map = {}
+    source = ''
+    # 1) thesportsdb（免费版仅前5名，优先、快速）
     tsd_rows = fetch_standings_tsd(league_cn)
     if tsd_rows:
         rank_map = _build_cn_rankmap(tsd_rows)
         source = 'thesportsdb'
-    else:
-        bz = _fetch_bzzoiro_rank_map(league_cn)
-        if bz:
-            rank_map = bz
+    # 2) Bzzoiro standings 兜底补全（可能提供完整积分榜，覆盖前5之后的队伍）
+    tsd_ranks = set(rank_map.values())
+    bz = _fetch_bzzoiro_rank_map(league_cn)
+    if bz:
+        for team_key, pos in bz.items():
+            # 仅补 thesportsdb 缺失的队伍（避免覆盖更权威来源）
+            if pos is not None and team_key not in rank_map:
+                rank_map[team_key] = pos
+        if not source:
             source = 'bzzoiro'
 
     with _lock:

@@ -28,8 +28,28 @@ if not os.environ.get('FLASK_DEBUG', '0') == '1':
 
 db.init_app(app)
 
+
+def _migrate_bt_bets():
+    """轻量迁移：为已有数据库的 bt_bets 补充 estimated 列（区分真实/估算赔率），
+    避免表结构变更后查询报 "no such column"。"""
+    try:
+        from sqlalchemy import inspect, text
+        insp = inspect(db.engine)
+        cols = [c['name'] for c in insp.get_columns('bt_bets')]
+        if 'estimated' not in cols:
+            with db.engine.connect() as conn:
+                conn.execute(text("ALTER TABLE bt_bets ADD COLUMN estimated BOOLEAN DEFAULT 0"))
+                conn.commit()
+            logging.info('[迁移] bt_bets 已补充 estimated 列')
+    except Exception as e:
+        logging.warning('[迁移] bt_bets estimated 列检查失败: %s', e)
+
+
 with app.app_context():
     db.create_all()
+    # 轻量迁移：为已有数据库的 bt_bets 补充 estimated 列（区分真实/估算赔率），
+    # 避免表结构变更后查询报 "no such column"。
+    _migrate_bt_bets()
 
 init_scheduler(app)
 

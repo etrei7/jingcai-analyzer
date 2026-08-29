@@ -251,17 +251,18 @@ def _compute_handicap(match, prediction=None, home_state=0.5, away_state=0.5, h_
     away_exp = max(0.2, 0.75 + away_str * 1.0 + a_adj)
 
     # 选择让球线：期望净胜球（支持深盘 -2/+2）
+    # 阈值更保守：避免中强队被过度深让导致"让负"虚高、推荐自相矛盾
     net = home_exp - away_exp
-    if net >= 1.25:
+    if net >= 1.7:
         line = -2
         direction = '主让'
-    elif net >= 0.6:
+    elif net >= 1.0:
         line = -1
         direction = '主让'
-    elif net <= -1.25:
+    elif net <= -1.7:
         line = +2
         direction = '客让'
-    elif net <= -0.6:
+    elif net <= -1.0:
         line = +1
         direction = '客让'
     else:
@@ -285,6 +286,17 @@ def _compute_handicap(match, prediction=None, home_state=0.5, away_state=0.5, h_
         return ph, pd, pl
 
     ph, pd, pl = _probs_for_line(line)
+
+    # pick 逻辑修正：不应选"让负/让胜"作为推荐（那是受让方/让球方输的意思）。
+    # 只有当让胜概率足够（真实可投注价值）才推让胜/让平/让负中的合理方向。
+    # 让球线过深(让负虚高)时降级：主队让1球而让负概率最高 ⇒ 说明不该让那么深。
+    if line != 0 and ( (direction == '主让' and pl > ph and pl > pd) or
+                       (direction == '客让' and ph > pl and ph > pd) ):
+        # 深让导致受让方概率虚高：回退到平手盘，避免矛盾建议
+        line = 0
+        direction = '平手'
+        ph, pd, pl = _probs_for_line(0)
+
     # 保险上下限，避免概率趋零时赔率虚高（如 1/0.03≈33）或趋一时赔率过低
     def _safe_odds(p):
         p = max(min(p, 0.95), 0.06)

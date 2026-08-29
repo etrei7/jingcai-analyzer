@@ -93,6 +93,9 @@ class BtBet(db.Model):
     pnl = db.Column(db.Float, nullable=True)
     settled_at = db.Column(db.String(25), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    # 是否为估算赔率（非真实市场赔率）。1X2/AH 为真实，CS/HTFT 为模型估算。
+    # 估算赔率不参与"可投注价值"的 ROI 统计，避免虚构高赔率撑高盈利。
+    estimated = db.Column(db.Boolean, default=False)
 
 
 class BtBacktestSummary(db.Model):

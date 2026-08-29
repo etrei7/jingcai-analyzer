@@ -52,10 +52,12 @@ def record_odds_snapshot(match_id, market, home, draw, away, line=None, source='
 
 def record_prediction(match_id, play_type, pick, predicted_prob, odds,
                       model_name='jingcai-model', confidence=None, combo='single',
-                      home_team=None, away_team=None):
-    """记录一条 AI 推荐，并评估是否为价值盘。"""
+                      home_team=None, away_team=None, estimated=False):
+    """记录一条 AI 推荐，并评估是否为价值盘。
+    estimated=True 表示赔率为模型估算（如比分/半全场），非真实市场赔率，
+    不参与"可投注价值"的 ROI 统计，避免虚构高赔率撑高盈利。"""
     value, edge = (False, 0.0)
-    if predicted_prob is not None and odds:
+    if not estimated and predicted_prob is not None and odds:
         value, edge = is_value_bet(predicted_prob, odds)
     if not USE_DB:
         return {'value': value, 'edge': round(edge, 4)}
@@ -74,6 +76,7 @@ def record_prediction(match_id, play_type, pick, predicted_prob, odds,
             prediction_id=pred.id, match_id=match_id, play_type=play_type,
             pick=pick, odds=odds, stake=1.0,
             home_team=home_team, away_team=away_team,
+            estimated=estimated,
         )
         db.session.add(bet)
         db.session.commit()
@@ -216,16 +219,23 @@ def compute_summary(period='all', model_name=None, play_type=None):
             q = q.filter_by(play_type=play_type)
         bets = q.all()
         settled = [b for b in bets if b.settled_at]
+        # 区分"可投注价值"（真实赔率）与"模型估算赔率"（比分/半全场）
+        market_settled = [b for b in settled if not getattr(b, 'estimated', False)]
+        est_settled = [b for b in settled if getattr(b, 'estimated', False)]
         total = len(settled)
-        wins = sum(1 for b in settled if b.outcome == 'win')
-        losses = sum(1 for b in settled if b.outcome == 'lose')
+        # 整体命中率：基于真实赔率玩法（可投注），估算玩法仅作参考看板
+        wins = sum(1 for b in market_settled if b.outcome == 'win')
+        losses = sum(1 for b in market_settled if b.outcome == 'lose')
         voids = sum(1 for b in settled if b.outcome == 'void')
-        total_stake = sum((b.stake or 1.0) for b in settled if b.outcome in ('win', 'lose'))
-        total_pnl = sum((b.pnl or 0.0) for b in settled)
+        total_stake = sum((b.stake or 1.0) for b in market_settled if b.outcome in ('win', 'lose'))
+        total_pnl = sum((b.pnl or 0.0) for b in market_settled)
         hit_rate = round(wins / (wins + losses) * 100, 1) if (wins + losses) else 0.0
         roi = round(total_pnl / total_stake * 100, 1) if total_stake else 0.0
-        odds_list = [b.odds for b in settled if b.odds]
+        odds_list = [b.odds for b in market_settled if b.odds]
         avg_odds = round(sum(odds_list) / len(odds_list), 2) if odds_list else 0.0
+        # 估算赔率玩法样本（比分/半全场）——不计入 ROI，单独给面板提示
+        est_total = len(est_settled)
+        est_wins = sum(1 for b in est_settled if b.outcome == 'win')
 
         # 预测明细：供面板展示历史战绩（按玩法解释 pick）
         def describe(play_type, pick):
@@ -273,6 +283,7 @@ def compute_summary(period='all', model_name=None, play_type=None):
                 'pnl': b.pnl,
                 'settled_at': b.settled_at,
                 'hit': (b.outcome == 'win'),
+                'estimated': getattr(b, 'estimated', False),
                 'result_cn': ('命中' if b.outcome == 'win' else '未中' if b.outcome == 'lose' else '待结算') if b.outcome else '待结算',
             }
             records.append(rec)
@@ -292,6 +303,9 @@ def compute_summary(period='all', model_name=None, play_type=None):
             'avg_odds': avg_odds,
             'computed_at': _now_str(),
             'pending': len(bets) - total,
+            # 估算赔率玩法（比分/半全场）不计入 ROI，仅作参考
+            'estimated_total': est_total,
+            'estimated_wins': est_wins,
             'records': records,
         }
     except Exception as e:

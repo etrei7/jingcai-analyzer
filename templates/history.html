@@ -77,6 +77,7 @@ a{text-decoration:none;color:inherit}
 .filter-btn{background:var(--btn-bg);color:var(--text-muted);border:1px solid var(--border);padding:5px 13px;border-radius:8px;cursor:pointer;font-size:0.74rem;font-weight:500;transition:all .15s;white-space:nowrap}
 .filter-btn:hover,.filter-btn.active{background:var(--primary);color:#fff;border-color:var(--primary)}
 .filter-meta{font-size:0.7rem;color:var(--text-muted);margin-left:auto}
+.hist-note{font-size:0.68rem;color:var(--text-muted);margin:-12px 0 18px;line-height:1.6}
 .footer{text-align:center;padding:20px 24px;color:var(--text-muted);font-size:0.72rem;border-top:1px solid var(--border);margin-top:36px;background:var(--card-bg);max-width:1100px;margin-left:auto;margin-right:auto}
 .footer .disclaimer{color:var(--low);font-weight:600;margin-bottom:5px}
 @media(max-width:900px){.header{padding:8px 12px}.nav-links{width:100%;justify-content:center}.container{padding:16px}.stat-grid{grid-template-columns:repeat(2,1fr)}}
@@ -108,12 +109,13 @@ a{text-decoration:none;color:inherit}
   <h2 class="page-title"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>历史战绩</h2>
 
   <div class="stat-grid" id="statGrid">
-    <div class="stat-card"><div class="num" style="color:var(--text)">--</div><div class="label">已验证</div></div>
+    <div class="stat-card"><div class="num" style="color:var(--text)">--</div><div class="label">已验证(场)</div></div>
     <div class="stat-card"><div class="num" style="color:var(--high)">--</div><div class="label">命中</div></div>
     <div class="stat-card"><div class="num" style="color:var(--low)">--</div><div class="label">未中</div></div>
-    <div class="stat-card"><div class="num" style="color:var(--text)">--%</div><div class="label">命中率</div></div>
-    <div class="stat-card"><div class="num" style="color:var(--amber)">--</div><div class="label">总推荐</div></div>
+    <div class="stat-card"><div class="num" style="color:var(--text)">--%</div><div class="label">已验证命中率</div></div>
+    <div class="stat-card"><div class="num" style="color:var(--amber)">--</div><div class="label">累计推荐(含未验证)</div></div>
   </div>
+  <div class="hist-note">命中率=已验证场次中命中比例；累计推荐含尚未验证的场次，二者分母不同。</div>
 
   <div class="filter-bar">
     <button class="filter-btn active" data-f="all" onclick="setType(this,'all')">全部</button>

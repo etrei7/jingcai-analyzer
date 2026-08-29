@@ -89,25 +89,29 @@ def _record_match_plays(bt, m, mid):
     except Exception:
         pass
 
-    # CS 正确比分
+    # CS 正确比分：模型估算赔率，命中率极低，仅作参考（标记 estimated，不计入 ROI）
     try:
         rec_score = str(m.get('recommended_score', ''))
         if rec_score and '-' in rec_score:
+            # 以1X2最低赔为基准估算比分赔率（绝非真实，仅供参考）
+            est_odds = round(1.0 / max(0.05, 0.12 * conf), 2)
             bt.record_prediction(mid, 'CS', rec_score,
-                                 round(0.12 * conf, 4), None,
+                                 round(0.12 * conf, 4), est_odds,
                                  model_name='jingcai-value', confidence=conf,
-                                 home_team=home, away_team=away)
+                                 home_team=home, away_team=away,
+                                 estimated=True)
     except Exception:
         pass
 
-    # HTFT 半全场
+    # HTFT 半全场：模型估算赔率（非真实市场赔率），标记 estimated，不计入 ROI
     try:
         htft = _predict_htft(m, conf)
         if htft:
             pick_htft, prob_htft, odds_htft = htft
             bt.record_prediction(mid, 'HTFT', pick_htft, prob_htft, odds_htft,
                                  model_name='jingcai-value', confidence=conf,
-                                 home_team=home, away_team=away)
+                                 home_team=home, away_team=away,
+                                 estimated=True)
     except Exception:
         pass
 
