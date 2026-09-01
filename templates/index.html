@@ -341,7 +341,18 @@ button{font-family:inherit}
 .an-tip{font-size:0.64rem;color:var(--accent);font-weight:700;margin-top:6px}
 .an-risk{font-size:0.64rem;color:var(--text-muted);margin-top:8px;padding-top:8px;border-top:1px dashed var(--border-light)}
 .an-empty{color:var(--text-muted);text-align:center;padding:20px;font-size:0.78rem}
-
+/* ===== 高信心串关选场 ===== */
+.hi-pick-list{margin:10px 0}
+.hi-list{max-height:320px;overflow-y:auto;border:1px solid var(--border-light);border-radius:10px;padding:4px}
+.hi-item{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;cursor:pointer;transition:background .15s}
+.hi-item:hover{background:var(--card-stripe)}
+.hi-item input{width:15px;height:15px;cursor:pointer;accent-color:var(--primary)}
+.hi-teams{flex:1;font-size:0.78rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hi-opt{font-size:0.72rem;color:var(--text-muted);font-family:var(--mono);white-space:nowrap}
+.hi-lv{font-size:0.62rem;padding:2px 7px;border-radius:6px;font-weight:700;white-space:nowrap}
+.hi-lv.hi{background:var(--high-bg);color:var(--high)}
+.hi-lv.mid{background:var(--medium-bg);color:var(--medium)}
+.hi-lv.low{background:var(--low-bg);color:var(--low)}
 /* ===== 骨架屏 ===== */
 .skeleton{background:linear-gradient(90deg,var(--card-stripe) 25%,var(--btn-hover) 37%,var(--card-stripe) 63%);background-size:400% 100%;animation:sken 1.2s ease infinite;border-radius:8px}
 @keyframes sken{0%{background-position:100% 50%}100%{background-position:0 50%}}
@@ -539,6 +550,7 @@ button{font-family:inherit}
         <div class="pt-tabs">
           <button class="pt-btn active" id="ptTotal" onclick="setAnalystMode('total')">总进球</button>
           <button class="pt-btn" id="ptParlay" onclick="setAnalystMode('parlay')">串关</button>
+          <button class="pt-btn" id="ptHi" onclick="setAnalystMode('hi')">高信心串关</button>
         </div>
         <div class="analyst-mode" id="totalMode">
           <select id="analystMatch"><option value="">-- 选择比赛 --</option></select>
@@ -548,6 +560,12 @@ button{font-family:inherit}
           <span class="analyst-hint" id="parlayHint">根据「我的串关」已选比赛生成</span>
           <button class="analyst-run" onclick="runParlayAnalysis()">生成串关方案</button>
         </div>
+        <div class="analyst-mode" id="hlMode" style="display:none">
+          <span class="analyst-hint">勾选比赛生成高信心串关（至少2场，勾选N场即N串1）</span>
+          <button class="analyst-run" onclick="fillHighConf()">填入高信心</button>
+          <button class="analyst-run" onclick="generateHiParlay()">生成高信心串关</button>
+        </div>
+        <div class="hi-pick-list" id="hlPickList"></div>
         <div class="analyst-output" id="analystOutput">
           <div class="an-empty">请先加载赛事数据，然后选择玩法开始分析</div>
         </div>
@@ -1213,8 +1231,11 @@ function setAnalystMode(mode){
   analystModeSel = mode;
   document.getElementById('ptTotal').classList.toggle('active', mode === 'total');
   document.getElementById('ptParlay').classList.toggle('active', mode === 'parlay');
+  document.getElementById('ptHi').classList.toggle('active', mode === 'hi');
   document.getElementById('totalMode').style.display = (mode === 'total') ? 'flex' : 'none';
   document.getElementById('parlayMode').style.display = (mode === 'parlay') ? 'flex' : 'none';
+  document.getElementById('hlMode').style.display = (mode === 'hi') ? 'flex' : 'none';
+  if(mode === 'hi') renderHiPickList();
 }
 function fillAnalystMatches(matches){
   var sel = document.getElementById('analystMatch');
@@ -1225,6 +1246,76 @@ function fillAnalystMatches(matches){
     opt.textContent = (m.match_id + ' ' + m.home_team + ' vs ' + m.away_team);
     sel.appendChild(opt);
   });
+  renderHiPickList();
+}
+var hlPicked = {};
+function renderHiPickList(){
+  var box = document.getElementById('hlPickList');
+  if(!box) return;
+  if(!currentMatches.length){ box.innerHTML = '<div class="an-empty">请先加载赛事数据</div>'; return; }
+  var bestOpt = function(m){
+    var opts = [['胜', m.win_odds], ['平', m.draw_odds], ['负', m.lose_odds]].filter(function(o){ return o[1] > 0; });
+    return opts.sort(function(a,b){ return a[1] - b[1]; })[0] || ['胜', m.win_odds];
+  };
+  box.innerHTML = '<div class="hi-list">' + currentMatches.map(function(m){
+    var checked = hlPicked[m.match_id] ? ' checked' : '';
+    var lv = m.confidence_level || '';
+    var lvCls = lv === '高' ? 'hi' : (lv === '中' ? 'mid' : 'low');
+    var opt = bestOpt(m), odds = (opt[1] || 0);
+    return '<label class="hi-item"><input type="checkbox" data-mid="' + m.match_id + '"' + checked + ' onchange="hlToggle(\'' + m.match_id + '\')">' +
+      '<span class="hi-teams">' + m.home_team + ' vs ' + m.away_team + '</span>' +
+      '<span class="hi-opt">' + opt[0] + ' @' + (odds || '—').toFixed(2) + '</span>' +
+      '<span class="hi-lv ' + lvCls + '">' + (lv || '低') + '</span>' +
+    '</label>';
+  }).join('') + '</div>';
+}
+function hlToggle(mid){
+  if(hlPicked[mid]){ delete hlPicked[mid]; } else { hlPicked[mid] = true; }
+}
+function fillHighConf(){
+  if(!currentMatches.length){ return; }
+  currentMatches.forEach(function(m){ if(m.confidence_level === '高') hlPicked[m.match_id] = true; });
+  renderHiPickList();
+}
+function generateHiParlay(){
+  var out = document.getElementById('analystOutput');
+  if(!currentMatches.length){ out.innerHTML = '<div class="an-warn">请先加载赛事数据</div>'; return; }
+  var picked = currentMatches.filter(function(m){ return hlPicked[m.match_id]; });
+  var bestOpt = function(m){
+    var opts = [['胜', m.win_odds], ['平', m.draw_odds], ['负', m.lose_odds]].filter(function(o){ return o[1] > 0; });
+    return opts.sort(function(a,b){ return a[1] - b[1]; })[0] || ['胜', m.win_odds];
+  };
+  if(picked.length < 2){ out.innerHTML = '<div class="an-warn">至少勾选2场比赛才能生成串关（当前' + picked.length + '场）</div>'; return; }
+  // 高信心优先排序
+  var order = { '高': 0, '中': 1, '低': 2 };
+  picked.sort(function(a,b){ return (order[a.confidence_level]||3) - (order[b.confidence_level]||3); });
+  var mult = parseInt((document.getElementById('betMultiple') || {}).value) || 50;
+  var combos = [];
+  for(var i = 0; i < picked.length; i++){
+    for(var j = i + 1; j < picked.length; j++){
+      var oi = bestOpt(picked[i]), oj = bestOpt(picked[j]);
+      combos.push({ a: picked[i], b: picked[j], oa: oi, ob: oj });
+    }
+  }
+  combos.sort(function(x,y){ return (parseFloat(x.oa[1])*parseFloat(x.ob[1])) - (parseFloat(y.oa[1])*parseFloat(y.ob[1])); });
+  var html = '<div class="an-out"><div class="an-title">&#128640; 高信心串关（' + picked.length + '场全选=' + picked.length + '串1）</div>';
+  var allOdds = picked.reduce(function(acc,m){ var o = bestOpt(m); return acc * (parseFloat(o[1])||1); }, 1);
+  picked.forEach(function(m){
+    var o = bestOpt(m);
+    html += '<div class="an-line"><span class="m">' + m.home_team + ' vs ' + m.away_team + '：' + o[0] + '</span><span class="o">@' + (parseFloat(o[1])||0).toFixed(2) + '</span></div>';
+  });
+  if(picked.length > 2){
+    // 另给最优2串1（赔率最低组合）
+    var best2 = combos[0];
+    if(best2){
+      html += '<div class="an-line" style="margin-top:6px;border-top:1px dashed var(--border-light)"><span class="m" style="font-size:0.72rem;color:var(--text-muted)">低风险2串1：</span><span class="m">' + best2.a.home_team + 'vs' + best2.a.away_team + '(' + best2.oa[0] + ')' + ' + ' + best2.b.home_team + 'vs' + best2.b.away_team + '(' + best2.ob[0] + ')</span></div>';
+      html += '<div class="an-line">2串1 组合赔率 <strong>' + (parseFloat(best2.oa[1])*parseFloat(best2.ob[1])).toFixed(2) + '</strong></div>';
+    }
+  }
+  var stake = 2 * mult;
+  html += '<div class="an-tip">' + picked.length + '串1 全串赔率：<strong>' + allOdds.toFixed(2) + '</strong>　投注 ' + stake + '元（1注2元×' + mult + '倍）预计返 <strong>' + (allOdds*stake).toFixed(2) + '元</strong></div>';
+  html += '<div class="an-risk">请理性购彩，本推荐仅供参考</div></div>';
+  out.innerHTML = html;
 }
 function getSummaryMatch(matches, matchId){
   for (var i = 0; i < matches.length; i++){ if (matches[i].match_id === matchId) return matches[i]; }
