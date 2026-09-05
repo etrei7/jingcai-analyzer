@@ -413,6 +413,111 @@ def _compute_total_goals(match, prediction, home_state=0.5, away_state=0.5, h_in
     }
 
 
+def _calc_htft(expected_total, conf=0.6, max_goals=5):
+    """用泊松模型估算半全场最可能组合（半场期望=全场期望*0.45）。
+    返回 (pick, prob, odds) 或 None。pick 如 'HH'，odds 为模型估算赔率。"""
+    try:
+        if not expected_total:
+            return None
+        he = float(expected_total)
+        h_exp = he * 0.55
+        a_exp = he * (1 - 0.55)
+        hht_exp = h_exp * 0.45
+        awt_exp = a_exp * 0.45
+
+        def poisson(k, lam):
+            if lam <= 0:
+                return 1.0 if k == 0 else 0.0
+            return (lam ** k) * math.exp(-lam) / math.factorial(k)
+
+        def result(gh, ga):
+            return 'H' if gh > ga else 'A' if gh < ga else 'D'
+
+        best, best_prob = None, 0.0
+        for hhg in range(max_goals):
+            for awg in range(max_goals):
+                for fhg in range(max_goals):
+                    for fwg in range(max_goals):
+                        if fhg < hhg or fwg < awg:
+                            continue
+                        p = poisson(hhg, hht_exp) * poisson(awg, awt_exp) * \
+                            poisson(fhg - hhg, h_exp - hht_exp) * poisson(fwg - awg, a_exp - awt_exp)
+                        pt = result(hhg, awg) + result(fhg, fwg)
+                        if p > best_prob:
+                            best_prob, best = p, pt
+        if best and best_prob > 0:
+            odds = round(1.0 / max(best_prob, 0.05), 2)
+            return best, round(min(best_prob, 0.9), 4), odds
+        return None
+    except Exception:
+        return None
+
+
+_HTFT_CN = {'HH': '胜胜', 'HD': '胜平', 'HA': '胜负', 'DH': '平胜', 'DD': '平平',
+            'DA': '平负', 'AH': '负胜', 'AD': '负平', 'AA': '负负'}
+
+
+def _build_parlay_options(m):
+    """为单场比赛构建所有可投注玩法选项，供串关推荐使用。
+    玩法：胜平负 / 让球胜平负 / 总进球(进球数) / 半全场。
+    返回 [{'play_type','option','odds','prob','confidence','pick','_priority'}, ...]，按信心从高到低。
+    _priority：玩法优先级（真实盘口=高，模型估算=低）。confidence 结合信心与赔率价值。"""
+    opts = []
+    ht = m.get('home_team', '')
+    at = m.get('away_team', '')
+    block_confidence = 0.55 if m.get('confidence_level') == '高' else 0.5 if m.get('confidence_level') == '中' else 0.4
+    try:
+        # 1. 胜平负（真实盘口，优先级最高）
+        for opt, odds in [('胜', m.get('win_odds')), ('平', m.get('draw_odds')), ('负', m.get('lose_odds'))]:
+            if odds and odds > 0:
+                c = min(0.85, block_confidence + (0.12 if odds < 2.2 else 0.05 if odds < 3.0 else 0))
+                opts.append({'play_type': '胜平负', 'option': opt, 'odds': odds,
+                             'prob': round(1.0 / odds * 100, 1), 'confidence': round(c, 2),
+                             '_priority': 3, 'pick': opt})
+    except Exception:
+        pass
+    # 2. 让球胜平负（真实盘口）
+    try:
+        hline = m.get('handicap_line', 0)
+        if hline is not None:
+            for opt, odds in [('让胜', m.get('handicap_win_odds')), ('让平', m.get('handicap_draw_odds')),
+                              ('让负', m.get('handicap_lose_odds'))]:
+                if odds and odds > 0:
+                    c = min(0.8, block_confidence + (0.08 if odds < 2.5 else 0))
+                    opts.append({'play_type': '让球胜平负', 'option': opt, 'odds': odds,
+                                 'prob': round(1.0 / odds * 100, 1), 'confidence': round(c, 2),
+                                 '_priority': 3, 'pick': opt})
+    except Exception:
+        pass
+    # 3. 总进球（进球数，模型估算，优先级低）
+    try:
+        top3 = m.get('top3_goals') or []
+        if top3:
+            g = top3[0]
+            prob = g.get('prob', 0) / 100.0
+            odds = round(1.0 / max(prob, 0.06), 2)
+            c = min(0.6, 0.3 + prob * 1.2)   # 概率越高信心越高，但上限 0.6 低于真实盘口
+            opts.append({'play_type': '总进球', 'option': g.get('label', ''),
+                         'odds': odds, 'prob': g.get('prob', 0),
+                         'confidence': round(c, 2), '_priority': 1, 'pick': g.get('label', '')})
+    except Exception:
+        pass
+    # 4. 半全场（模型估算，优先级低）
+    try:
+        htft = _calc_htft(m.get('expected_total'))
+        if htft:
+            pk, prob, odds = htft
+            c = min(0.6, 0.28 + prob * 1.4)
+            opts.append({'play_type': '半全场', 'option': _HTFT_CN.get(pk, pk),
+                         'odds': odds, 'prob': round(prob * 100, 1),
+                         'confidence': round(c, 2), '_priority': 1, 'pick': pk})
+    except Exception:
+        pass
+    # 排序：真实盘口(优先级高) + 信心高 优先
+    opts.sort(key=lambda x: (x['_priority'], x['confidence']), reverse=True)
+    return opts
+
+
 # League data quality tiers: adjusts confidence based on data availability
 LEAGUE_QUALITY = {
     '英超': 1.0, '西甲': 1.0, '德甲': 1.0, '意甲': 1.0, '法甲': 1.0,
@@ -728,6 +833,9 @@ def analyze_single_match(match, standings=None, prediction=None):
     result['away_value'] = away_value
     result['h2h'] = h2h
 
+    # 串关可选玩法（胜平负/让球/总进球/半全场），供 generate_parlay_recommendations 使用
+    result['parlay_options'] = _build_parlay_options(result)
+
     # Cleanup internal fields
     for k in ('home_strength', 'league_id', 'home_team_id', 'away_team_id', 'funfacts', 'ai_preview',
               'home_coach_style', 'away_coach_style', 'travel_distance_km', '_raw_date', 'event_date_raw'):
@@ -744,122 +852,122 @@ def analyze_matches(matches, standings=None, predictions=None):
 
 
 def generate_parlay_recommendations(matches):
+    """生成串关推荐方案：2串1 / 3串1 / 4串1，一场一选，可混合不同玩法
+    （胜平负 / 让球胜平负 / 总进球 / 半全场）。按信心与风险（组合赔率）排序。
+    优先真实盘口玩法（胜平负/让球），估算玩法（总进球/半全场）作为补充。"""
+    # 1. 每场比赛保留"该玩法下最优"的代表（每个玩法 1 个候选），供混合组合选用
+    #    一场一选，但保留不同玩法的代表，让组合能覆盖多种玩法
+    per_match_pool = {}   # match_id -> {play_type: best_option}
+    for m in matches:
+        opts = m.get('parlay_options') or []
+        if not opts:
+            continue
+        by_type = {}
+        for o in opts:
+            pt = o.get('play_type', '其他')
+            cur = by_type.get(pt)
+            # 该玩法下选 confidence * 赔率价值分 最高的
+            sc = o.get('confidence', 0.3) * (1.0 if o.get('odds', 3) <= 2.8 else 2.8 / max(o.get('odds', 3), 2.8))
+            if cur is None or sc > cur[1]:
+                by_type[pt] = (o, sc)
+        per_match_pool[m['match_id']] = {'match': m, 'by_type': by_type}
+
+    best_items = list(per_match_pool.values())
+    if len(best_items) < 2:
+        return []
+
+    # 2. 组合：C(n,k)；每场比赛从其 by_type 里选一个代表玩法（默认胜平负，支持混合）
+    import itertools
+
+    def risk_level(co):
+        if co < 3.0:
+            return '低风险'
+        if co <= 8.0:
+            return '中风险'
+        if co <= 20.0:
+            return '较高风险'
+        return '高风险'
+
+    def confidence_score(items):
+        return sum(o['confidence'] for o in items[1]) / len(items[1])
+
+    def pick_default(mi):
+        # 默认：优先真实盘口（胜平负/让球），无则任意
+        order = ['胜平负', '让球胜平负', '总进球', '半全场']
+        for pt in order:
+            if pt in mi['by_type']:
+                return mi['by_type'][pt][0]
+        return None
+
+    def make_rec(choice_list, k):
+        # choice_list: [(match_item, option), ...]
+        prod = 1.0
+        for _mi, o in choice_list:
+            prod *= o['odds']
+        co = round(prod, 2)
+        cs = round(sum(o['confidence'] for _mi, o in choice_list) / len(choice_list), 2)
+        risk = risk_level(co)
+        types = '·'.join(dict.fromkeys(o['play_type'] for _mi, o in choice_list))
+        ids = '+'.join(mi['match']['match_id'] for mi, _o in choice_list)
+        return {
+            'name': f"{k}串1-{ids}",
+            'plan_type': f"混合{types} {k}串1",
+            'combo_odds': co, 'risk_level': risk, 'confidence_avg': cs,
+            'logic': f'从 {k} 场中各选 1 个最有把握玩法（{types}），组合赔率 {co}，信心均值 {round(cs*100,0)}%',
+            'matches_detail': [{
+                'match_id': mi['match']['match_id'], 'league': mi['match']['league'],
+                'home_team': mi['match']['home_team'], 'away_team': mi['match']['away_team'],
+                'match_time': mi['match'].get('match_time', ''),
+                'option': o['option'], 'odds': o['odds'], 'play_type': o['play_type'],
+                'prob': o.get('prob', ''),
+                'hotness_label': mi['match'].get('hotness_label', ''),
+                'bookmaker_intent': mi['match'].get('bookmaker_intent', ''),
+                'home_rank': mi['match'].get('home_rank'), 'away_rank': mi['match'].get('away_rank'),
+                'market_tendency': mi['match'].get('market_tendency', ''),
+                'injury_impact': mi['match'].get('injury_impact', ''),
+            } for mi, o in choice_list],
+            'expected_return': f"投2元返{round(co * 2, 2)}元",
+        }
+
     recommendations = []
-
-    # 方案一：稳胆2串1 (胜平负)
-    plan1 = []
-    for m in matches:
-        if m['confidence_level'] == '高' and m['hotness_label'] == '适度热门':
-            opts = [('胜', m['win_odds']), ('平', m['draw_odds']), ('负', m['lose_odds'])]
-            q = [o for o in opts if o[1] < 1.8]
-            if q:
-                best = min(q, key=lambda x: x[1])
-                plan1.append({'match': m, 'option': best[0], 'odds': best[1]})
-
-    if len(plan1) >= 2:
-        pairs = [(plan1[i], plan1[j]) for i in range(len(plan1)) for j in range(i + 1, len(plan1))]
-        pairs.sort(key=lambda p: (p[0]['odds'] + p[1]['odds']))  # 确定性排序
-        for a, b in pairs[:3]:
-            co = round(a['odds'] * b['odds'], 2)
-            recommendations.append({
-                'name': f"稳胆2串1-{a['match']['match_id']}+{b['match']['match_id']}",
-                'plan_type': '胜平负稳胆2串1', 'combo_odds': co, 'risk_level': '低风险',
-                'logic': '筛选高信心+适度热门+赔率<1.8的比赛，低赔低风险组合',
-                'matches_detail': [_make_rec_detail(a), _make_rec_detail(b)],
-                'expected_return': f"投2元返{round(co * 2, 2)}元"
-            })
-
-    # 方案二：让球2串1
-    hcp_bets = []
-    for m in matches:
-        hl = m.get('handicap_line', 0)
-        if hl != 0:
-            hwo = m.get('handicap_win_odds', 0)
-            hdo = m.get('handicap_draw_odds', 0)
-            hlo = m.get('handicap_lose_odds', 0)
-            opts_list = [('让胜', hwo), ('让平', hdo), ('让负', hlo)]
-            opts_list = [o for o in opts_list if o[1] > 0]
-            if opts_list:
-                best = min(opts_list, key=lambda x: x[1])
-                hcp_bets.append({'match': m, 'option': f"{best[0]}({m['handicap']})", 'odds': best[1]})
-
-    if len(hcp_bets) >= 2:
-        pairs = [(hcp_bets[i], hcp_bets[j]) for i in range(len(hcp_bets)) for j in range(i + 1, len(hcp_bets))]
-        pairs.sort(key=lambda p: (p[0]['odds'] + p[1]['odds']))
-        for a, b in pairs[:2]:
-            co = round(a['odds'] * b['odds'], 2)
-            recommendations.append({
-                'name': f"让球2串1-{a['match']['match_id']}+{b['match']['match_id']}",
-                'plan_type': '让球胜平负2串1', 'combo_odds': co, 'risk_level': '中风险',
-                'logic': '基于泊松球差模型估算让球赔率，筛选让球盘口最佳选项组合',
-                'matches_detail': [_make_rec_detail(a), _make_rec_detail(b)],
-                'expected_return': f"投2元返{round(co * 2, 2)}元"
-            })
-
-    # 方案三：高信心双选2串1（两场高信心赛事各自最低赔组合，使用真实赔率，不编造大小球盘口）
-    hc = [m for m in matches if m['confidence_level'] == '高']
-    if len(hc) >= 2:
-        hc.sort(key=lambda m: m.get('confidence_score', 0), reverse=True)
-        a, b = hc[0], hc[1]
-        a_opt = min([('胜', a['win_odds']), ('平', a['draw_odds']), ('负', a['lose_odds'])], key=lambda x: x[1])
-        b_opt = min([('胜', b['win_odds']), ('平', b['draw_odds']), ('负', b['lose_odds'])], key=lambda x: x[1])
-        co = round(a_opt[1] * b_opt[1], 2)
-        recommendations.append({
-            'name': f"高信心2串1-{a['match_id']}+{b['match_id']}",
-            'plan_type': '高信心2串1', 'combo_odds': co, 'risk_level': '中风险',
-            'logic': '筛选两场高信心赛事，取各自胜平负最低赔组合，分散单场风险',
-            'matches_detail': [_make_rec_detail({'match': a, 'option': a_opt[0], 'odds': a_opt[1]}),
-                               _make_rec_detail({'match': b, 'option': b_opt[0], 'odds': b_opt[1]})],
-            'expected_return': f"投2元返{round(co * 2, 2)}元"
-        })
-
-    # 方案四：市场+AI 双确认
-    overlap = []
-    for m in matches:
-        po = m.get('predicted_option')
-        mt = m.get('market_tendency')
-        if po and mt:
-            mm = {'主胜': '胜', '平局': '平', '客胜': '负'}
-            mo = mm.get(mt)
-            if mo and mo == po:
-                ok = {'胜': 'win_odds', '平': 'draw_odds', '负': 'lose_odds'}[mo]
-                overlap.append({'match': m, 'option': mo, 'odds': m[ok]})
-
-    if len(overlap) >= 2:
-        pairs = [(overlap[i], overlap[j]) for i in range(len(overlap)) for j in range(i + 1, len(overlap))]
-        pairs.sort(key=lambda p: (p[0]['odds'] + p[1]['odds']))
-        for a, b in pairs[:2]:
-            co = round(a['odds'] * b['odds'], 2)
-            recommendations.append({
-                'name': f"双确认2串1-{a['match']['match_id']}+{b['match']['match_id']}",
-                'plan_type': '市场+AI双确认2串1', 'combo_odds': co, 'risk_level': '低风险',
-                'logic': 'AI预测结果与市场赔率倾向一致时才纳入，双重验证提高胜率',
-                'matches_detail': [_make_rec_detail(a), _make_rec_detail(b)],
-                'expected_return': f"投2元返{round(co * 2, 2)}元"
-            })
-
-    # 方案五：伤停情报2串1
-    injury_bets = []
-    for m in matches:
-        h_inj = m.get('injuries', {}).get('home_count', 0)
-        a_inj = m.get('injuries', {}).get('away_count', 0)
-        if a_inj > h_inj + 1:
-            injury_bets.append({'match': m, 'option': '胜', 'odds': m['win_odds']})
-        elif h_inj > a_inj + 1:
-            injury_bets.append({'match': m, 'option': '负', 'odds': m['lose_odds']})
-
-    if len(injury_bets) >= 2:
-        pairs = [(injury_bets[i], injury_bets[j]) for i in range(len(injury_bets)) for j in range(i + 1, len(injury_bets))]
-        pairs.sort(key=lambda p: (p[0]['odds'] + p[1]['odds']))
-        for a, b in pairs[:2]:
-            co = round(a['odds'] * b['odds'], 2)
-            recommendations.append({
-                'name': f"伤停情报2串1-{a['match']['match_id']}+{b['match']['match_id']}",
-                'plan_type': '伤停情报2串1', 'combo_odds': co, 'risk_level': '中风险',
-                'logic': '客队伤停数远超主队时推主胜，反之推客胜；利用阵容完整性不对称',
-                'matches_detail': [_make_rec_detail(a), _make_rec_detail(b)],
-                'expected_return': f"投2元返{round(co * 2, 2)}元"
-            })
+    # 对 2/3/4 串1：先出"纯真实盘口"稳健方案，再出"混合玩法"方案
+    for k in (2, 3, 4):
+        combos = list(itertools.combinations(best_items, k)) if k <= len(best_items) else []
+        if not combos:
+            continue
+        candidates = []
+        for c in combos:
+            # 方案A：全部用默认（真实盘口优先）——稳健
+            a = [(mi, pick_default(mi)) for mi in c]
+            a = [x for x in a if x[1] is not None]
+            if len(a) == k:
+                candidates.append(('稳健', a))
+            # 方案B：每场选该场"最优分"玩法（允许混合）——混合
+            b = []
+            for mi in c:
+                best = max(mi['by_type'].values(), key=lambda x: x[1])[0]
+                b.append((mi, best))
+            candidates.append(('混合', b))
+        # 去重
+        seen = set()
+        uniq = []
+        for tag, cl in candidates:
+            key = tuple(sorted((mi['match']['match_id'], o['play_type'], o['option']) for mi, o in cl))
+            if key in seen:
+                continue
+            seen.add(key)
+            uniq.append((tag, cl))
+        # 排序：混合方案鼓励玩法多样性 + 信心高
+        def score_scheme(_tag, cl):
+            diversity = len(set(o['play_type'] for _mi, o in cl))
+            conf = sum(o['confidence'] for _mi, o in cl) / len(cl)
+            return diversity * 0.5 + conf * 2.0
+        uniq.sort(key=lambda x: (-score_scheme(x[0], x[1])))
+        for tag, cl in uniq[:4]:
+            rec = make_rec(cl, k)
+            if tag == '混合':
+                rec['logic'] = rec['logic'] + '（混搭不同玩法，分散单一玩法风险）'
+            recommendations.append(rec)
 
     return recommendations
 

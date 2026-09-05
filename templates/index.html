@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>足彩智析 - 竞彩足球智能分析</title>
-<meta name="description" content="足彩智析：基于中国体育彩票竞彩数据的足球赛事分析工具，提供胜平负、总进球、让球、大小球、串关、七维智能分析与历史回测，仅供娱乐学习研究。">
+<meta name="description" content="足彩智析：基于中国体育彩票竞彩数据的足球赛事分析工具，提供胜平负、总进球、让球、半全场、串关、七维智能分析与历史回测，仅供娱乐学习研究。">
 <meta name="robots" content="index, follow">
 <link rel="canonical" href="https://LS7.pythonanywhere.com/">
 <meta property="og:type" content="website">
@@ -250,16 +250,6 @@ button{font-family:inherit}
 .zone-champions{background:var(--high-bg);color:#166534}.zone-europa{background:var(--medium-bg);color:#92400e}.zone-relegation{background:var(--low-bg);color:#991b1b}.zone-mid{background:var(--blue-soft);color:#2563eb}
 .vanue-meta{font-size:0.7rem;color:var(--text-muted);margin-top:3px}
 
-/* ===== 大小球 / 半全场 / 混合 玩法分布 ===== */
-.ou-strip{display:flex;gap:8px;flex-wrap:wrap;margin-top:3px}
-.ou-chip{display:flex;flex-direction:column;align-items:center;background:var(--card-bg);border:1px solid var(--border-light);border-radius:8px;padding:4px 10px;min-width:58px}
-.ou-chip .oc-val{font-size:0.86rem;font-weight:800;color:var(--primary-dark)}
-.ou-chip .oc-lab{font-size:0.6rem;color:var(--text-muted)}
-.ou-chip.over{background:var(--amber-soft);border-color:var(--amber-border)}
-.ou-chip.over .oc-val{color:var(--amber-text)}
-.ou-chip.under{background:var(--blue-soft);border-color:var(--border)}
-.ou-chip.under .oc-val{color:var(--blue)}
-
 /* ===== AI 串关 ===== */
 .rec-section{margin-top:30px}
 .rec-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(400px,1fr));gap:14px}
@@ -273,6 +263,11 @@ button{font-family:inherit}
 .rec-match-item .teams{font-weight:700;font-size:0.82rem;margin-bottom:2px}
 .rec-match-item .teams .h{color:var(--home)}.rec-match-item .teams .a{color:var(--away)}
 .rec-match-item .detail{font-size:0.68rem;color:var(--text-muted);display:flex;gap:6px;flex-wrap:wrap}
+.play-tag{font-size:0.58rem;font-weight:700;padding:1px 7px;border-radius:5px;white-space:nowrap}
+.play-tag.胜平负{background:var(--primary-soft);color:var(--primary-dark)}
+.play-tag.让球胜平负{background:var(--blue-soft);color:var(--blue)}
+.play-tag.总进球{background:var(--amber-soft);color:var(--amber-text)}
+.play-tag.半全场{background:var(--accent-soft,var(--accent));color:#fff}
 .rec-odds-display{text-align:center;margin-top:8px;padding:11px;background:var(--primary-soft);border:1px solid var(--primary-border);border-radius:10px}
 .rec-odds-display .combo{font-size:1.15rem;font-weight:900;color:var(--primary-dark)}
 .rec-odds-display .ret{font-size:0.74rem;color:var(--text-muted);margin-top:3px}
@@ -818,7 +813,7 @@ function renderDetailPanel(m) {
     </div>
     <div class="detail-section">
       <h4><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>泊松进球概率分布</h4>
-      <div>预期总进球：<strong>${m.expected_goals||'?'} 球</strong> | 大2.5概率：<strong>${m.over25_prob||0}%</strong></div>
+      <div>预期总进球：<strong>${m.expected_goals||'?'} 球</strong></div>
       ${pp.lambda_total ? `<div style="font-size:0.6rem;color:var(--text-muted);margin-top:2px">λ=${pp.lambda_total} | 主队攻击力=${pp.home_attack} | 客队攻击力=${pp.away_attack} | 来源：${pp.source||'-'}</div>` : ''}
       ${renderGoalDist(dist)}
     </div>
@@ -935,11 +930,6 @@ function renderDimGrid(m) {
       <div class="dim-val">${m.bookmaker_intent||'—'}</div>
       <div class="dim-sub">${m.hotness_label||'—'}</div>
     </div>
-    <div class="dim-card">
-      <div class="dim-head"><span class="dim-title">&#9654; 大小球</span></div>
-      <div class="dim-val">${m.over_under_tendency||'—'}</div>
-      <div class="dim-sub">大2.5 ${m.over25_prob||0}%</div>
-    </div>
   </div>`;
 }
 
@@ -1034,10 +1024,6 @@ function renderMatchesInternal(matches) {
   }
 
   c.innerHTML = matches.map(m => {
-    const ouCls = m.over_under_tendency==='大球倾向'?'tag-over':m.over_under_tendency==='小球倾向'?'tag-under':'tag-balance';
-    const confCls = m.confidence_level==='高'?'tag-high':m.confidence_level==='中'?'tag-medium':'tag-low';
-    const hotCls = m.hotness_label==='适度热门'?'tag-moderate':m.hotness_label==='极端热门'?'tag-extreme':'tag-cold';
-    const mtCls = m.market_tendency==='主胜'?'home-tendency':m.market_tendency==='客胜'?'away-tendency':m.market_tendency==='平局'?'draw-tendency':'balanced';
     const ref = m.referee||{};
     const weather = m.weather||{};
     const inj = m.injuries||{};
@@ -1125,7 +1111,7 @@ function renderRecommendations(recs) {
       ${r.logic ? `<div class="rec-logic">&#128161; ${r.logic}</div>` : ''}
       ${(r.matches_detail||[]).map(md=>`<div class="rec-match-item">
         <div class="teams"><span class="h">${md.home_team}</span> vs <span class="a">${md.away_team}</span><span style="font-size:0.66rem;color:var(--text-muted);margin-left:5px">${md.league} #${md.match_id}</span></div>
-        <div class="detail"><span>推荐: <strong style="color:var(--primary)">${md.option}</strong> @${md.odds}</span><span>${md.hotness_label} | ${md.bookmaker_intent}</span>${md.market_tendency?'<span>市场: '+md.market_tendency+'</span>':''}</div>
+        <div class="detail"><span class="play-tag ${md.play_type}">${md.play_type||''}</span><span>推荐: <strong style="color:var(--primary)">${md.option}</strong> @${md.odds}</span>${md.prob?`<span>${md.prob}%</span>`:''}${md.market_tendency?'<span>市场: '+md.market_tendency+'</span>':''}${md.injury_impact&&md.injury_impact!=='无影响'?'<span style="color:var(--amber-text)">'+md.injury_impact+'</span>':''}</div>
       </div>`).join('')}
       <div class="rec-odds-display"><div class="combo">组合赔率 ${r.combo_odds}</div><div class="ret">${r.expected_return} <span style="font-size:0.6rem;color:var(--text-muted)">${riskNote}</span></div></div>
     </div>`;
@@ -1141,8 +1127,6 @@ function renderCardTotalGoals(m) {
   const certTxt = tg.cert==='高'?'高把握':tg.cert==='中'?'中等':'接近';
   const certDots = tg.cert==='高'?'◆◆◆':tg.cert==='中'?'◆◆':'◆';
   const alt = (tg.alt_picks||[]).join(' / ');
-  const over = tg.over25_prob!=null ? `<span class="tg-kv"><span class="tg-klab">大2.5</span><span class="tg-kval">${tg.over25_prob}%</span></span>` : '';
-  const under = tg.over25_prob!=null ? `<span class="tg-kv"><span class="tg-klab">小2.5</span><span class="tg-kval">${(100-tg.over25_prob).toFixed(1)}%</span></span>` : '';
   const exp = tg.expected_goals ? `<span class="tg-kv"><span class="tg-klab">预期</span><span class="tg-kval">${tg.expected_goals}球</span></span>` : '';
   return `<div class="tg-inline">
     <div class="tg-inline-head">
@@ -1152,9 +1136,8 @@ function renderCardTotalGoals(m) {
     <div class="tg-inline-body">
       <div class="tg-inline-pick"><span class="tg-pickbig">${tg.main_pick}</span><span class="tg-pickpct">${tg.main_prob}%</span></div>
       <div class="tg-inline-quick">
-        ${over}${under}${exp}
+        ${exp}
         ${alt?`<span class="tg-kv"><span class="tg-klab">次选</span><span class="tg-kval">${alt}</span></span>`:''}
-        ${tg.tendency?`<span class="tg-kv"><span class="tg-klab">趋势</span><span class="tg-kval">${tg.tendency}</span></span>`:''}
       </div>
     </div>
   </div>`;
@@ -1359,9 +1342,8 @@ function runTotalAnalysis(){
   out.innerHTML = '<div class="an-out">' +
     '<div class="an-title">&#9917; 总进球分析</div>' +
     '<div style="font-size:0.8rem;font-weight:700;margin-bottom:6px">' + m.home_team + ' vs ' + m.away_team + '（' + m.match_id + ' ' + (m.league||'') + '）</div>' +
-    (r.o25 != null ? '<div class="an-line"><span class="m">大2.5球概率</span><span class="o">' + r.o25 + '%</span></div>' : '') +
     bars +
-    '<div class="an-tip">推荐区间：<strong>' + r.best.label + '</strong>（' + r.best.p + '%）' + (tendNote ? ' ｜ ' + tendNote : '') + '</div>' +
+    '<div class="an-tip">推荐区间：<strong>' + r.best.label + '</strong>（' + r.best.p + '%）</div>' +
     '<div class="an-risk">请理性购彩，本推荐仅供参考</div>' +
     '</div>';
 }
@@ -1560,7 +1542,7 @@ function renderBacktestPanel(s){
   var rateColor = rate >= 50 ? 'var(--high)' : rate >= 40 ? 'var(--amber)' : 'var(--low)';
   var pnl = s.total_pnl || 0;
   var estTotal = s.estimated_total || 0;   // 估算赔率玩法（比分/半全场）未计入ROI
-  var playOrder = ['胜平负', '让胜平负', '比分', '半全场', '大小球'];
+  var playOrder = ['胜平负', '让胜平负', '比分', '半全场'];
   var groups = {};
   records.forEach(function(r){ var pt = r.play_type_cn || '其他'; (groups[pt] = groups[pt] || []).push(r); });
   var groupHtml = '';
