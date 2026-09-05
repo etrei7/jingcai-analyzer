@@ -1024,6 +1024,7 @@ function renderMatchesInternal(matches) {
   }
 
   c.innerHTML = matches.map(m => {
+    const mtCls = m.market_tendency==='主胜'?'home-tendency':m.market_tendency==='客胜'?'away-tendency':m.market_tendency==='平局'?'draw-tendency':'balanced';
     const ref = m.referee||{};
     const weather = m.weather||{};
     const inj = m.injuries||{};
