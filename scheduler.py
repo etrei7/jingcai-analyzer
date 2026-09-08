@@ -88,6 +88,7 @@ def daily_settlement():
 
 
 def init_scheduler(app):
+    set_app(app)
     scheduler = BackgroundScheduler()
     scheduler.add_job(
         daily_settlement,
@@ -119,10 +120,27 @@ def backtest_pipeline():
     """回测流水线定时任务：采集预测与赔率快照 + 结算已完赛。"""
     try:
         from data_pipeline import run_full
-        res = run_full()
+        app = _get_app()
+        if app is None:
+            logger.warning('[定时任务] 无 app 引用，跳过回测流水线')
+            return
+        with app.app_context():
+            res = run_full()
         logger.info('[定时任务] 回测流水线完成: %s', res)
     except Exception as e:
         logger.warning('[定时任务] 回测流水线异常: %s', e)
+
+
+_app_ref = None
+
+
+def _get_app():
+    return _app_ref
+
+
+def set_app(app):
+    global _app_ref
+    _app_ref = app
 
 
 def warmup_cache():
