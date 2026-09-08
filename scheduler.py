@@ -32,42 +32,25 @@ def daily_settlement():
         BASE_URL = os.environ.get('BZZOIRO_BASE_URL', 'https://sports.bzzoiro.com/api')
         headers = {'Authorization': f'Token {api_key}'}
 
-        # 预取近期完赛结果表（按队名匹配，兼容竞彩场次）
-        results_map = {}
-        try:
-            from bizzoiro_client import fetch_actionable_results
-            results_map = fetch_actionable_results(
-                (datetime.now(CST) - timedelta(days=7)).strftime('%Y-%m-%d'),
-                today
-            )
-        except Exception:
-            results_map = {}
-
         def _norm(s):
             return (s or '').replace(' ', '').replace('-', '').lower()
 
         verified = 0
-        for p in unverified[:50]:  # 最多验证50条
+        # 按 raw_event_id 精确逐个查 Bzzoiro 单场（预测记录的 raw_event_id 即 Bzzoiro 事件ID）
+        # 不做 50 条限制、不限定 7 天窗口，确保全部未验证都能结转到结果。
+        for p in unverified:
             eid = p.get('raw_event_id', '')
-            home = p.get('home_team', '')
-            away = p.get('away_team', '')
+            if not eid:
+                continue
             hs = aw = None
-            # 优先按队名匹配（竞彩/任意来源通用）
-            if home and away:
-                key = f'{_norm(home)}|{_norm(away)}'
-                m = results_map.get(key)
-                if m:
-                    hs, aw = m['home'], m['away']
-            # 其次按 Bzzoiro eid 精确匹配
-            if (hs is None or aw is None) and eid:
-                try:
-                    r = requests.get(f'{BASE_URL}/events/{eid}/', headers=headers, timeout=15)
-                    if r.status_code == 200:
-                        ev = r.json()
-                        hs = ev.get('home_score')
-                        aw = ev.get('away_score')
-                except Exception:
-                    pass
+            try:
+                r = requests.get(f'{BASE_URL}/events/{eid}/', headers=headers, timeout=10)
+                if r.status_code == 200:
+                    ev = r.json()
+                    hs = ev.get('home_score')
+                    aw = ev.get('away_score')
+            except Exception:
+                pass
 
             if hs is not None and aw is not None:
                 if hs > aw: actual = '胜'
