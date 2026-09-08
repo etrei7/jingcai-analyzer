@@ -165,15 +165,15 @@ def _predict_htft(m, conf, max_goals=5):
 
 
 def settle_finished():
-    """赛后结算：拉取近7天已完赛，按队名回填 bt_bets。"""
+    """赛后结算：拉取近40天已完赛，按队名回填 bt_bets（扩窗口覆盖主流联赛）。"""
     try:
         from bizzoiro_client import API_KEY, fetch_actionable_results
         if not API_KEY:
             return 0
         import backtest as bt
         today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
-        from_today = (datetime.now(timezone.utc) - timedelta(days=7)).strftime('%Y-%m-%d')
-        results = fetch_actionable_results(from_today, today)
+        from_today = (datetime.now(timezone.utc) - timedelta(days=40)).strftime('%Y-%m-%d')
+        results = fetch_actionable_results(from_today, today, limit=120)
         if not results:
             return 0
         settled = 0
@@ -183,6 +183,7 @@ def settle_finished():
             if len(parts) != 2:
                 continue
             if key in seen:
+            
                 continue
             seen.add(key)
             settled += bt.settle_bet(
