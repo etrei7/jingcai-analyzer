@@ -165,33 +165,43 @@ def _predict_htft(m, conf, max_goals=5):
 
 
 def settle_finished():
-    """赛后结算：拉取近40天已完赛，按队名回填 bt_bets（扩窗口覆盖主流联赛）。"""
+    """赛后结算：按待结算 bt_bets 的 match_id（Bzzoiro 单场ID）逐个精确查询赛果回填。
+    这是最精准的方式——直接拿到预测那场比赛的比分，不受队名中英文/联赛淹没影响。
+    """
     try:
-        from bizzoiro_client import API_KEY, fetch_actionable_results
+        from bizzoiro_client import API_KEY, BASE_URL
         if not API_KEY:
             return 0
+        import requests
         import backtest as bt
-        today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
-        from_today = (datetime.now(timezone.utc) - timedelta(days=40)).strftime('%Y-%m-%d')
-        results = fetch_actionable_results(from_today, today, limit=120)
-        if not results:
-            return 0
+        from backtest_models import BtBet, db
+        # 取所有未结算的 bet（按 match_id 精确查，去重）
+        pending_q = BtBet.query.filter_by(settled_at=None).all()
         settled = 0
-        seen = set()
-        for key, val in results.items():
-            parts = key.split('|')
-            if len(parts) != 2:
+        seen_mid = set()
+        headers = {'Authorization': f'Token {API_KEY}'}
+        for b in pending_q:
+            eid = str(b.match_id)
+            if not eid or eid in seen_mid:
                 continue
-            if key in seen:
-            
+            seen_mid.add(eid)
+            try:
+                resp = requests.get(f'{BASE_URL}/events/{eid}/', headers=headers, timeout=10)
+                if resp.status_code != 200:
+                    continue
+                ev = resp.json()
+                hs = ev.get('home_score')
+                aw = ev.get('away_score')
+                if hs is None or aw is None:
+                    continue
+                settled += bt.settle_bet(
+                    match_id=eid, home_score=hs, away_score=aw,
+                    home_team=ev.get('home_team'), away_team=ev.get('away_team'),
+                    home_score_ht=ev.get('home_score_ht'), away_score_ht=ev.get('away_score_ht')
+                ) or 0
+            except Exception:
                 continue
-            seen.add(key)
-            settled += bt.settle_bet(
-                match_id='', home_score=val['home'], away_score=val['away'],
-                home_team=parts[0], away_team=parts[1],
-                home_score_ht=val.get('home_ht'), away_score_ht=val.get('away_ht')
-            ) or 0
-        logger.info('[pipeline] settled %d', settled)
+        logger.info('[pipeline] settled %d (by match_id)', settled)
         return settled
     except Exception as e:
         logger.warning('[pipeline] settle error: %s', e)
