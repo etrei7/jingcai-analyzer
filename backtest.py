@@ -221,7 +221,9 @@ def _eval_play(b, actual, hs, aw, hht, awt, stake):
         return 'void', 0.0
     except Exception:
         return 'void', 0.0
-\n\ndef compute_summary(period='all', model_name=None, play_type=None):
+
+
+def compute_summary(period='all', model_name=None, play_type=None):
     """聚合战绩：命中率、ROI、累计盈亏。供面板读取。"""
     try:
         from backtest_models import BtBet, db
