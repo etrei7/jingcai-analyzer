@@ -12,6 +12,17 @@ CST_HOURS = 8
 USE_DB = True
 
 
+def _cn(name):
+    """队名归一：英文名经 TEAM_NAME_CN 转中文，中英文统一到同一基准便于匹配。
+    若无法映射（小联赛/杯赛队）则原样返回，配合小写去符号规约兜底。"""
+    try:
+        from team_names import TEAM_NAME_CN
+        n = (name or '').strip()
+        return TEAM_NAME_CN.get(n, n)
+    except Exception:
+        return name or ''
+
+
 def _now_str():
     return datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
@@ -110,9 +121,9 @@ def settle_bet(match_id, home_score, away_score, home_team=None, away_team=None,
         if not bets and home_team and away_team:
             def norm(s):
                 return (s or '').replace(' ', '').replace('-', '').lower()
-            hk, ak = norm(home_team), norm(away_team)
+            hk, ak = norm(_cn(home_team)), norm(_cn(away_team))
             for b in BtBet.query.all():
-                if norm(b.home_team) == hk and norm(b.away_team) == ak:
+                if norm(_cn(b.home_team)) == hk and norm(_cn(b.away_team)) == ak:
                     bets.append(b)
 
         settled = 0
