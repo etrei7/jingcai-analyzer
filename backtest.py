@@ -148,17 +148,20 @@ def settle_bet(match_id, home_score, away_score, home_team=None, away_team=None,
 
 
 def _eval_play(b, actual, hs, aw, hht, awt, stake):
-    """按玩法判定单条投注结果。返回 (outcome, pnl)。"""
-    pt = b.play_type or '1X2'
-    pick = b.pick or ''
+    """按玩法判定单条投注结果。返回 (outcome, pnl)。
+    异常兜底：任何玩法判定出错均返回 void，不中断整批结算。
+    """
+    try:
+        pt = b.play_type or '1X2'
+        pick = b.pick or ''
 
-    # 1X2 胜平负
-    if pt == '1X2':
-        if pick == actual:
-            return 'win', round((b.odds - 1) * stake, 4)
-        elif pick in ('H', 'D', 'A'):
-            return 'lose', round(-stake, 4)
-        return 'void', 0.0
+        # 1X2 胜平负
+        if pt == '1X2':
+            if pick == actual:
+                return 'win', round((b.odds - 1) * stake, 4)
+            elif pick in ('H', 'D', 'A'):
+                return 'lose', round(-stake, 4)
+            return 'void', 0.0
 
     # AH 让胜平负（pick 形如 'H', 'D', 'A'，按实际让球后结果判定；无让球线时用 1X2）
     if pt == 'AH':
@@ -219,6 +222,8 @@ def _eval_play(b, actual, hs, aw, hht, awt, stake):
 
     # 未知玩法兜底
     return 'void', 0.0
+    except Exception:
+        return 'void', 0.0
 
 
 def compute_summary(period='all', model_name=None, play_type=None):
