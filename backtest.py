@@ -163,70 +163,65 @@ def _eval_play(b, actual, hs, aw, hht, awt, stake):
                 return 'lose', round(-stake, 4)
             return 'void', 0.0
 
-    # AH 让胜平负（pick 形如 'H', 'D', 'A'，按实际让球后结果判定；无让球线时用 1X2）
-    if pt == 'AH':
-        # pick 以 '|' 分隔：如 'H|-1' 表示主让1球，实际让球结果 = 主净胜 - line
-        if '|' in pick:
-            p, line = pick.split('|', 1)
-            try:
-                line = float(line)
-            except Exception:
-                line = 0
-            diff = hs - aw
-            # 让球后：主队实际盘口净胜 = diff - line（主让负line，受让加）
-            adj = diff - line
-            ah_actual = 'H' if adj > 0 else 'A' if adj < 0 else 'D'
-            if p == ah_actual:
+        # AH 让胜平负（pick 形如 'H|line'）
+        if pt == 'AH':
+            if '|' in pick:
+                p, line = pick.split('|', 1)
+                try:
+                    line = float(line)
+                except Exception:
+                    line = 0
+                diff = (hs or 0) - (aw or 0)
+                adj = diff - line
+                ah_actual = 'H' if adj > 0 else 'A' if adj < 0 else 'D'
+                if p == ah_actual:
+                    return 'win', round((b.odds - 1) * stake, 4)
+                elif p in ('H', 'D', 'A'):
+                    return 'lose', round(-stake, 4)
+                return 'void', 0.0
+            if pick == actual:
                 return 'win', round((b.odds - 1) * stake, 4)
-            elif p in ('H', 'D', 'A'):
+            elif pick in ('H', 'D', 'A'):
                 return 'lose', round(-stake, 4)
             return 'void', 0.0
-        # 无让球线，按 1X2
-        if pick == actual:
-            return 'win', round((b.odds - 1) * stake, 4)
-        elif pick in ('H', 'D', 'A'):
+
+        # CS 正确比分
+        if pt == 'CS':
+            if pick == f'{hs}-{aw}':
+                return 'win', round((b.odds - 1) * stake, 4)
             return 'lose', round(-stake, 4)
-        return 'void', 0.0
 
-    # CS 正确比分（pick 形如 '2-1'）
-    if pt == 'CS':
-        if pick == f'{hs}-{aw}':
-            return 'win', round((b.odds - 1) * stake, 4)
-        return 'lose', round(-stake, 4)
+        # HTFT 半全场
+        if pt == 'HTFT':
+            hh, awt_h = hht, awt
+            ht_actual = 'H' if (hh is not None and awt_h is not None and hh > awt_h) else \
+                        'D' if (hh is not None and awt_h is not None and hh == awt_h) else \
+                        'A' if (hh is not None and awt_h is not None and hh < awt_h) else None
+            if ht_actual is None:
+                return 'void', 0.0
+            if pick == (ht_actual + actual):
+                return 'win', round((b.odds - 1) * stake, 4)
+            return 'lose', round(-stake, 4)
 
-    # HTFT 半全场（pick 形如 'HH','HD','HA','DH'...，即 半场结果+全场结果）
-    if pt == 'HTFT':
-        hh, awt_h = hht, awt
-        ht_actual = 'H' if (hh is not None and awt_h is not None and hh > awt_h) else \
-                    'D' if (hh is not None and awt_h is not None and hh == awt_h) else \
-                    'A' if (hh is not None and awt_h is not None and hh < awt_h) else None
-        if ht_actual is None:
+        # OU 大小球
+        if pt == 'OU':
+            total = (hs or 0) + (aw or 0)
+            try:
+                if pick.startswith('O'):
+                    line = float(pick[1:]) / 10.0
+                    return ('win', round((b.odds - 1) * stake, 4)) if total > line else ('lose', round(-stake, 4))
+                elif pick.startswith('U'):
+                    line = float(pick[1:]) / 10.0
+                    return ('win', round((b.odds - 1) * stake, 4)) if total < line else ('lose', round(-stake, 4))
+            except Exception:
+                return 'void', 0.0
             return 'void', 0.0
-        if pick == (ht_actual + actual):
-            return 'win', round((b.odds - 1) * stake, 4)
-        return 'lose', round(-stake, 4)
 
-    # OU 大小球（pick 形如 'O25' 表示大2.5，'U25' 表示小2.5）
-    if pt == 'OU':
-        total = hs + aw
-        try:
-            if pick.startswith('O'):
-                line = float(pick[1:]) / 10.0
-                return ('win', round((b.odds - 1) * stake, 4)) if total > line else ('lose', round(-stake, 4))
-            elif pick.startswith('U'):
-                line = float(pick[1:]) / 10.0
-                return ('win', round((b.odds - 1) * stake, 4)) if total < line else ('lose', round(-stake, 4))
-        except Exception:
-            return 'void', 0.0
+        # 未知玩法兜底
         return 'void', 0.0
-
-    # 未知玩法兜底
-    return 'void', 0.0
     except Exception:
         return 'void', 0.0
-
-
-def compute_summary(period='all', model_name=None, play_type=None):
+\n\ndef compute_summary(period='all', model_name=None, play_type=None):
     """聚合战绩：命中率、ROI、累计盈亏。供面板读取。"""
     try:
         from backtest_models import BtBet, db
