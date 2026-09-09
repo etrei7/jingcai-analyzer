@@ -1173,9 +1173,9 @@ function renderCardTotalGoals(m) {
 function parlayCalc() {
   const items=Object.values(parlaySelections);
   const mult=parseInt(document.getElementById('betMultiple').value)||1;
-  const co=items.length?items.reduce((a,i)=>a*i.odds,1):0;
+  let co=items.length?items.reduce((a,i)=>a*(parseFloat(i.odds)||0),1):0;
   const stake=2*mult;
-  const win=co*stake;
+  const win=(parseFloat(co)||0)*stake;
   return {items, mult, co, stake, win: win.toFixed(2)};
 }
 
