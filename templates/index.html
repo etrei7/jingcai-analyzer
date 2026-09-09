@@ -1151,7 +1151,7 @@ function renderCardTotalGoals(m) {
   const certDots = tg.cert==='高'?'◆◆◆':tg.cert==='中'?'◆◆':'◆';
   const alt = (tg.alt_picks||[]).join(' / ');
   const over = tg.over25_prob!=null ? `<span class="tg-kv"><span class="tg-klab">大2.5</span><span class="tg-kval">${tg.over25_prob}%</span></span>` : '';
-  const under = tg.over25_prob!=null ? `<span class="tg-kv"><span class="tg-klab">小2.5</span><span class="tg-kval">${(100-tg.over25_prob).toFixed(1)}%</span></span>` : '';
+  const under = tg.over25_prob!=null ? `<span class="tg-kv"><span class="tg-klab">小2.5</span><span class="tg-kval">${(100-parseFloat(tg.over25_prob)).toFixed(1)}%</span></span>` : '';
   const exp = tg.expected_goals ? `<span class="tg-kv"><span class="tg-klab">预期</span><span class="tg-kval">${tg.expected_goals}球</span></span>` : '';
   return `<div class="tg-inline">
     <div class="tg-inline-head">
