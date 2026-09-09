@@ -182,6 +182,8 @@ button{font-family:inherit}
 .odds-btn.selected{background:var(--odds-sel);border-color:var(--odds-sel-border);color:var(--primary-dark);font-weight:800}
 .odds-btn .label{display:block;font-size:0.6rem;color:var(--text-muted);margin-bottom:1px}
 .odds-btn .val{font-weight:800;font-size:0.92rem}
+.odds-btn.na-odds{background:var(--card-stripe);color:var(--text-light);border-style:dashed;cursor:default;box-shadow:none}
+.odds-btn.na-odds .val{color:var(--text-light)}
 .hcp-pick{margin-top:3px;font-size:0.72rem;background:var(--primary-soft);border:1px dashed var(--primary-border);border-radius:8px;padding:5px 9px;color:var(--text-muted);display:inline-flex;align-items:center;gap:5px;width:fit-content;line-height:1.4}
 
 /* 市场走势条 */
@@ -660,7 +662,13 @@ async function fetchJingcaiList() {
         if (had.updateTime && had.updateTime > (JINGCAI_ODDS_TIME || '')) JINGCAI_ODDS_TIME = had.updateTime;
         var ms = String(m.matchStatus || '');
         var hOdds = parseFloat(had.h || 0), dOdds = parseFloat(had.d || 0), aOdds = parseFloat(had.a || 0);
-        if ((ms && ms.toLowerCase() !== 'selling') || (hOdds <= 0 && dOdds <= 0 && aOdds <= 0)) continue;
+        // 无胜平负场次：若让球(hhad)有赔率则保留（标注"无胜负"，仅展示让球）
+        var hhad = m.hhad || {};
+        var hhadOdds = (parseFloat(hhad.h || 0) || 0) + (parseFloat(hhad.d || 0) || 0) + (parseFloat(hhad.a || 0) || 0);
+        var has1x2 = (hOdds > 0 || dOdds > 0 || aOdds > 0);
+        var hasHhad = hhadOdds > 0;
+        if (ms && ms.toLowerCase() !== 'selling') continue;
+        if (!has1x2 && !hasHhad) continue;   // 胜平负和让球都没开 → 跳过
         var numRaw = String(m.matchNum || '');
         var num3 = (numRaw.length >= 4 && /^\d+$/.test(numRaw)) ? numRaw.slice(-3) : numRaw;
         result.push({
@@ -670,6 +678,7 @@ async function fetchJingcaiList() {
           league: m.leagueName || m.leagueAbbName || '',
           time: (m.matchTime || '').substring(0, 5),
           win_odds: hOdds, draw_odds: dOdds, lose_odds: aOdds,
+          has_1x2: has1x2, has_hhad: hasHhad,
           hhad_goal_line: (m.hhad && m.hhad.goalLine) ? parseFloat(m.hhad.goalLine) : 0,
           hhad_win: (m.hhad && m.hhad.h) ? parseFloat(m.hhad.h) : 0,
           hhad_draw: (m.hhad && m.hhad.d) ? parseFloat(m.hhad.d) : 0,
@@ -1067,11 +1076,11 @@ function renderMatchesInternal(matches) {
           <div class="team-conf">${confBar(m.away_confidence)}${m.away_confidence}/10 ${formStrHTML(m.away_form)}</div>
         </div>
         <div class="match-center">
-          <div class="odds-section-label">胜平负</div>
+          <div class="odds-section-label">${m.win_odds>0?'胜平负':'胜平负(未开·仅让球)'}</div>
           <div class="odds-row">
-            ${renderOddsBtn(m,'胜',m.win_odds,'spf')}
-            ${renderOddsBtn(m,'平',m.draw_odds,'spf')}
-            ${renderOddsBtn(m,'负',m.lose_odds,'spf')}
+            ${m.win_odds>0?renderOddsBtn(m,'胜',m.win_odds,'spf'):'<div class="odds-btn na-odds"><span class="label">胜</span><span class="val">--</span></div>'}
+            ${m.draw_odds>0?renderOddsBtn(m,'平',m.draw_odds,'spf'):'<div class="odds-btn na-odds"><span class="label">平</span><span class="val">--</span></div>'}
+            ${m.lose_odds>0?renderOddsBtn(m,'负',m.lose_odds,'spf'):'<div class="odds-btn na-odds"><span class="label">负</span><span class="val">--</span></div>'}
           </div>
           ${hcp !== null ? `<div class="odds-section-label">${hLabel}</div><div class="odds-row">
             ${renderOddsBtn(m,'让胜',m.handicap_win_odds,'hcp')}
