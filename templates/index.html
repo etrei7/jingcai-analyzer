@@ -444,6 +444,7 @@ button{font-family:inherit}
   .dim-grid{grid-template-columns:1fr 1fr}
 }
 </style>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2318a05b'/%3E%3Ctext x='16' y='22' font-size='16' text-anchor='middle' fill='white'%3E%E8%B6%B3%3C/text%3E%3C/svg%3E">
 </head>
 <body>
 
@@ -626,24 +627,9 @@ var JINGCAI_ODDS_TIME = '';
 
 /* ===== 数据获取 ===== */
 async function fetchJingcaiList() {
-  if (!JINGCAI_TOKEN) {
-    try {
-      var pageResp = await fetch('https://m.sporttery.cn/mjc/jsq/zqspf/', {
-        headers: { 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148' }
-      });
-      if (pageResp.ok) {
-        var html = await pageResp.text();
-        var m = html.match(/share_token[=:]\s*["\']?([A-Fa-f0-9\-]{30,50})/);
-        if (m) { JINGCAI_TOKEN = m[1]; console.log('Token获取成功'); }
-        if (!JINGCAI_TOKEN) {
-          var m2 = html.match(/token\s*=\s*["\']([A-Fa-f0-9\-]{30,50})/);
-          if (m2) JINGCAI_TOKEN = m2[1];
-        }
-      }
-    } catch(e) { console.warn('Token页无法访问'); }
-  }
+  // 说明：token 页 m.sporttery.cn 受浏览器 CORS 限制无法读取，且 token 为可选
+  // （webapi 数据接口无需 token 即可返回，见页面实际数据）。故不再请求 token 页。
   var url = 'https://webapi.sporttery.cn/gateway/uniform/football/getMatchCalculatorV1.qry?channel=c&_t=' + Date.now();
-  if (JINGCAI_TOKEN) url += '&share_token=' + encodeURIComponent(JINGCAI_TOKEN);
   try {
     var resp = await fetch(url, { cache: 'no-store', headers: { 'Referer': 'https://m.sporttery.cn/' } });
     if (!resp.ok) { JINGCAI_TOKEN = ''; return []; }
