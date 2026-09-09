@@ -1273,7 +1273,7 @@ function renderHiPickList(){
     var opt = bestOpt(m), odds = (opt[1] || 0);
     return '<label class="hi-item"><input type="checkbox" data-mid="' + m.match_id + '"' + checked + ' onchange="hlToggle(\'' + m.match_id + '\')">' +
       '<span class="hi-teams">' + m.home_team + ' vs ' + m.away_team + '</span>' +
-      '<span class="hi-opt">' + opt[0] + ' @' + (odds || '—').toFixed(2) + '</span>' +
+      '<span class="hi-opt">' + opt[0] + ' @' + (odds > 0 ? (parseFloat(odds)||0).toFixed(2) : '—') + '</span>' +
       '<span class="hi-lv ' + lvCls + '">' + (lv || '低') + '</span>' +
     '</label>';
   }).join('') + '</div>';
