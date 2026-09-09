@@ -71,8 +71,16 @@ def fetch_jingcai_matches():
                 h_odds = float(had.get('h', 0) or 0)
                 d_odds = float(had.get('d', 0) or 0)
                 a_odds = float(had.get('a', 0) or 0)
-                if (match_status and match_status.lower() != 'selling') or (h_odds <= 0 and d_odds <= 0 and a_odds <= 0):
-                    logger.info(f"[竞彩] 过滤未开盘: {m.get('matchNum','')} matchStatus={match_status} 赔率=({h_odds},{d_odds},{a_odds})")
+                # 无胜平负场次：若让球(hhad)有赔率则保留（标注"无胜负"，仅展示让球）
+                hhad = m.get('hhad') or {}
+                hhad_odds = (float(hhad.get('h', 0) or 0)) + (float(hhad.get('d', 0) or 0)) + (float(hhad.get('a', 0) or 0))
+                has_1x2 = (h_odds > 0 or d_odds > 0 or a_odds > 0)
+                has_hhad = hhad_odds > 0
+                if (match_status and match_status.lower() != 'selling'):
+                    logger.info(f"[竞彩] 过滤未开盘: {m.get('matchNum','')} matchStatus={match_status}")
+                    continue
+                if not has_1x2 and not has_hhad:
+                    logger.info(f"[竞彩] 过滤(无胜平负也无让球): {m.get('matchNum','')}")
                     continue
                 home_name = m.get('homeTeamAllName', m.get('homeTeamAbbName', ''))
                 away_name = m.get('awayTeamAllName', m.get('awayTeamAbbName', ''))
