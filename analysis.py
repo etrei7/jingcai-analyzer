@@ -441,7 +441,13 @@ LEAGUE_QUALITY = {
 
 def analyze_single_match(match, standings=None, prediction=None):
     odds_list = [('胜', match['win_odds']), ('平', match['draw_odds']), ('负', match['lose_odds'])]
-    min_option, min_odds = min(odds_list, key=lambda x: x[1])
+    # 无胜平负场次（只开让球）：用安全值，避免 /0，预测标记为"无胜负"
+    _has_1x2 = any(o[1] and o[1] > 0 for o in odds_list)
+    if _has_1x2:
+        min_option, min_odds = min(odds_list, key=lambda x: x[1])
+    else:
+        min_option, min_odds = ('无', 0.0)
+        odds_list = [('胜', 0), ('平', 0), ('负', 0)]
 
     # League quality multiplier
     league = match.get('league', '')
@@ -460,7 +466,7 @@ def analyze_single_match(match, standings=None, prediction=None):
             predicted_option = '胜' if pr == 'home' else '平' if pr == 'draw' else '负' if pr == 'away' else None
     # prediction 缺失或无法解析出有效倾向时，兜底为市场最低赔率方（保证每场都有预测）
     if not predicted_option:
-        predicted_option = min_option[0] if min_option else None
+        predicted_option = min_option[0] if (min_option and _has_1x2) else None
 
     confidence_score *= league_quality
 
