@@ -78,6 +78,31 @@ a{text-decoration:none;color:inherit}
 .filter-btn:hover,.filter-btn.active{background:var(--primary);color:#fff;border-color:var(--primary)}
 .filter-meta{font-size:0.7rem;color:var(--text-muted);margin-left:auto}
 .hist-note{font-size:0.68rem;color:var(--text-muted);margin:-12px 0 18px;line-height:1.6}
+/* 折叠区块 */
+.collapse-card{background:var(--card-bg);border:1px solid var(--border);border-radius:14px;margin:18px 0;box-shadow:var(--shadow);overflow:hidden}
+.collapse-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;cursor:pointer;user-select:none;font-weight:800;font-size:0.95rem}
+.collapse-head:hover{background:var(--btn-hover)}
+.collapse-head .ch-left{display:flex;align-items:center;gap:8px}
+.collapse-head .arrow{transition:transform .2s;font-size:0.7rem;color:var(--text-muted)}
+.collapse-card.open .collapse-head .arrow{transform:rotate(90deg)}
+.collapse-body{display:none;padding:0 18px 18px}
+.collapse-card.open .collapse-body{display:block}
+/* 回测面板 */
+.backtest-card{background:var(--card-bg);border:1px solid var(--border);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow)}
+.bt-stats{display:flex;gap:20px;flex-wrap:wrap;align-items:center}
+.bt-stat{text-align:center}
+.bt-stat .num{font-size:1.7rem;font-weight:900;line-height:1.1}
+.bt-stat .lab{font-size:0.64rem;color:var(--text-muted);margin-top:3px}
+.bt-note{font-size:0.62rem;color:var(--text-light);margin-top:8px;line-height:1.5}
+.bt-group{margin-top:10px}
+.bt-group-head{display:flex;align-items:center;justify-content:space-between;margin:8px 0 5px;padding-bottom:3px;border-bottom:1px solid var(--border-light);flex-wrap:wrap;gap:4px}
+.bt-group-head .gh-name{font-weight:800;font-size:0.78rem;color:var(--text)}
+.bt-group-head .gh-meta{font-size:0.6rem;color:var(--text-muted)}
+.bt-item{display:flex;justify-content:space-between;align-items:center;padding:6px 9px;border-radius:8px;margin-bottom:3px;font-size:0.68rem;gap:8px}
+.bt-item.win{background:var(--high-bg);color:#166534}
+.bt-item.lose{background:var(--low-bg);color:#b91c1c}
+.bt-item.pend{background:var(--btn-bg);color:var(--text-muted)}
+.bt-item .bt-team{font-weight:700}
 .footer{text-align:center;padding:20px 24px;color:var(--text-muted);font-size:0.72rem;border-top:1px solid var(--border);margin-top:36px;background:var(--card-bg);max-width:1100px;margin-left:auto;margin-right:auto}
 .footer .disclaimer{color:var(--low);font-weight:600;margin-bottom:5px}
 @media(max-width:900px){.header{padding:8px 12px}.nav-links{width:100%;justify-content:center}.container{padding:16px}.stat-grid{grid-template-columns:repeat(2,1fr)}}
@@ -125,6 +150,17 @@ a{text-decoration:none;color:inherit}
   </div>
 
   <div id="recordList"><div class="empty">加载中...</div></div>
+
+  <!-- 历史预测回测（可折叠） -->
+  <div class="collapse-card" id="backtestFold">
+    <div class="collapse-head" onclick="toggleBacktestFold()">
+      <span class="ch-left">&#128202; 历史预测回测（点击展开）</span>
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="collapse-body">
+      <div id="backtestContainer"><div class="empty" style="padding:20px">点击上方标题加载回测数据</div></div>
+    </div>
+  </div>
 </div>
 
 <div class="footer">
@@ -205,6 +241,84 @@ async function loadHistory(){
     document.getElementById('recordList').innerHTML = '<div class="empty">加载失败：' + e.message + '</div>';
   }
 }
+/* ===== 历史预测回测（可折叠，首次展开时加载） ===== */
+var backtestLoaded = false;
+function toggleBacktestFold(){
+  var card = document.getElementById('backtestFold');
+  var open = card.classList.toggle('open');
+  document.querySelector('#backtestFold .ch-left').innerHTML = open ? '&#128202; 历史预测回测（点击收起）' : '&#128202; 历史预测回测（点击展开）';
+  if(open && !backtestLoaded){ backtestLoaded = true; loadBacktestPanel(); }
+}
+async function loadBacktestPanel(){
+  var c = document.getElementById('backtestContainer');
+  try{
+    var resp = await fetch('/api/backtest');
+    if(!resp.ok){ c.innerHTML='<div class="empty">加载失败</div>'; return; }
+    var s = await resp.json();
+    renderBacktestPanel(s);
+  }catch(e){ c.innerHTML='<div class="empty">加载失败：'+e.message+'</div>'; }
+}
+function renderBacktestPanel(s){
+  var c = document.getElementById('backtestContainer');
+  var records = (s && s.records) || [];
+  if(!s || (s.total_bets === 0 && records.length === 0)){
+    c.innerHTML = '<div class="empty" style="padding:24px">暂无预测记录，系统将在定时采集后自动生成推荐并结算</div>';
+    return;
+  }
+  var roi = s.roi || 0;
+  var rate = s.hit_rate || 0;
+  var roiColor = roi > 0 ? 'var(--high)' : roi < 0 ? 'var(--low)' : 'var(--text)';
+  var rateColor = rate >= 50 ? 'var(--high)' : rate >= 40 ? 'var(--amber)' : 'var(--low)';
+  var pnl = s.total_pnl || 0;
+  var estTotal = s.estimated_total || 0;
+  var playOrder = ['胜平负', '让胜平负', '比分', '半全场'];
+  var groups = {};
+  records.forEach(function(r){ var pt = r.play_type_cn || '其他'; (groups[pt] = groups[pt] || []).push(r); });
+  var groupHtml = '';
+  function isEstimated(pt){ return pt === '比分' || pt === '半全场'; }
+  function rElemFn(r){
+    var cls = r.outcome === 'win' ? 'win' : r.outcome === 'lose' ? 'lose' : 'pend';
+    var team = (r.home_team || '?') + ' vs ' + (r.away_team || '?');
+    var st = r.outcome==='win' ? '✓ 命中'+(r.estimated?' (估算赔率)':' +'+(r.pnl||0)) : r.outcome==='lose' ? '✗ 未中'+(r.estimated?' (估算赔率)':' '+(r.pnl||0)) : '⏳ 待结算';
+    var estTag = r.estimated ? '<span style="opacity:.7;margin-left:4px" title="模型估算赔率，非真实市场盘口，不计入ROI">(参考)</span>' : '';
+    return '<div class="bt-item '+cls+'"><span class="bt-team">'+team+'</span><span>'+r.pick_cn+' @'+(r.odds||'—')+estTag+'</span><span style="margin-left:auto">'+st+'</span></div>';
+  }
+  playOrder.forEach(function(pt){
+    if(!groups[pt] || !groups[pt].length) return;
+    var list = groups[pt].slice().sort(function(a,b){ var ra = a.outcome? (a.outcome==='win'?2:1) : 0; var rb = b.outcome? (b.outcome==='win'?2:1) : 0; return rb - ra; });
+    var isEst = isEstimated(pt);
+    var w = list.filter(x=>x.outcome==='win').length;
+    var l = list.filter(x=>x.outcome==='lose').length;
+    var p = list.filter(x=>!x.outcome).length;
+    var pnl2 = 0; list.forEach(x=>{ if(x.pnl) pnl2 += x.pnl; });
+    var stake = 0; list.forEach(x=>{ if(x.outcome==='win'||x.outcome==='lose'&&x.stake) stake += x.stake; });
+    var roll = stake? Math.round(pnl2/stake*1000)/10 : 0;
+    var metatxt = isEst ? '命中 '+w+'/'+l+'（'+p+'待结算）｜ 模型估算，不计入ROI' : '命中 '+w+'/'+l+'（'+p+'待结算）｜ 盈亏 '+(pnl2>0?'+':'')+pnl2+' ｜ ROI '+roll+'%';
+    groupHtml += '<div class="bt-group"><div class="bt-group-head"><span class="gh-name">'+pt+(isEst?' (估算)':'')+'</span><span class="gh-meta">'+metatxt+'</span></div>' + list.map(rElemFn).join('') + '</div>';
+  });
+  Object.keys(groups).forEach(function(pt){
+    if(playOrder.indexOf(pt) >= 0) return;
+    groupHtml += '<div class="bt-group"><div class="bt-group-head"><span class="gh-name">'+pt+'</span></div>' + groups[pt].map(rElemFn).join('') + '</div>';
+  });
+  var estNote = estTotal>0 ? '<div class="bt-note" style="color:var(--amber)">&#9432; 另有 '+estTotal+' 条「比分/半全场」为模型估算赔率（非真实市场盘口），已从上方ROI统计中剔除，仅供参考命中率。</div>' : '';
+  c.innerHTML = `
+    <div class="backtest-card">
+      <div class="bt-stats">
+        <div class="bt-stat"><div class="num" style="color:${roiColor}">${roi>0?'+':''}${roi}%</div><div class="lab">ROI 盈利率(真实赔率)</div></div>
+        <div class="bt-stat"><div class="num" style="color:var(--text)">${s.total_bets||0}</div><div class="lab">样本(结算)</div></div>
+        <div class="bt-stat"><div class="num" style="color:${rateColor}">${rate}%</div><div class="lab">命中率(真实赔率)</div></div>
+        <div class="bt-stat"><div class="num" style="color:var(--text)">${s.wins||0}/${s.losses||0}</div><div class="lab">胜/负</div></div>
+        <div class="bt-stat"><div class="num" style="color:${pnl>0?'var(--high)':pnl<0?'var(--low)':'var(--text)'}">${pnl>0?'+':''}${pnl}</div><div class="lab">累计盈亏(元)</div></div>
+        <div class="bt-stat"><div class="num" style="font-size:1rem;font-weight:700;color:var(--text-muted)">${s.avg_odds||0}</div><div class="lab">平均赔率</div></div>
+      </div>
+      ${estNote}
+      <div class="bt-note">预测记录（${records.length}条，待结算 ${s.pending||0}）：</div>
+      ${groupHtml}
+      <div class="bt-note">模型 ${s.model_name||'—'} ｜ 更新 ${s.computed_at||'—'}</div>
+      <div class="bt-note">命中率≠盈利：只看命中率可能亏，ROI=总盈亏/总投入，&gt;0 才长期为正期望</div>
+    </div>`;
+}
+
 loadHistory();
 </script>
 </body>

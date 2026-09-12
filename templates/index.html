@@ -138,6 +138,9 @@ button{font-family:inherit}
 .fbar-right{margin-left:auto;display:flex;align-items:center;gap:10px;font-size:0.7rem;color:var(--text-muted)}
 
 /* ===== 赛事卡片 ===== */
+.weekday-header{margin:20px 0 12px;padding:8px 14px;background:linear-gradient(90deg,var(--primary-soft),transparent);border-left:4px solid var(--primary);border-radius:8px;font-size:0.95rem;font-weight:800;color:var(--primary-dark);display:flex;align-items:center;gap:8px}
+.weekday-header:first-child{margin-top:0}
+.weekday-header .wd-count{font-size:0.68rem;font-weight:600;color:var(--text-muted);background:var(--card-bg);padding:1px 8px;border-radius:10px}
 .match-card{background:var(--card-bg);border:1px solid var(--border);border-radius:14px;padding:14px 18px;margin-bottom:14px;box-shadow:var(--shadow);transition:all .15s}
 .match-card:hover{box-shadow:var(--shadow-lg);border-color:var(--primary-border)}
 .match-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px}
@@ -515,7 +518,18 @@ button{font-family:inherit}
       <button class="filter-btn" onclick="setFilter('high_odds')">热门方</button>
       <button class="filter-btn" onclick="setFilter('value')">价值盘</button>
       <select class="filter-select" id="leagueFilter" onchange="setLeagueFilter(this.value)"><option value="all">全部联赛</option></select>
+      <select class="filter-select" id="weekdayFilter" onchange="setWeekdayFilter(this.value)">
+        <option value="all">全部星期</option>
+        <option value="周一">周一</option>
+        <option value="周二">周二</option>
+        <option value="周三">周三</option>
+        <option value="周四">周四</option>
+        <option value="周五">周五</option>
+        <option value="周六">周六</option>
+        <option value="周日">周日</option>
+      </select>
       <select class="filter-select" id="sortBy" onchange="setSort(this.value)">
+        <option value="number">按编号(01/02…)</option>
         <option value="time">按时间</option>
         <option value="confidence">按信心</option>
         <option value="odds">按赔率</option>
@@ -537,12 +551,6 @@ button{font-family:inherit}
     <div class="rec-section">
       <div class="section-title">AI 串关推荐</div>
       <div id="recContainer"><div class="loading">生成推荐方案…</div></div>
-    </div>
-
-    <!-- 战绩面板 -->
-    <div class="rec-section" style="margin-top:20px">
-      <div class="section-title">历史预测回测</div>
-      <div id="historyContainer"><div class="loading">加载战绩…</div></div>
     </div>
 
     <!-- 分析师 -->
@@ -938,41 +946,20 @@ function renderDimGrid(m) {
   </div>`;
 }
 
-/* ===== 历史战绩面板 ===== */
-function renderHistoryPanel(stats) {
-  const c = document.getElementById('historyContainer');
-  if (!stats || stats.total === 0) {
-    c.innerHTML = '<div class="backtest-card"><div style="padding:6px;font-size:0.78rem;color:var(--text-muted)">暂无预测记录，系统将在定时采集后自动生成推荐并结算</div></div>';
-    return;
-  }
-  const rate = stats.total_rate || 0;
-  const rateColor = rate >= 60 ? 'var(--high)' : rate >= 45 ? 'var(--amber)' : 'var(--low)';
-  let recentHtml = '';
-  if (stats.recent && stats.recent.length > 0) {
-    recentHtml = '<div style="margin-top:10px"><strong style="font-size:0.75rem;color:var(--text-muted)">近' + stats.recent.length + '场记录：</strong><div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:5px">' +
-      stats.recent.map(r => `<span style="padding:3px 8px;border-radius:6px;font-size:0.64rem;background:${r.hit?'var(--high-bg)':'var(--low-bg)'};color:${r.hit?'#166534':'#b91c1c'};">${r.teams}:${r.predicted}→${r.actual} ${r.hit?'✓':'✗'}</span>`).join('') +
-      '</div></div>';
-  }
-  c.innerHTML = `
-    <div class="backtest-card">
-      <div class="bt-stats">
-        <div class="bt-stat"><div class="num" style="color:${rateColor}">${rate}%</div><div class="lab">命中率</div></div>
-        <div class="bt-stat"><div class="num" style="color:var(--text)">${stats.hits||0}</div><div class="lab">命中</div></div>
-        <div class="bt-stat"><div class="num" style="color:var(--text)">${stats.misses||0}</div><div class="lab">未中</div></div>
-        <div class="bt-stat"><div class="num" style="color:var(--text)">${stats.total||0}</div><div class="lab">已验证</div></div>
-      </div>
-      ${recentHtml}
-    </div>`;
-}
-
 /* ===== 筛选 & 排序 ===== */
 let currentFilter = 'all';
 let currentLeague = 'all';
-let currentSort = 'time';
+let currentWeekday = 'all';
+let currentSort = 'number';
 let allMatches = [];
+
+var WEEKDAY_ORDER = {'周一':1,'周二':2,'周三':3,'周四':4,'周五':5,'周六':6,'周日':7};
+function weekdayOf(m){ var mid = (m && m.match_id) || ''; for (var k in WEEKDAY_ORDER){ if (mid.indexOf(k) === 0) return k; } return ''; }
+function numOf(m){ var mt = ((m && m.match_id) || '').match(/(\d+)/); return mt ? parseInt(mt[1], 10) : 9999; }
 
 function setFilter(f) { currentFilter=f; updateFilterButtons(); applyFilters(); }
 function setLeagueFilter(v) { currentLeague=v; applyFilters(); }
+function setWeekdayFilter(v) { currentWeekday=v; applyFilters(); }
 function setSort(v) { currentSort=v; applyFilters(); }
 
 function updateFilterButtons(){
@@ -989,7 +976,10 @@ function applyFilters(){
   if(currentFilter==='high_odds') filtered=filtered.filter(m=>m.hotness_label==='适度热门'||m.hotness_label==='极端热门');
   if(currentFilter==='value') filtered=filtered.filter(m=>parseFloat(m.overround||99)>=0 && parseFloat(m.overround||99)<6);
   if(currentLeague!=='all') filtered=filtered.filter(m=>m.league===currentLeague);
-  if(currentSort==='time'){
+  if(currentWeekday!=='all') filtered=filtered.filter(m=>weekdayOf(m)===currentWeekday);
+  if(currentSort==='number'){
+    filtered.sort((a,b)=> (WEEKDAY_ORDER[weekdayOf(a)]||9) - (WEEKDAY_ORDER[weekdayOf(b)]||9) || numOf(a) - numOf(b));
+  } else if(currentSort==='time'){
     filtered.sort((a,b)=>{
       var da=a.date||'', db=b.date||'';
       if(da!==db) return da.localeCompare(db);
@@ -1028,10 +1018,7 @@ function renderMatchesInternal(matches) {
     return;
   }
 
-  c.innerHTML = matches.map(m => {
-    const ouCls = m.over_under_tendency==='大球倾向'?'tag-over':m.over_under_tendency==='小球倾向'?'tag-under':'tag-balance';
-    const confCls = m.confidence_level==='高'?'tag-high':m.confidence_level==='中'?'tag-medium':'tag-low';
-    const hotCls = m.hotness_label==='适度热门'?'tag-moderate':m.hotness_label==='极端热门'?'tag-extreme':'tag-cold';
+  var cardItems = matches.map(m => {
     const mtCls = m.market_tendency==='主胜'?'home-tendency':m.market_tendency==='客胜'?'away-tendency':m.market_tendency==='平局'?'draw-tendency':'balanced';
     const ref = m.referee||{};
     const weather = m.weather||{};
@@ -1042,7 +1029,7 @@ function renderMatchesInternal(matches) {
     const lqt = leagueQualityTag(m.league);
     const dims = renderDimGrid(m);
 
-    return `
+    return { day: weekdayOf(m), html: `
     <div class="match-card">
       <div class="match-top">
         <div class="match-meta">
@@ -1093,8 +1080,24 @@ function renderMatchesInternal(matches) {
       ${renderCardTotalGoals(m)}
       <div class="detail-toggle" onclick="toggleDetail(this,'detail_${hid}')"><span class="arrow">&#9654;</span> 展开详情（伤停·裁判·天气·泊松·信心·交锋）</div>
       <div class="detail-panel" id="detail_${hid}">${renderDetailPanel(m)}</div>
-    </div>`;
-  }).join('');
+    </div>` };
+  });
+
+  // 按周几分组渲染（按编号排序时插入周几标题，避免周六周日混在一起）
+  var groupHtml = '';
+  if (currentSort === 'number') {
+    var lastDay = null;
+    cardItems.forEach(function(item){
+      if (item.day && item.day !== lastDay) {
+        groupHtml += '<div class="weekday-header">' + item.day + '</div>';
+        lastDay = item.day;
+      }
+      groupHtml += item.html;
+    });
+  } else {
+    groupHtml = cardItems.map(function(item){ return item.html; }).join('');
+  }
+  document.getElementById('matchesContainer').innerHTML = groupHtml;
 }
 
 function toggleDetail(el, id) {
@@ -1497,8 +1500,6 @@ function showData(data){
   renderRecommendations(data.recommendations);
   allTotalGoals = {};
   (data.total_goals_recs||[]).forEach(function(tg){ if(tg && tg.match_id) allTotalGoals[tg.match_id] = tg; });
-  renderHistoryPanel(data.history_stats);
-  loadBacktestPanel();
   renderParlay();
   setConnStatus(true, '已连接');
 }
@@ -1533,75 +1534,6 @@ function updateTimeNote(stats){
   if(el) el.textContent = '更新 ' + (stats.update_time||'--') + ' · 来源 ' + (stats.source||'--');
 }
 
-/* ===== 回测面板 ===== */
-async function loadBacktestPanel(){
-  var c = document.getElementById('historyContainer');
-  try{
-    var resp = await fetch('/api/backtest');
-    if(!resp.ok){ c.innerHTML='<div class="loading">加载战绩…</div>'; return; }
-    var s = await resp.json();
-    if(!s || s.total_bets === 0){ renderHistoryPanel(null); return; }
-    renderBacktestPanel(s);
-  }catch(e){ }
-}
-function renderBacktestPanel(s){
-  var c = document.getElementById('historyContainer');
-  var records = (s && s.records) || [];
-  var hasData = (s && (s.total_bets > 0 || records.length > 0));
-  if(!hasData){ renderHistoryPanel(null); return; }
-  var roi = s.roi || 0;
-  var rate = s.hit_rate || 0;
-  var roiColor = roi > 0 ? 'var(--high)' : roi < 0 ? 'var(--low)' : 'var(--text)';
-  var rateColor = rate >= 50 ? 'var(--high)' : rate >= 40 ? 'var(--amber)' : 'var(--low)';
-  var pnl = s.total_pnl || 0;
-  var estTotal = s.estimated_total || 0;   // 估算赔率玩法（比分/半全场）未计入ROI
-  var playOrder = ['胜平负', '让胜平负', '比分', '半全场', '大小球'];
-  var groups = {};
-  records.forEach(function(r){ var pt = r.play_type_cn || '其他'; (groups[pt] = groups[pt] || []).push(r); });
-  var groupHtml = '';
-  function isEstimated(pt){ return pt === '比分' || pt === '半全场'; }
-  function rElemFn(r){
-    var cls = r.outcome === 'win' ? 'win' : r.outcome === 'lose' ? 'lose' : 'pend';
-    var team = (r.home_team || '?') + ' vs ' + (r.away_team || '?');
-    var st = r.outcome==='win' ? '✓ 命中'+(r.estimated?' (估算赔率)':' +'+(r.pnl||0)) : r.outcome==='lose' ? '✗ 未中'+(r.estimated?' (估算赔率)':' '+(r.pnl||0)) : '⏳ 待结算';
-    var estTag = r.estimated ? '<span style="opacity:.7;margin-left:4px" title="模型估算赔率，非真实市场盘口，不计入ROI">(参考)</span>' : '';
-    return '<div class="bt-item '+cls+'"><span class="bt-team">'+team+'</span><span>'+r.pick_cn+' @'+(r.odds||'—')+estTag+'</span><span style="margin-left:auto">'+st+'</span></div>';
-  }
-  playOrder.forEach(function(pt){
-    if(!groups[pt] || !groups[pt].length) return;
-    var list = groups[pt].slice().sort(function(a,b){ var ra = a.outcome? (a.outcome==='win'?2:1) : 0; var rb = b.outcome? (b.outcome==='win'?2:1) : 0; return rb - ra; });
-    var isEst = isEstimated(pt);
-    var w = list.filter(x=>x.outcome==='win').length;
-    var l = list.filter(x=>x.outcome==='lose').length;
-    var p = list.filter(x=>!x.outcome).length;
-    var pnl2 = 0; list.forEach(x=>{ if(x.pnl) pnl2 += x.pnl; });
-    var stake = 0; list.forEach(x=>{ if(x.outcome==='win'||x.outcome==='lose'&&x.stake) stake += x.stake; });
-    var roll = stake? Math.round(pnl2/stake*1000)/10 : 0;
-    var metatxt = isEst ? '命中 '+w+'/'+l+'（'+p+'待结算）｜ 模型估算，不计入ROI' : '命中 '+w+'/'+l+'（'+p+'待结算）｜ 盈亏 '+(pnl2>0?'+':'')+pnl2+' ｜ ROI '+roll+'%';
-    groupHtml += '<div class="bt-group"><div class="bt-group-head"><span class="gh-name">'+pt+(isEst?' (估算)':'')+'</span><span class="gh-meta">'+metatxt+'</span></div>' + list.map(rElemFn).join('') + '</div>';
-  });
-  Object.keys(groups).forEach(function(pt){
-    if(playOrder.indexOf(pt) >= 0) return;
-    groupHtml += '<div class="bt-group"><div class="bt-group-head"><span class="gh-name">'+pt+'</span></div>' + groups[pt].map(rElemFn).join('') + '</div>';
-  });
-  var estNote = estTotal>0 ? '<div class="bt-note" style="color:var(--amber)">&#9432; 另有 '+estTotal+' 条「比分/半全场」为模型估算赔率（非真实市场盘口），已从上方ROI统计中剔除，仅供参考命中率。</div>' : '';
-  c.innerHTML = `
-    <div class="backtest-card">
-      <div class="bt-stats">
-        <div class="bt-stat"><div class="num" style="color:${roiColor}">${roi>0?'+':''}${roi}%</div><div class="lab">ROI 盈利率(真实赔率)</div></div>
-        <div class="bt-stat"><div class="num" style="color:var(--text)">${s.total_bets||0}</div><div class="lab">样本(结算)</div></div>
-        <div class="bt-stat"><div class="num" style="color:${rateColor}">${rate}%</div><div class="lab">命中率(真实赔率)</div></div>
-        <div class="bt-stat"><div class="num" style="color:var(--text)">${s.wins||0}/${s.losses||0}</div><div class="lab">胜/负</div></div>
-        <div class="bt-stat"><div class="num" style="color:${pnl>0?'var(--high)':pnl<0?'var(--low)':'var(--text)'}">${pnl>0?'+':''}${pnl}</div><div class="lab">累计盈亏(元)</div></div>
-        <div class="bt-stat"><div class="num" style="font-size:1rem;font-weight:700;color:var(--text-muted)">${s.avg_odds||0}</div><div class="lab">平均赔率</div></div>
-      </div>
-      ${estNote}
-      <div class="bt-note">预测记录（${records.length}条，待结算 ${s.pending||0}）：</div>
-      ${groupHtml}
-      <div class="bt-note">模型 ${s.model_name||'—'} ｜ 更新 ${s.computed_at||'—'}</div>
-      <div class="bt-note">命中率≠盈利：只看命中率可能亏，ROI=总盈亏/总投入，&gt;0 才长期为正期望</div>
-    </div>`;
-}
 
 /* ===== 主题 ===== */
 function toggleTheme() {
