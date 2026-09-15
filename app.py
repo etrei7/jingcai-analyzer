@@ -428,6 +428,17 @@ def analyze_data():
         except Exception:
             pass
 
+        # 赔率快照追踪：记录「初盘→即时」变动（供模型与前端展示）
+        try:
+            from odds_tracker import track as track_odds
+            for m in matches:
+                om = track_odds(m.get('raw_event_id') or m.get('match_id'),
+                                m.get('win_odds'), m.get('draw_odds'), m.get('lose_odds'))
+                if om:
+                    m['odds_move'] = om
+        except Exception:
+            pass
+
         source = '竞彩官方'
         analyzed = analyze_matches(matches, None, {})
         recommendations = generate_parlay_recommendations(analyzed)
