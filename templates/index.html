@@ -633,13 +633,41 @@ var JINGCAI_TOKEN = '';
 var JINGCAI_ODDS_TIME = '';
 
 /* ===== 数据获取 ===== */
+// 带重试的 fetch：遇 403/429/5xx 或网络错误时指数退避重试。
+// 注意：浏览器禁止 JS 设置 User-Agent/Origin/Accept-Language（forbidden headers），
+// 这些由浏览器自动携带真实值，无需（也无法）手动模拟。故此处仅做重试增强。
+async function fetchWithRetry(url, opts, retries) {
+  retries = (retries == null) ? 2 : retries;
+  var lastErr = null;
+  for (var i = 0; i <= retries; i++) {
+    try {
+      var resp = await fetch(url, opts);
+      if (resp.ok) return resp;
+      var s = resp.status;
+      if ((s === 403 || s === 429 || s >= 500) && i < retries) {
+        await new Promise(function(r){ setTimeout(r, 500 * Math.pow(2, i)); });
+        continue;
+      }
+      return resp;
+    } catch (e) {
+      lastErr = e;
+      if (i < retries) {
+        await new Promise(function(r){ setTimeout(r, 500 * Math.pow(2, i)); });
+        continue;
+      }
+    }
+  }
+  if (lastErr) throw lastErr;
+  return null;
+}
+
 async function fetchJingcaiList() {
   // 说明：token 页 m.sporttery.cn 受浏览器 CORS 限制无法读取，且 token 为可选
   // （webapi 数据接口无需 token 即可返回，见页面实际数据）。故不再请求 token 页。
   var url = 'https://webapi.sporttery.cn/gateway/uniform/football/getMatchCalculatorV1.qry?channel=c&_t=' + Date.now();
   try {
-    var resp = await fetch(url, { cache: 'no-store', headers: { 'Referer': 'https://m.sporttery.cn/' } });
-    if (!resp.ok) { JINGCAI_TOKEN = ''; return []; }
+    var resp = await fetchWithRetry(url, { cache: 'no-store', headers: { 'Referer': 'https://m.sporttery.cn/' } }, 2);
+    if (!resp || !resp.ok) { JINGCAI_TOKEN = ''; return []; }
     var data = await resp.json();
     if (!data.success) { console.warn('竞彩API: success=false'); return []; }
     var value = data.value || {};
