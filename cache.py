@@ -80,6 +80,17 @@ def _build_payload():
     except Exception as e:
         logger.warning('[cache] API-Football 富化失败: %s', e)
 
+    # 赔率快照追踪：记录「初盘→即时」变动，供模型判断与前端展示
+    try:
+        from odds_tracker import track as track_odds
+        for m in matches:
+            om = track_odds(m.get('raw_event_id') or m.get('match_id'),
+                            m.get('win_odds'), m.get('draw_odds'), m.get('lose_odds'))
+            if om:
+                m['odds_move'] = om
+    except Exception as e:
+        logger.warning('[cache] 赔率追踪失败: %s', e)
+
     # 模拟数据最终兜底
     if not matches or len(matches) < 3:
         from data_generator import generate_matches as generate_mock_matches
