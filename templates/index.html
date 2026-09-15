@@ -1129,6 +1129,9 @@ function renderMatchesInternal(matches) {
             ${m.recommended_score?`<span class="extras-item" title="AI 最可能比分">&#128200; 比${m.recommended_score}</span>`:''}
             <span class="extras-item" title="返奖率=1/(1+溢价)，越低返奖越少。正数=机构抽水，负数=赔率异常">&#9432; 溢价 ${m.overround}%</span>
             ${renderOddsMove(m)}
+            ${(m.odds_move&&m.odds_move.has_changed)?(
+              '<span class="extras-item" title="初盘→即时赔率变动；赔率下降=资金流入该选项">&#128201; 初'+m.odds_move.opening_w+'→'+m.odds_move.current_w+'（'+(m.odds_move.move_w>=0?'+':'')+m.odds_move.move_w+'%）'+m.odds_move.pressure+'</span>'
+            ):''}
             ${ref.name && ref.name!=='待定' ? `<span class="extras-item ref" title="裁判">&#9877; ${ref.name}</span>` : `<span class="extras-item na">裁判暂无</span>`}
             ${weather.desc && weather.desc!=='未知' ? `<span class="extras-item weather" title="天气">&#9728; ${weather.desc} ${weather.temp!=null?weather.temp+'°C':''}</span>` : `<span class="extras-item na">天气暂无</span>`}
           </div>
