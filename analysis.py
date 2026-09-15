@@ -30,6 +30,100 @@ def _poisson_prob(k, lam):
     return (lam ** k) * math.exp(-lam) / math.factorial(k)
 
 
+def _dixon_coles_probs(lam_h, lam_a, rho=-0.08, max_goals=8):
+    """Dixon-Coles 低比分修正：在独立泊松基础上对 0-0/1-0/0-1/1-1 施加 tau 修正，
+    更贴合真实足球比分的低分聚集特性。返回归一化后的 (主胜, 平, 客胜) 概率。
+    模型参考：Dixon & Coles (1997)。属模型估算，非官方结论。
+    """
+    if lam_h <= 0 or lam_a <= 0:
+        return None
+    # 基础泊松矩阵
+    grid = [[_poisson_prob(i, lam_h) * _poisson_prob(j, lam_a) for j in range(max_goals)] for i in range(max_goals)]
+    # tau 修正（仅低比分格子）
+    def tau(i, j):
+        if i == 0 and j == 0:
+            return 1 - lam_h * lam_a * rho
+        if i == 0 and j == 1:
+            return 1 + lam_h * rho
+        if i == 1 and j == 0:
+            return 1 + lam_a * rho
+        if i == 1 and j == 1:
+            return 1 - rho
+        return 1.0
+    ph = pd = pa = 0.0
+    for i in range(max_goals):
+        for j in range(max_goals):
+            p = grid[i][j] * tau(i, j)
+            if p < 0:
+                p = 0
+            if i > j:
+                ph += p
+            elif i == j:
+                pd += p
+            else:
+                pa += p
+    total = ph + pd + pa
+    if total <= 0:
+        return None
+    return ph / total, pd / total, pa / total
+
+
+def _devig(win_odds, draw_odds, lose_odds):
+    """去水：将含抽水的赔率转成真实隐含概率（归一化）。"""
+    iw = 1.0 / win_odds if win_odds and win_odds > 0 else 0
+    idr = 1.0 / draw_odds if draw_odds and draw_odds > 0 else 0
+    il = 1.0 / lose_odds if lose_odds and lose_odds > 0 else 0
+    total = iw + idr + il
+    if total <= 0:
+        return 0.0, 0.0, 0.0
+    return iw / total, idr / total, il / total
+
+
+def _kelly(prob, odds):
+    """凯利公式建议仓位：f = (b*p - q)/b，b=赔率-1，p=模型概率，q=1-p。
+    返回建议资金占比（0~1，负数表示不建议）。"""
+    if not odds or odds <= 1 or prob is None or prob <= 0:
+        return 0.0
+    b = odds - 1.0
+    q = 1.0 - prob
+    f = (b * prob - q) / b
+    return round(max(0.0, min(f, 0.25)), 4)  # 上限 25% 防止过度下注
+
+
+def _value_analysis(win_odds, draw_odds, lose_odds, lam_h, lam_a):
+    """价值盘分析：模型概率(Dixon-Coles) vs 市场隐含概率(去水)，并给出凯利仓位。
+    返回 dict，供前端展示"哪一项存在价值偏差"。
+    """
+    model = _dixon_coles_probs(lam_h, lam_a)
+    if not model:
+        return {'value_available': False}
+    mp_h, mp_d, mp_a = model
+    ip_h, ip_d, ip_a = _devig(win_odds, draw_odds, lose_odds)
+    # 价值偏差 = 模型概率 - 隐含概率（正=市场低估=有价值）
+    edge_h = round((mp_h - ip_h) * 100, 1)
+    edge_d = round((mp_d - ip_d) * 100, 1)
+    edge_a = round((mp_a - ip_a) * 100, 1)
+    edges = [('主胜', edge_h, win_odds, mp_h), ('平', edge_d, draw_odds, mp_d), ('客胜', edge_a, lose_odds, mp_a)]
+    best = max(edges, key=lambda x: x[1])
+    return {
+        'value_available': True,
+        'model_home_pct': round(mp_h * 100, 1),
+        'model_draw_pct': round(mp_d * 100, 1),
+        'model_away_pct': round(mp_a * 100, 1),
+        'edge_home': edge_h,
+        'edge_draw': edge_d,
+        'edge_away': edge_a,
+        'best_value': best[0],
+        'best_edge': best[1],
+        'kelly_home': _kelly(mp_h, win_odds),
+        'kelly_draw': _kelly(mp_d, draw_odds),
+        'kelly_away': _kelly(mp_a, lose_odds),
+        'kelly_best': _kelly(best[3], best[2]),
+        'model_name': 'Dixon-Coles (泊松修正)',
+        'disclaimer': '模型估算，仅供参考',
+    }
+
+
 def _skellam_prob(diff, lam1, lam2):
     """P(X - Y = diff) where X ~ Poisson(lam1), Y ~ Poisson(lam2)"""
     prob = 0.0
@@ -707,6 +801,14 @@ def analyze_single_match(match, standings=None, prediction=None):
     result['market_lose_pct'] = market_lose
     result['market_tendency'] = market_tendency
     result['overround'] = overround
+    # 价值盘分析：模型概率(Dixon-Coles) vs 市场隐含概率(去水) + 凯利仓位
+    try:
+        _he = float(tg.get('expected_home_goals') or 0)
+        _ae = float(tg.get('expected_away_goals') or 0)
+        _va = _value_analysis(match['win_odds'], match['draw_odds'], match['lose_odds'], _he, _ae)
+    except Exception:
+        _va = {'value_available': False}
+    result['value_analysis'] = _va
     result['home_rank'] = home_rank
     result['away_rank'] = away_rank
     result['home_form'] = home_form
