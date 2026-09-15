@@ -683,6 +683,24 @@ def analyze_single_match(match, standings=None, prediction=None):
 
     # 交叉修正后重新评估信心等级与分值（阈值收紧，避免"高信心"过泛）
     league_quality_now = league_quality
+
+    # 赔率异动因子：预测方向相对初盘的赔率变化
+    # 赔率下降=资金流入（市场更认可）→ 提信心；上升=资金流出 → 降信心
+    om = match.get('odds_move') or {}
+    move_note = ''
+    if om:
+        _dk = {'胜': 'move_w', '平': 'move_d', '负': 'move_l'}.get(predicted_option)
+        _mv = om.get(_dk, 0) if _dk else 0
+        if isinstance(_mv, (int, float)):
+            if _mv <= -3:
+                confidence_score = min(0.95, confidence_score * 1.08)
+                move_note = '资金认可'
+            elif _mv >= 3:
+                confidence_score = min(0.95, confidence_score * 0.9)
+                move_note = '资金背离'
+    if move_note:
+        cross_signal = (cross_signal + '·' + move_note) if cross_signal else move_note
+
     conf_level = '高' if confidence_score > 0.55 else '中' if confidence_score > 0.38 else '低'
     # 浅数据判断：无基本面信号（无排名/状态/xG/伤病差支撑）即为浅数据 → 封顶"中"
     is_shalow = (not fund_sig) or league_quality_now < 0.7
@@ -809,6 +827,7 @@ def analyze_single_match(match, standings=None, prediction=None):
     except Exception:
         _va = {'value_available': False}
     result['value_analysis'] = _va
+    result['odds_move'] = match.get('odds_move')
     result['home_rank'] = home_rank
     result['away_rank'] = away_rank
     result['home_form'] = home_form
