@@ -124,6 +124,61 @@ def _value_analysis(win_odds, draw_odds, lose_odds, lam_h, lam_a):
     }
 
 
+# 半全场组合标签（半场结果 + 全场结果）
+_HTFT_LABELS = {
+    'HH': '主/主', 'HD': '主/平', 'HA': '主/客',
+    'DH': '平/主', 'DD': '平/平', 'DA': '平/客',
+    'AH': '客/主', 'AD': '客/平', 'AA': '客/客',
+}
+
+
+def _compute_htft_probs(lam_h, lam_a, max_goals=5):
+    """半全场（半场结果+全场结果，共9种组合）概率。
+    全场期望进球按约 45%/55% 拆到上半场/下半场，用独立泊松计算。
+    返回主选/次选及Top组合，供比赛卡展示。模型估算，仅供参考。
+    """
+    try:
+        lam_h = float(lam_h or 0)
+        lam_a = float(lam_a or 0)
+    except (TypeError, ValueError):
+        return None
+    if lam_h <= 0 or lam_a <= 0:
+        return None
+    lh1, la1 = lam_h * 0.45, lam_a * 0.45   # 上半场
+    lh2, la2 = lam_h * 0.55, lam_a * 0.55   # 下半场
+    grid1 = [[_poisson_prob(i, lh1) * _poisson_prob(j, la1) for j in range(max_goals)] for i in range(max_goals)]
+    grid2 = [[_poisson_prob(i, lh2) * _poisson_prob(j, la2) for j in range(max_goals)] for i in range(max_goals)]
+    probs = {}
+    for h1 in range(max_goals):
+        for a1 in range(max_goals):
+            p1 = grid1[h1][a1]
+            if p1 < 1e-7:
+                continue
+            r1 = 'H' if h1 > a1 else ('A' if h1 < a1 else 'D')
+            for h2 in range(max_goals):
+                for a2 in range(max_goals):
+                    p2 = grid2[h2][a2]
+                    if p2 < 1e-7:
+                        continue
+                    H, A = h1 + h2, a1 + a2
+                    r2 = 'H' if H > A else ('A' if H < A else 'D')
+                    key = r1 + r2
+                    probs[key] = probs.get(key, 0.0) + p1 * p2
+    total = sum(probs.values())
+    if total <= 0:
+        return None
+    ranked = sorted(probs.items(), key=lambda x: x[1], reverse=True)
+    top = [(_HTFT_LABELS.get(k, k), round(v / total * 100, 1)) for k, v in ranked]
+    pick = top[0]
+    pick2 = top[1] if len(top) > 1 else ('', 0)
+    return {
+        'pick': pick[0], 'prob': pick[1],
+        'pick2': pick2[0], 'prob2': pick2[1],
+        'top': top[:4],
+        'disclaimer': '模型估算，仅供参考',
+    }
+
+
 def _skellam_prob(diff, lam1, lam2):
     """P(X - Y = diff) where X ~ Poisson(lam1), Y ~ Poisson(lam2)"""
     prob = 0.0
@@ -828,6 +883,12 @@ def analyze_single_match(match, standings=None, prediction=None):
         _va = {'value_available': False}
     result['value_analysis'] = _va
     result['odds_move'] = match.get('odds_move')
+    # 半全场推荐（主选+次选）
+    try:
+        result['htft'] = _compute_htft_probs(tg.get('expected_home_goals') or 0,
+                                             tg.get('expected_away_goals') or 0)
+    except Exception:
+        result['htft'] = None
     result['home_rank'] = home_rank
     result['away_rank'] = away_rank
     result['home_form'] = home_form
