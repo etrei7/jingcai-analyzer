@@ -124,12 +124,44 @@ def _value_analysis(win_odds, draw_odds, lose_odds, lam_h, lam_a):
     }
 
 
-# 半全场组合标签（半场结果 + 全场结果）
+# 半全场组合标签（竞彩官方术语：半场结果 + 全场结果）
 _HTFT_LABELS = {
-    'HH': '主/主', 'HD': '主/平', 'HA': '主/客',
-    'DH': '平/主', 'DD': '平/平', 'DA': '平/客',
-    'AH': '客/主', 'AD': '客/平', 'AA': '客/客',
+    'HH': '胜胜', 'HD': '胜平', 'HA': '胜负',
+    'DH': '平胜', 'DD': '平平', 'DA': '平负',
+    'AH': '负胜', 'AD': '负平', 'AA': '负负',
 }
+
+# 竞彩官方半全场赔率字段 → 中文标签
+_HTFT_ODDS_KEYS = [
+    ('胜胜', 'hafu_hh'), ('胜平', 'hafu_hd'), ('胜负', 'hafu_ha'),
+    ('平胜', 'hafu_dh'), ('平平', 'hafu_dd'), ('平负', 'hafu_da'),
+    ('负胜', 'hafu_ah'), ('负平', 'hafu_ad'), ('负负', 'hafu_aa'),
+]
+
+
+def _htft_from_odds(match):
+    """用竞彩官方真实半全场赔率(hafu)计算主选/次选。赔率最低=市场最看好。"""
+    items = []
+    for label, key in _HTFT_ODDS_KEYS:
+        try:
+            o = float(match.get(key) or 0)
+        except (TypeError, ValueError):
+            o = 0.0
+        if o > 0:
+            items.append((label, o))
+    if len(items) < 3:
+        return None
+    items.sort(key=lambda x: x[1])   # 赔率升序 = 概率降序
+    tot = sum(1.0 / o for _, o in items)
+    pick, pick2 = items[0], items[1]
+    return {
+        'pick': pick[0], 'odds': pick[1],
+        'prob': round(1.0 / pick[1] / tot * 100, 1) if tot > 0 else 0,
+        'pick2': pick2[0], 'odds2': pick2[1],
+        'prob2': round(1.0 / pick2[1] / tot * 100, 1) if tot > 0 else 0,
+        'all': [{'label': lb, 'odds': o} for lb, o in items],
+        'source': '竞彩官方',
+    }
 
 
 def _compute_htft_probs(lam_h, lam_a, max_goals=5):
@@ -883,10 +915,10 @@ def analyze_single_match(match, standings=None, prediction=None):
         _va = {'value_available': False}
     result['value_analysis'] = _va
     result['odds_move'] = match.get('odds_move')
-    # 半全场推荐（主选+次选）
+    # 半全场推荐（主选+次选）：优先竞彩官方真实赔率，其次模型估算
     try:
-        result['htft'] = _compute_htft_probs(tg.get('expected_home_goals') or 0,
-                                             tg.get('expected_away_goals') or 0)
+        result['htft'] = _htft_from_odds(match) or _compute_htft_probs(
+            tg.get('expected_home_goals') or 0, tg.get('expected_away_goals') or 0)
     except Exception:
         result['htft'] = None
     result['home_rank'] = home_rank
