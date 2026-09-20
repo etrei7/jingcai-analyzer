@@ -99,6 +99,63 @@ def track(match_id, win_odds, draw_odds, lose_odds):
     }
 
 
+def _movement(entry, w, d, l, now):
+    op = entry['opening']
+    mw = _pct(op['w'], w)
+    md = _pct(op['d'], d)
+    ml = _pct(op['l'], l)
+    moves = [('主胜', mw), ('平局', md), ('客胜', ml)]
+    top = min(moves, key=lambda x: x[1])
+    if top[1] <= -2:
+        pressure = top[0] + '资金热'
+    elif top[1] >= 2:
+        pressure = '资金流出'
+    else:
+        pressure = '资金平稳'
+    return {
+        'opening_w': op['w'], 'opening_d': op['d'], 'opening_l': op['l'],
+        'current_w': w, 'current_d': d, 'current_l': l,
+        'move_w': mw, 'move_d': md, 'move_l': ml,
+        'opening_time': op.get('time', ''), 'last_time': now,
+        'pressure': pressure,
+        'has_changed': (abs(mw) >= 1 or abs(md) >= 1 or abs(ml) >= 1),
+    }
+
+
+def track_many(items):
+    """批量记录快照：一次 load、一次 save。items=[(match_id, w, d, l), ...]。
+    返回 {match_id: movement}。避免逐场全量读写 JSON。"""
+    entries = {}
+    with _lock:
+        data = _load()
+        now = datetime.now(CST).strftime('%m-%d %H:%M')
+        for item in items:
+            mid = str(item[0] or '')
+            if not mid:
+                continue
+            try:
+                w = float(item[1] or 0)
+                d = float(item[2] or 0)
+                l = float(item[3] or 0)
+            except (TypeError, ValueError):
+                continue
+            if w <= 0 and d <= 0 and l <= 0:
+                continue
+            entry = data.get(mid)
+            if not entry:
+                entry = {'opening': {'w': w, 'd': d, 'l': l, 'time': now},
+                         'last': {'w': w, 'd': d, 'l': l, 'time': now}}
+                data[mid] = entry
+            else:
+                entry['last'] = {'w': w, 'd': d, 'l': l, 'time': now}
+            entries[mid] = (entry, w, d, l)
+        _save(data)
+    out = {}
+    for mid, (entry, w, d, l) in entries.items():
+        out[mid] = _movement(entry, w, d, l, now)
+    return out
+
+
 def get(match_id):
     """只读获取已有变动（不更新快照）。"""
     mid = str(match_id or '')
