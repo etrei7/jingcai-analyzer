@@ -35,23 +35,33 @@ def daily_settlement():
         def _norm(s):
             return (s or '').replace(' ', '').replace('-', '').lower()
 
-        verified = 0
-        # 按 raw_event_id 精确逐个查 Bzzoiro 单场（预测记录的 raw_event_id 即 Bzzoiro 事件ID）
-        # 不做 50 条限制、不限定 7 天窗口，确保全部未验证都能结转到结果。
-        for p in unverified:
-            eid = p.get('raw_event_id', '')
-            if not eid:
-                continue
-            hs = aw = None
+        def _fetch(eid):
             try:
                 r = requests.get(f'{BASE_URL}/events/{eid}/', headers=headers, timeout=10)
                 if r.status_code == 200:
                     ev = r.json()
-                    hs = ev.get('home_score')
-                    aw = ev.get('away_score')
+                    return eid, ev.get('home_score'), ev.get('away_score')
             except Exception:
                 pass
+            return eid, None, None
 
+        # 并发抓取各场赛果（串行在未验证多时会很慢）
+        eids = [str(p.get('raw_event_id', '')) for p in unverified if p.get('raw_event_id')]
+        results = {}
+        try:
+            from concurrent.futures import ThreadPoolExecutor
+            with ThreadPoolExecutor(max_workers=5) as ex:
+                for eid, hs, aw in ex.map(_fetch, eids):
+                    results[eid] = (hs, aw)
+        except Exception:
+            for eid in eids:
+                _, hs, aw = _fetch(eid)
+                results[eid] = (hs, aw)
+
+        verified = 0
+        for p in unverified:
+            eid = str(p.get('raw_event_id', ''))
+            hs, aw = results.get(eid, (None, None))
             if hs is not None and aw is not None:
                 if hs > aw: actual = '胜'
                 elif hs == aw: actual = '平'
