@@ -37,6 +37,9 @@ def _refresh_intl_async(matches):
             if res:
                 with _intl_lock:
                     _intl_cache.update(res)
+                    if len(_intl_cache) > 400:
+                        for _k in list(_intl_cache.keys())[:len(_intl_cache) - 400]:
+                            _intl_cache.pop(_k, None)
                 with _lock:
                     cached = _cache.get('data')
                     if cached and cached.get('payload'):
