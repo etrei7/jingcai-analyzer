@@ -203,6 +203,8 @@ button{font-family:inherit}
 .rec-copy:hover{background:var(--primary-soft);border-color:var(--primary-border);color:var(--primary)}
 .copy-toast{position:fixed;left:50%;bottom:40px;transform:translateX(-50%) translateY(20px);background:var(--text);color:var(--bg);padding:9px 18px;border-radius:20px;font-size:0.75rem;opacity:0;pointer-events:none;transition:all 0.3s;z-index:9999}
 .copy-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.copy-all-btn{margin-left:8px;background:var(--card-stripe);border:1px solid var(--border-light);border-radius:6px;padding:2px 10px;font-size:0.64rem;color:var(--text-muted);cursor:pointer;font-weight:400}
+.copy-all-btn:hover{background:var(--primary-soft);border-color:var(--primary-border);color:var(--primary)}
 .htft-pick{margin-top:4px;font-size:0.72rem;background:var(--amber-soft);border:1px dashed var(--amber);border-radius:8px;padding:5px 9px;color:var(--text-muted);display:inline-flex;align-items:center;gap:5px;width:fit-content;line-height:1.4}
 
 /* 市场走势条 */
@@ -566,7 +568,7 @@ button{font-family:inherit}
 
     <!-- AI 串关 -->
     <div class="rec-section">
-      <div class="section-title">AI 串关推荐</div>
+      <div class="section-title">AI 串关推荐 <button class="copy-all-btn" onclick="copyAllRecs()">&#128203; 复制全部</button></div>
       <div id="intlBoard"></div>
       <div id="recContainer"><div class="loading">生成推荐方案…</div></div>
     </div>
@@ -1301,9 +1303,7 @@ function renderRecommendations(recs) {
   }).join('')+'</div>';
 }
 
-function copyRec(i) {
-  var r = (window.currentRecs || [])[i];
-  if (!r) return;
+function recToText(r) {
   var lines = [];
   lines.push('【' + (r.name || '') + '】' + (r.plan_type || ''));
   if (r.logic) lines.push('思路: ' + r.logic);
@@ -1314,12 +1314,29 @@ function copyRec(i) {
   });
   lines.push('组合赔率 ' + r.combo_odds + '，预计返奖 ' + r.expected_return);
   if (r.stake_note) lines.push(r.stake_note);
-  var text = lines.join('\n');
+  return lines.join('\n');
+}
+
+function copyText(text) {
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(text).then(function(){ notifyCopied(); }, function(){ fallbackCopy(text); });
   } else {
     fallbackCopy(text);
   }
+}
+
+function copyRec(i) {
+  var r = (window.currentRecs || [])[i];
+  if (!r) return;
+  copyText(recToText(r));
+}
+
+function copyAllRecs() {
+  var recs = window.currentRecs || [];
+  if (!recs.length) { alert('暂无推荐方案'); return; }
+  var parts = recs.map(recToText);
+  var text = '竞彩分析 · ' + new Date().toLocaleString() + '\n\n' + parts.join('\n\n');
+  copyText(text);
 }
 
 function fallbackCopy(text) {
