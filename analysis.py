@@ -620,6 +620,54 @@ LEAGUE_QUALITY = {
 }
 
 
+def _generate_ai_preview(r):
+    """本地规则生成综合分析要点（数据源无 ai_preview 时兜底）。"""
+    seg = []
+    mt = r.get('market_tendency')
+    if mt and mt != '均衡':
+        seg.append('赔率显示资金偏向「%s」' % mt)
+    cl = r.get('confidence_level')
+    cs = r.get('confidence_score') or 0
+    if cl:
+        seg.append('综合基本面与赔率，模型信心为「%s」(%d%%)' % (cl, round(cs * 100)))
+    va = r.get('value_analysis') or {}
+    if va.get('value_available'):
+        be = va.get('best_edge') or 0
+        if be > 0:
+            seg.append('价值盘显示「%s」有 %s%% 正期望（凯利建议 %d%%）'
+                       % (va.get('best_value'), be, round((va.get('kelly_best') or 0) * 100)))
+        else:
+            seg.append('价值盘未发现明显正期望标的')
+    iv = r.get('intl_value') or {}
+    edges = iv.get('edges') or {}
+    if edges:
+        lab = {'home': '主胜', 'draw': '平局', 'away': '客胜'}
+        items = ['%s%s%s%%' % (lab[k], '+' if edges[k] >= 0 else '', edges[k])
+                 for k in ('home', 'draw', 'away') if k in edges]
+        seg.append('竞彩相对国际最佳赔率价值差：' + ' / '.join(items))
+    eg = r.get('expected_goals')
+    if eg:
+        seg.append('预期总进球 %s 球，%s' % (eg, r.get('over_under_tendency') or ''))
+    hp = r.get('hcp_pick') or {}
+    if hp.get('option'):
+        seg.append('让球首选「%s」@ %s' % (hp.get('option'), hp.get('odds')))
+    htft = r.get('htft') or {}
+    if htft.get('pick'):
+        seg.append('半全场倾向「%s」' % htft.get('pick'))
+    om = r.get('odds_move') or {}
+    if om.get('has_changed'):
+        seg.append('初盘→即时赔率：%s' % (om.get('pressure') or ''))
+    inj = r.get('injury_impact')
+    if inj and inj != '无影响':
+        seg.append('伤停影响：%s' % inj)
+    rs = r.get('recommended_score')
+    if rs:
+        seg.append('最可能比分 %s' % rs)
+    if not seg:
+        return ''
+    return '；'.join(seg) + '。（本地模型自动生成，仅供参考）'
+
+
 def analyze_single_match(match, standings=None, prediction=None):
     odds_list = [('胜', match['win_odds']), ('平', match['draw_odds']), ('负', match['lose_odds'])]
     # 无胜平负场次（只开让球）：用安全值，避免 /0，预测标记为"无胜负"
@@ -976,8 +1024,15 @@ def analyze_single_match(match, standings=None, prediction=None):
     result['away_value'] = away_value
     result['h2h'] = h2h
 
+    # AI 综合分析：优先用数据源提供的，否则本地规则生成
+    if not result.get('ai_preview'):
+        try:
+            result['ai_preview'] = _generate_ai_preview(result)
+        except Exception:
+            pass
+
     # Cleanup internal fields
-    for k in ('home_strength', 'league_id', 'home_team_id', 'away_team_id', 'funfacts', 'ai_preview',
+    for k in ('home_strength', 'league_id', 'home_team_id', 'away_team_id', 'funfacts',
               'home_coach_style', 'away_coach_style', 'travel_distance_km', '_raw_date', 'event_date_raw'):
         result.pop(k, None)
 
