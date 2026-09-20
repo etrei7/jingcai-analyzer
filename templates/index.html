@@ -1181,7 +1181,7 @@ function renderRecommendations(recs) {
         <div class="teams"><span class="h">${md.home_team}</span> vs <span class="a">${md.away_team}</span><span style="font-size:0.66rem;color:var(--text-muted);margin-left:5px">${md.league} #${md.match_id}</span></div>
         <div class="detail"><span>推荐: <strong style="color:var(--primary)">${md.option}</strong> @${md.odds}</span><span>${md.hotness_label} | ${md.bookmaker_intent}</span>${md.market_tendency?'<span>市场: '+md.market_tendency+'</span>':''}</div>
       </div>`).join('')}
-      <div class="rec-odds-display"><div class="combo">组合赔率 ${r.combo_odds}</div><div class="ret">${r.expected_return} <span style="font-size:0.6rem;color:var(--text-muted)">${riskNote}</span></div></div>
+      <div class="rec-odds-display"><div class="combo">组合赔率 ${r.combo_odds}</div><div class="ret">${r.expected_return} <span style="font-size:0.6rem;color:var(--text-muted)">${riskNote}</span></div>${r.stake_note?('<div class="ret" style="color:var(--amber);margin-top:2px">&#128176; '+r.stake_note+'</div>'):''}</div>
     </div>`;
   }).join('')+'</div>';
 }
