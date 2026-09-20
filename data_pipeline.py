@@ -178,22 +178,45 @@ def settle_finished():
         # 取所有未结算的 bet（按 match_id 精确查，去重）
         pending_q = BtBet.query.filter_by(settled_at=None).all()
         settled = 0
-        seen_mid = set()
         headers = {'Authorization': f'Token {API_KEY}'}
+
+        # 先对未结算场次去重，再并发抓取赛果
+        eids = []
+        seen_mid = set()
         for b in pending_q:
             eid = str(b.match_id)
-            if not eid or eid in seen_mid:
-                continue
-            seen_mid.add(eid)
+            if eid and eid not in seen_mid:
+                seen_mid.add(eid)
+                eids.append(eid)
+
+        def _fetch(eid):
             try:
                 resp = requests.get(f'{BASE_URL}/events/{eid}/', headers=headers, timeout=10)
-                if resp.status_code != 200:
-                    continue
-                ev = resp.json()
-                hs = ev.get('home_score')
-                aw = ev.get('away_score')
-                if hs is None or aw is None:
-                    continue
+                if resp.status_code == 200:
+                    return eid, resp.json()
+            except Exception:
+                pass
+            return eid, None
+
+        data = {}
+        try:
+            from concurrent.futures import ThreadPoolExecutor
+            with ThreadPoolExecutor(max_workers=5) as ex:
+                for eid, ev in ex.map(_fetch, eids):
+                    if ev:
+                        data[eid] = ev
+        except Exception:
+            for eid in eids:
+                _, ev = _fetch(eid)
+                if ev:
+                    data[eid] = ev
+
+        for eid, ev in data.items():
+            hs = ev.get('home_score')
+            aw = ev.get('away_score')
+            if hs is None or aw is None:
+                continue
+            try:
                 settled += bt.settle_bet(
                     match_id=eid, home_score=hs, away_score=aw,
                     home_team=ev.get('home_team'), away_team=ev.get('away_team'),
