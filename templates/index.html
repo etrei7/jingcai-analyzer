@@ -190,6 +190,7 @@ button{font-family:inherit}
 .intl-list{display:flex;flex-wrap:wrap;gap:8px;color:var(--text-muted)}
 .intl-bk{background:var(--card);border:1px solid var(--border-light);border-radius:6px;padding:1px 6px;white-space:nowrap}
 .intl-val{display:inline-flex;gap:4px;align-items:center;background:var(--primary-soft);border:1px solid var(--primary-border);border-radius:6px;padding:1px 7px;white-space:nowrap}
+.cross-signal{font-size:0.68rem;color:var(--text-muted);margin-top:4px;line-height:1.4}
 .htft-pick{margin-top:4px;font-size:0.72rem;background:var(--amber-soft);border:1px dashed var(--amber);border-radius:8px;padding:5px 9px;color:var(--text-muted);display:inline-flex;align-items:center;gap:5px;width:fit-content;line-height:1.4}
 
 /* 市场走势条 */
@@ -1182,6 +1183,7 @@ function renderMatchesInternal(matches) {
             ${weather.desc && weather.desc!=='未知' ? `<span class="extras-item weather" title="天气">&#9728; ${weather.desc} ${weather.temp!=null?weather.temp+'°C':''}</span>` : `<span class="extras-item na">天气暂无</span>`}
           </div>
           ${m.intl_odds?renderIntlOdds(m):''}
+          ${m.cross_signal?`<div class="cross-signal" title="模型交叉信号（含国际盘口价值方向）">&#9878; ${m.cross_signal}</div>`:''}
         </div>
       </div>
       ${dims}
