@@ -1033,7 +1033,7 @@ def analyze_single_match(match, standings=None, prediction=None):
 
     # Cleanup internal fields
     for k in ('home_strength', 'league_id', 'home_team_id', 'away_team_id', 'funfacts',
-              'home_coach_style', 'away_coach_style', 'travel_distance_km', '_raw_date', 'event_date_raw'):
+              'home_coach_style', 'away_coach_style', '_raw_date', 'event_date_raw'):
         result.pop(k, None)
 
     return result
