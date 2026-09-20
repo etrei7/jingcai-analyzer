@@ -448,6 +448,29 @@ def analyze_data():
                     if eid and eid in _intl_cache:
                         m['intl_odds'] = _intl_cache[eid]
             _refresh_intl_async(matches)
+            # 竞彩 vs 国际：归一化隐含概率差（>0 表示该结果竞彩赔率相对更划算）
+            for m in matches:
+                io = m.get('intl_odds')
+                if not io:
+                    continue
+                best = io.get('best', {})
+                jc = {'home': m.get('win_odds'), 'draw': m.get('draw_odds'), 'away': m.get('lose_odds')}
+                if not all(best.get(k) for k in ('home', 'draw', 'away')):
+                    continue
+                if not all(jc[k] for k in ('home', 'draw', 'away')):
+                    continue
+                s_jc = sum(1.0 / jc[k] for k in jc)
+                s_mkt = sum(1.0 / best[k] for k in ('home', 'draw', 'away'))
+                if s_jc <= 0 or s_mkt <= 0:
+                    continue
+                edges = {k: round(((1.0 / best[k]) / s_mkt - (1.0 / jc[k]) / s_jc) * 100, 1)
+                         for k in ('home', 'draw', 'away')}
+                m['intl_value'] = {
+                    'edges': edges,
+                    'edge_home': edges['home'], 'edge_draw': edges['draw'], 'edge_away': edges['away'],
+                    'jc_overround': round((s_jc - 1) * 100, 1),
+                    'mkt_overround': round((s_mkt - 1) * 100, 1),
+                }
         except Exception:
             pass
 
