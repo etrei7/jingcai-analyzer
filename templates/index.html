@@ -1801,6 +1801,20 @@ function startLiveClock(){
   tick(); setInterval(tick,1000);
 }
 
+/* 页面隐藏时暂停自动刷新，可见时恢复并立即刷新（省请求、减轻服务器） */
+document.addEventListener('visibilitychange', function(){
+  var s = {}; try{ s = JSON.parse(localStorage.getItem('app-settings')||'{}'); }catch(e){}
+  var autoOn = s.autoRefresh !== false;
+  if(document.hidden){
+    if(autoRefreshTimer){ clearInterval(autoRefreshTimer); autoRefreshTimer = null; }
+    if(countdownTimer){ clearInterval(countdownTimer); countdownTimer = null; }
+    var el = document.getElementById('refreshCountdown'); if(el) el.textContent = '';
+  } else if(autoOn){
+    startAutoRefresh();
+    refreshData(false);
+  }
+});
+
 document.addEventListener('keydown',function(e){if(e.key==='Escape')document.getElementById('modalOverlay').style.display='none'});
 document.addEventListener('DOMContentLoaded', function(){
   refreshData();
