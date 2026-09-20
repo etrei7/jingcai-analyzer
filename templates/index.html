@@ -185,6 +185,10 @@ button{font-family:inherit}
 .odds-btn.na-odds{background:var(--card-stripe);color:var(--text-light);border-style:dashed;cursor:default;box-shadow:none}
 .odds-btn.na-odds .val{color:var(--text-light)}
 .hcp-pick{margin-top:3px;font-size:0.72rem;background:var(--primary-soft);border:1px dashed var(--primary-border);border-radius:8px;padding:5px 9px;color:var(--text-muted);display:inline-flex;align-items:center;gap:5px;width:fit-content;line-height:1.4}
+.intl-row{margin-top:5px;font-size:0.68rem;display:flex;flex-wrap:wrap;align-items:center;gap:6px;background:var(--card-stripe);border-radius:8px;padding:5px 9px}
+.intl-best{color:var(--text);font-weight:600}
+.intl-list{display:flex;flex-wrap:wrap;gap:8px;color:var(--text-muted)}
+.intl-bk{background:var(--card);border:1px solid var(--border-light);border-radius:6px;padding:1px 6px;white-space:nowrap}
 .htft-pick{margin-top:4px;font-size:0.72rem;background:var(--amber-soft);border:1px dashed var(--amber);border-radius:8px;padding:5px 9px;color:var(--text-muted);display:inline-flex;align-items:center;gap:5px;width:fit-content;line-height:1.4}
 
 /* 市场走势条 */
@@ -926,6 +930,24 @@ function renderOddsMove(m) {
   return `<span class="extras-item" title="初赔→即赔变动趋势：${t.home>0?'主降'+t.home+'家 ':'主升'+(-t.home)+'家 '} ${t.draw>0?'平降'+t.draw+'家 ':'平升'+(-t.draw)+'家 '} ${t.away>0?'客降'+t.away+'家 ':'客升'+(-t.away)+'家 '}">赔率→${dir}</span>`;
 }
 
+function renderIntlOdds(m) {
+  const io = m.intl_odds;
+  if (!io || !io.bookmakers || !io.bookmakers.length) return '';
+  const b = io.best || {};
+  const prefer = ['pinnacle','bet365','william-hill','1xbet','betfair'];
+  let list = io.bookmakers.filter(function(x){return prefer.indexOf(x.code)>=0;});
+  if (!list.length) list = io.bookmakers.slice(0,4);
+  list = list.slice(0,5);
+  const fmt = function(o){ return (o && o.odds) ? o.odds : '—'; };
+  const rows = list.map(function(x){
+    return '<span class="intl-bk"><b>'+x.name+'</b> 主'+fmt(x.home)+' 平'+fmt(x.draw)+' 客'+fmt(x.away)+'</span>';
+  }).join('');
+  return '<div class="intl-row" title="国际主流博彩公司 1x2 欧赔（最佳报价），供与竞彩盘口对比参考">'+
+    '<span class="intl-best">&#127760; 国际最佳 主<b>'+(b.home||'—')+'</b> 平<b>'+(b.draw||'—')+'</b> 客<b>'+(b.away||'—')+'</b> <span style="color:var(--text-muted)">('+(io.count||0)+'家)</span></span>'+
+    '<span class="intl-list">'+rows+'</span>'+
+  '</div>';
+}
+
 function renderPressureTag(m) {
   const om = m.odds_movement;
   if (!om || !om.pressure_side) return '';
@@ -1151,6 +1173,7 @@ function renderMatchesInternal(matches) {
             ${ref.name && ref.name!=='待定' ? `<span class="extras-item ref" title="裁判">&#9877; ${ref.name}</span>` : `<span class="extras-item na">裁判暂无</span>`}
             ${weather.desc && weather.desc!=='未知' ? `<span class="extras-item weather" title="天气">&#9728; ${weather.desc} ${weather.temp!=null?weather.temp+'°C':''}</span>` : `<span class="extras-item na">天气暂无</span>`}
           </div>
+          ${m.intl_odds?renderIntlOdds(m):''}
         </div>
       </div>
       ${dims}
