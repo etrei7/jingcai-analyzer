@@ -17,6 +17,8 @@ _INSTANCE = os.path.join(_BASE, 'instance')
 os.makedirs(_INSTANCE, exist_ok=True)
 _FILE = os.path.join(_INSTANCE, 'odds_snapshots.json')
 _lock = threading.Lock()
+# 快照条目上限：仅保留最新 N 场，避免 JSON 无限增长拖慢读写
+_MAX_ENTRIES = 1500
 
 
 def _load():
@@ -29,6 +31,11 @@ def _load():
 
 def _save(data):
     try:
+        if len(data) > _MAX_ENTRIES:
+            items = sorted(data.items(),
+                           key=lambda kv: kv[1].get('last', {}).get('time', ''),
+                           reverse=True)
+            data = dict(items[:_MAX_ENTRIES])
         with open(_FILE, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False)
     except Exception as e:
