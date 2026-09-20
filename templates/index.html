@@ -191,6 +191,10 @@ button{font-family:inherit}
 .intl-bk{background:var(--card);border:1px solid var(--border-light);border-radius:6px;padding:1px 6px;white-space:nowrap}
 .intl-val{display:inline-flex;gap:4px;align-items:center;background:var(--primary-soft);border:1px solid var(--primary-border);border-radius:6px;padding:1px 7px;white-space:nowrap}
 .cross-signal{font-size:0.68rem;color:var(--text-muted);margin-top:4px;line-height:1.4}
+.ivb{display:flex;flex-wrap:wrap;align-items:center;gap:8px;background:var(--card);border:1px solid var(--border-light);border-radius:10px;padding:9px 12px;margin-bottom:12px}
+.ivb-title{font-size:0.72rem;font-weight:700;color:var(--text)}
+.ivb-item{font-size:0.68rem;color:var(--text-muted);background:var(--card-stripe);border-radius:6px;padding:2px 8px}
+.ivb-item i{color:var(--high);font-style:normal;font-weight:700}
 .htft-pick{margin-top:4px;font-size:0.72rem;background:var(--amber-soft);border:1px dashed var(--amber);border-radius:8px;padding:5px 9px;color:var(--text-muted);display:inline-flex;align-items:center;gap:5px;width:fit-content;line-height:1.4}
 
 /* 市场走势条 */
@@ -555,6 +559,7 @@ button{font-family:inherit}
     <!-- AI 串关 -->
     <div class="rec-section">
       <div class="section-title">AI 串关推荐</div>
+      <div id="intlBoard"></div>
       <div id="recContainer"><div class="loading">生成推荐方案…</div></div>
     </div>
 
@@ -1204,6 +1209,29 @@ function toggleDetail(el, id) {
   el.innerHTML = (isOpen ? '&#9654; ' : '&#9660; ') + '展开详情（伤停·裁判·天气·泊松·信心·交锋）';
 }
 
+/* ===== 国际价值榜 ===== */
+function renderIntlValueBoard(matches) {
+  var el = document.getElementById('intlBoard');
+  if (!el) return;
+  var rows = [];
+  (matches||[]).forEach(function(m){
+    var e = m.intl_value && m.intl_value.edges;
+    if (!e) return;
+    var side = 'home', bv = e.home;
+    if ((e.draw==null?-99:e.draw) > bv) { side = 'draw'; bv = e.draw; }
+    if ((e.away==null?-99:e.away) > bv) { side = 'away'; bv = e.away; }
+    if (bv > 0) rows.push({m: m, side: side, edge: bv});
+  });
+  if (!rows.length) { el.innerHTML = ''; return; }
+  rows.sort(function(a,b){ return b.edge - a.edge; });
+  rows = rows.slice(0, 5);
+  var label = {home:'主胜', draw:'平局', away:'客胜'};
+  var items = rows.map(function(r){
+    return '<span class="ivb-item" title="竞彩该结果赔率相对国际最佳更划算"><b>'+r.m.home_team+' vs '+r.m.away_team+'</b> '+label[r.side]+' <i>+'+r.edge+'%</i></span>';
+  }).join('');
+  el.innerHTML = '<div class="ivb"><span class="ivb-title">&#128176; 今日国际价值榜</span>'+items+'</div>';
+}
+
 /* ===== AI 串关推荐 ===== */
 function renderRecommendations(recs) {
   const c = document.getElementById('recContainer');
@@ -1598,6 +1626,7 @@ function showData(data){
   updateTimeNote(data.stats);
   renderMatches(data.matches);
   fillAnalystMatches(data.matches);
+  renderIntlValueBoard(data.matches);
   renderRecommendations(data.recommendations);
   allTotalGoals = {};
   (data.total_goals_recs||[]).forEach(function(tg){ if(tg && tg.match_id) allTotalGoals[tg.match_id] = tg; });
