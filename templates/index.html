@@ -284,6 +284,7 @@ button{font-family:inherit}
 .rec-match-item .teams .h{color:var(--home)}.rec-match-item .teams .a{color:var(--away)}
 .rec-match-item .detail{font-size:0.68rem;color:var(--text-muted);display:flex;gap:6px;flex-wrap:wrap}
 .rec-odds-display{text-align:center;margin-top:8px;padding:11px;background:var(--primary-soft);border:1px solid var(--primary-border);border-radius:10px}
+.rec-meta{font-size:0.64rem;color:var(--text-muted);margin-top:6px;display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
 .rec-odds-display .combo{font-size:1.15rem;font-weight:900;color:var(--primary-dark)}
 .rec-odds-display .ret{font-size:0.74rem;color:var(--text-muted);margin-top:3px}
 
@@ -1177,6 +1178,12 @@ function renderRecommendations(recs) {
   c.innerHTML='<div class="rec-grid">'+recs.map(r=>{
     const riskCls=r.risk_level==='低风险'?'rec-risk-low':'rec-risk-mid';
     const co=r.combo_odds||0;
+    const mds=r.matches_detail||[];
+    const times=mds.map(x=>x.match_time).filter(t=>t).sort();
+    const earliest=times[0]||'';
+    const lg={}; mds.forEach(x=>{ if(x.league) lg[x.league]=(lg[x.league]||0)+1; });
+    const sameLg=Object.keys(lg).filter(k=>lg[k]>=2);
+    const corr=sameLg.length?('&#9888; '+sameLg.map(k=>lg[k]+'场'+k).join('、')+' 关联风险'):'';
     const riskNote=co<2.5?'(含保底场，稳健型)':co<5?'(中等回报，攻守兼备)':'(高风险高回报，谨慎参考)';
     return `<div class="rec-card">
       <div class="rec-header"><div><div class="rec-name">${r.name}</div><div class="rec-type">${r.plan_type}</div></div><span class="rec-risk ${riskCls}">${r.risk_level}</span></div>
@@ -1186,6 +1193,7 @@ function renderRecommendations(recs) {
         <div class="detail"><span>推荐: <strong style="color:var(--primary)">${md.option}</strong> @${md.odds}</span><span>${md.hotness_label} | ${md.bookmaker_intent}</span>${md.market_tendency?'<span>市场: '+md.market_tendency+'</span>':''}</div>
       </div>`).join('')}
       <div class="rec-odds-display"><div class="combo">组合赔率 ${r.combo_odds}</div><div class="ret">${r.expected_return} <span style="font-size:0.6rem;color:var(--text-muted)">${riskNote}</span></div>${r.stake_note?('<div class="ret" style="color:var(--amber);margin-top:2px">&#128176; '+r.stake_note+'</div>'):''}</div>
+      <div class="rec-meta">${earliest?('&#9200; 最早 '+earliest+' 开赛'):''} ${corr}</div>
     </div>`;
   }).join('')+'</div>';
 }
