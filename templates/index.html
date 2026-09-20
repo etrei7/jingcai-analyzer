@@ -199,6 +199,10 @@ button{font-family:inherit}
 .intl-table th,.intl-table td{padding:3px 6px;text-align:center;border-bottom:1px solid var(--border-light)}
 .intl-table th{color:var(--text-muted);font-weight:600;font-size:0.64rem}
 .intl-table td:first-child{text-align:left;color:var(--text-muted)}
+.rec-copy{margin-top:8px;width:100%;background:var(--card-stripe);border:1px solid var(--border-light);border-radius:8px;padding:6px;font-size:0.68rem;color:var(--text-muted);cursor:pointer;transition:all 0.15s}
+.rec-copy:hover{background:var(--primary-soft);border-color:var(--primary-border);color:var(--primary)}
+.copy-toast{position:fixed;left:50%;bottom:40px;transform:translateX(-50%) translateY(20px);background:var(--text);color:var(--bg);padding:9px 18px;border-radius:20px;font-size:0.75rem;opacity:0;pointer-events:none;transition:all 0.3s;z-index:9999}
+.copy-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 .htft-pick{margin-top:4px;font-size:0.72rem;background:var(--amber-soft);border:1px dashed var(--amber);border-radius:8px;padding:5px 9px;color:var(--text-muted);display:inline-flex;align-items:center;gap:5px;width:fit-content;line-height:1.4}
 
 /* 市场走势条 */
@@ -1271,8 +1275,9 @@ function scrollToMatch(matchId) {
 /* ===== AI 串关推荐 ===== */
 function renderRecommendations(recs) {
   const c = document.getElementById('recContainer');
+  window.currentRecs = recs || [];
   if(!recs||!recs.length){c.innerHTML='<div style="text-align:center;padding:30px;color:var(--text-muted)">暂无推荐方案</div>';return}
-  c.innerHTML='<div class="rec-grid">'+recs.map(r=>{
+  c.innerHTML='<div class="rec-grid">'+recs.map((r,ri)=>{
     const riskCls=r.risk_level==='低风险'?'rec-risk-low':'rec-risk-mid';
     const co=r.combo_odds||0;
     const mds=r.matches_detail||[];
@@ -1291,8 +1296,46 @@ function renderRecommendations(recs) {
       </div>`).join('')}
       <div class="rec-odds-display"><div class="combo">组合赔率 ${r.combo_odds}</div><div class="ret">${r.expected_return} <span style="font-size:0.6rem;color:var(--text-muted)">${riskNote}</span></div>${r.stake_note?('<div class="ret" style="color:var(--amber);margin-top:2px">&#128176; '+r.stake_note+'</div>'):''}</div>
       <div class="rec-meta">${earliest?('&#9200; 最早 '+earliest+' 开赛'):''} ${corr}</div>
+      <button class="rec-copy" onclick="copyRec(${ri})">&#128203; 复制方案</button>
     </div>`;
   }).join('')+'</div>';
+}
+
+function copyRec(i) {
+  var r = (window.currentRecs || [])[i];
+  if (!r) return;
+  var lines = [];
+  lines.push('【' + (r.name || '') + '】' + (r.plan_type || ''));
+  if (r.logic) lines.push('思路: ' + r.logic);
+  (r.matches_detail || []).forEach(function(md, k){
+    var s = (k + 1) + '. ' + md.home_team + ' vs ' + md.away_team + ' | ' + md.option + ' @' + md.odds;
+    if (md.intl_edge != null) s += ' (国际' + (md.intl_edge > 0 ? '+' : '') + md.intl_edge + '%)';
+    lines.push(s);
+  });
+  lines.push('组合赔率 ' + r.combo_odds + '，预计返奖 ' + r.expected_return);
+  if (r.stake_note) lines.push(r.stake_note);
+  var text = lines.join('\n');
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function(){ notifyCopied(); }, function(){ fallbackCopy(text); });
+  } else {
+    fallbackCopy(text);
+  }
+}
+
+function fallbackCopy(text) {
+  var ta = document.createElement('textarea');
+  ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.select();
+  try { document.execCommand('copy'); notifyCopied(); } catch(e) { alert('复制失败，请手动选择'); }
+  document.body.removeChild(ta);
+}
+
+function notifyCopied() {
+  var t = document.getElementById('copyToast');
+  if (!t) { alert('已复制方案到剪贴板'); return; }
+  t.textContent = '已复制方案';
+  t.classList.add('show');
+  setTimeout(function(){ t.classList.remove('show'); }, 1600);
 }
 
 /* ===== 总进球 ===== */
@@ -1849,5 +1892,6 @@ document.addEventListener('DOMContentLoaded', function(){
   startLiveClock();
 });
 </script>
+<div class="copy-toast" id="copyToast"></div>
 </body>
 </html>
