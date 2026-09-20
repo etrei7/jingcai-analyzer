@@ -510,61 +510,76 @@ def fetch_standings_for_matches(matches):
     return all_standings
 
 
-def fetch_odds_movement_for_matches(matches):
-    """Fetch bookmaker odds movement data for multiple matches.
-    Source: Bzzoiro Odds API (初赔→即赔变动追踪)"""
+def fetch_intl_odds_for_matches(matches, max_matches=6):
+    """拉取国际博彩公司 1x2 赔率，用于与竞彩官方赔率对比（找价值）。
+    Source: Bzzoiro Odds API。仅对 Bzzoiro 来源场次（raw_event_id 为事件ID）有效；
+    返回 {event_id: {'bookmakers': [...], 'best': {...}, 'count': N}}。
+    注意：API 单次硬上限 50 条，故每场只取一次并聚合「每公司每结果的最新报价」。"""
     if not API_KEY:
         return {}
-    movement_map = {}
+    _SIDE = {'HOME': 'home', 'DRAW': 'draw', 'AWAY': 'away'}
+    intl = {}
+    done = 0
     for m in matches:
-        eid = m.get('raw_event_id', '')
-        if not eid:
+        if done >= max_matches:
+            break
+        eid = str(m.get('raw_event_id', '') or '')
+        if not eid.isdigit():
             continue
         try:
             r = requests.get(f'{BASE_URL}/odds/', headers=_headers(),
-                             params={'match': eid, 'limit': 50}, timeout=15)
+                             params={'match': eid, 'market': '1x2', 'limit': 50}, timeout=12)
             r.raise_for_status()
             records = r.json().get('results', [])
-            if not records:
-                continue
-
-            summary = {'bookmakers': {}, 'trend': {'home': 0, 'draw': 0, 'away': 0, 'total': 0}}
-            for rec in records:
-                outcome = rec.get('outcome', '').upper()
-                bookie = rec.get('bookmaker_code', '')
-                if outcome not in ('HOME', 'DRAW', 'AWAY'):
-                    continue
-                move = rec.get('movement', '')
-                odds_now = rec.get('decimal_odds', 0)
-                odds_prev = rec.get('previous_decimal_odds', odds_now)
-
-                side = {'HOME': 'home', 'DRAW': 'draw', 'AWAY': 'away'}[outcome]
-                summary['bookmakers'][bookie] = {
-                    'odds': odds_now, 'prev_odds': odds_prev,
-                    'move': move, 'side': side
-                }
-                summary['total'] += 1
-                if move == 'SHORTENING':
-                    summary['trend'][side] += 1
-                elif move == 'DRIFTING':
-                    summary['trend'][side] -= 1
-                else:
-                    pass  # STEADY or unknown
-
-            if summary['total'] > 0:
-                total_abs = sum(abs(v) for v in summary['trend'].values())
-                if total_abs > 0:
-                    max_side = max(['home', 'draw', 'away'], key=lambda s: summary['trend'][s])
-                    summary['pressure_side'] = {'home': '主队资金热', 'draw': '平局资金热', 'away': '客队资金热'}[max_side]
-                else:
-                    summary['pressure_side'] = '资金均衡'
-                movement_map[str(eid)] = summary
-
         except Exception:
             continue
+        done += 1
+        if not records:
+            continue
 
-    logger.info(f'[Bzzoiro] {len(movement_map)} 场赔率变动数据')
-    return movement_map
+        per = {}
+        for rec in records:
+            side = _SIDE.get(str(rec.get('outcome', '')).upper())
+            if not side:
+                continue
+            code = rec.get('bookmaker_code', '')
+            if not code:
+                continue
+            ts = rec.get('updated_at', '') or ''
+            d = per.setdefault(code, {'name': rec.get('bookmaker', ''),
+                                      'sides': {}, 'ts': {}})
+            if side not in d['ts'] or ts >= d['ts'][side]:
+                d['sides'][side] = {
+                    'odds': float(rec.get('decimal_odds', 0) or 0),
+                    'prev': float(rec.get('previous_decimal_odds', 0) or 0),
+                    'move': rec.get('movement', '') or ''
+                }
+                d['ts'][side] = ts
+
+        bookmakers = []
+        for code, d in per.items():
+            if len(d['sides']) < 3:
+                continue
+            bookmakers.append({
+                'code': code, 'name': d['name'],
+                'home': d['sides'].get('home', {}),
+                'draw': d['sides'].get('draw', {}),
+                'away': d['sides'].get('away', {})
+            })
+        if not bookmakers:
+            continue
+
+        def _best(k):
+            vals = [b[k]['odds'] for b in bookmakers if b.get(k, {}).get('odds')]
+            return max(vals) if vals else 0
+        intl[eid] = {
+            'bookmakers': bookmakers,
+            'best': {'home': _best('home'), 'draw': _best('draw'), 'away': _best('away')},
+            'count': len(bookmakers)
+        }
+
+    logger.info(f'[Bzzoiro] {len(intl)} 场国际赔率对比')
+    return intl
 
 
 def fetch_same_odds_stats(win_odds, draw_odds, lose_odds, league_id=None):
