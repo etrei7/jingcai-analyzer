@@ -1,4 +1,4 @@
-import os, logging, requests, math
+import os, logging, requests, math, time, threading
 from datetime import datetime, timedelta, timezone
 from collections import OrderedDict
 from team_names import TEAM_NAME_CN
@@ -260,13 +260,31 @@ def _parse_event_to_match(event):
     }
 
 
+_enrich_events_cache = {'ts': 0.0, 'list': []}
+_enrich_events_lock = threading.Lock()
+_ENRICH_TTL = 600  # 富化用赛事列表缓存 10 分钟（前端每 30s 轮询，避免重复拉取）
+
+
+def _cached_bz_events(limit=40):
+    """带 TTL 的 Bzzoiro 赛事列表缓存（供竞彩富化使用）。"""
+    with _enrich_events_lock:
+        if _enrich_events_cache['list'] and (time.time() - _enrich_events_cache['ts']) < _ENRICH_TTL:
+            return _enrich_events_cache['list']
+    lst = fetch_events(date_from=None, date_to=None, limit=limit)
+    with _enrich_events_lock:
+        if lst:
+            _enrich_events_cache['list'] = lst
+            _enrich_events_cache['ts'] = time.time()
+        return _enrich_events_cache['list']
+
+
 def enrich_jingcai_matches(matches):
     """用 Bzzoiro 数据富化竞彩场次：伤病/裁判/天气/球队状态（不改动竞彩编号与赔率）。
     优化：先按主队名建立哈希索引，将匹配从 O(N×M) 降为近 O(N)。"""
     if not API_KEY or not matches:
         return matches, 0
     try:
-        bz_list = fetch_events(date_from=None, date_to=None, limit=40)
+        bz_list = _cached_bz_events(40)
         if not bz_list:
             return matches, 0
 
