@@ -330,6 +330,7 @@ def enrich_jingcai_matches(matches):
                     best_score = score
                     best = b
             if best and best_score >= 3:
+                m['bz_event_id'] = str(best.get('raw_event_id', '') or '')
                 m['injuries'] = best.get('injuries', {'home': [], 'away': [], 'home_count': 0, 'away_count': 0})
                 m['referee'] = best.get('referee', {}) or {'name': '待定', 'strictness': '未知', 'avg_yellows': 0, 'avg_reds': 0, 'games': 0}
                 m['weather'] = best.get('weather', {}) or {'code': None, 'desc': '未知', 'temp': None, 'wind': None, 'impact': '无明显影响'}
@@ -523,7 +524,7 @@ def fetch_intl_odds_for_matches(matches, max_matches=6):
     for m in matches:
         if done >= max_matches:
             break
-        eid = str(m.get('raw_event_id', '') or '')
+        eid = str(m.get('bz_event_id') or m.get('raw_event_id', '') or '')
         if not eid.isdigit():
             continue
         try:
