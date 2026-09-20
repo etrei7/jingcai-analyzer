@@ -195,6 +195,10 @@ button{font-family:inherit}
 .ivb-title{font-size:0.72rem;font-weight:700;color:var(--text)}
 .ivb-item{font-size:0.68rem;color:var(--text-muted);background:var(--card-stripe);border-radius:6px;padding:2px 8px}
 .ivb-item i{color:var(--high);font-style:normal;font-weight:700}
+.intl-table{width:100%;border-collapse:collapse;font-size:0.7rem;margin-top:4px}
+.intl-table th,.intl-table td{padding:3px 6px;text-align:center;border-bottom:1px solid var(--border-light)}
+.intl-table th{color:var(--text-muted);font-weight:600;font-size:0.64rem}
+.intl-table td:first-child{text-align:left;color:var(--text-muted)}
 .htft-pick{margin-top:4px;font-size:0.72rem;background:var(--amber-soft);border:1px dashed var(--amber);border-radius:8px;padding:5px 9px;color:var(--text-muted);display:inline-flex;align-items:center;gap:5px;width:fit-content;line-height:1.4}
 
 /* 市场走势条 */
@@ -893,6 +897,7 @@ function renderDetailPanel(m) {
       <h4><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>AI 综合分析</h4>
       <div style="font-size:0.72rem;line-height:1.6;color:var(--text-muted);max-height:120px;overflow-y:auto">${m.ai_preview}</div>
     </div>` : ''}
+    ${m.intl_odds ? renderIntlPanel(m) : ''}
   </div>`;
 }
 
@@ -959,6 +964,28 @@ function renderIntlOdds(m) {
     '<span class="intl-best">&#127760; 国际最佳 主<b>'+(b.home||'—')+'</b> 平<b>'+(b.draw||'—')+'</b> 客<b>'+(b.away||'—')+'</b> <span style="color:var(--text-muted)">('+(io.count||0)+'家)</span></span>'+
     valHtml+
     '<span class="intl-list">'+rows+'</span>'+
+  '</div>';
+}
+
+function renderIntlPanel(m) {
+  const io = m.intl_odds;
+  if (!io || !io.bookmakers || !io.bookmakers.length) return '';
+  const b = io.best || {};
+  const iv = m.intl_value || {};
+  const e = iv.edges || {};
+  const fmt = function(o){ return (o && o.odds) ? o.odds : '—'; };
+  const mv = function(o){ var x = (o && o.move) || ''; return x==='SHORTENING' ? '<span style="color:var(--high)">&#8595;</span>' : x==='DRIFTING' ? '<span style="color:var(--low)">&#8593;</span>' : ''; };
+  const fmtE = function(v){ if (v==null) return '—'; return '<b style="color:'+(v>0?'var(--high)':v<0?'var(--low)':'var(--text-muted)')+'">'+(v>0?'+':'')+v+'%</b>'; };
+  const bk = (io.bookmakers||[]).slice(0, 12);
+  const rows = bk.map(function(x){
+    return '<tr><td>'+x.name+'</td><td>'+fmt(x.home)+mv(x.home)+'</td><td>'+fmt(x.draw)+mv(x.draw)+'</td><td>'+fmt(x.away)+mv(x.away)+'</td></tr>';
+  }).join('');
+  const jcRow = (m.win_odds>0) ? '<tr style="font-weight:700"><td>竞彩官方</td><td>'+(m.win_odds||'—')+'</td><td>'+(m.draw_odds||'—')+'</td><td>'+(m.lose_odds||'—')+'</td></tr>' : '';
+  const bestRow = '<tr style="color:var(--primary);font-weight:700"><td>国际最佳</td><td>'+(b.home||'—')+'</td><td>'+(b.draw||'—')+'</td><td>'+(b.away||'—')+'</td></tr>';
+  const edgeRow = iv.edges ? '<tr><td>价值差</td><td>'+fmtE(e.home)+'</td><td>'+fmtE(e.draw)+'</td><td>'+fmtE(e.away)+'</td></tr>' : '';
+  const note = (iv.jc_overround!=null) ? ('<div style="font-size:0.62rem;color:var(--text-muted);margin-top:5px">竞彩返奖率 '+(100-iv.jc_overround).toFixed(1)+'% vs 国际 '+(100-iv.mkt_overround).toFixed(1)+'%；&#8595;=赔率下降(资金流入)，&#8593;=上升 · 价值差为正=该结果竞彩相对更划算</div>') : '';
+  return '<div class="detail-section" style="grid-column:1/-1"><h4>&#127760; 国际盘口对比 (1x2 欧赔)</h4>'+
+    '<table class="intl-table"><thead><tr><th>公司</th><th>主胜</th><th>平</th><th>客胜</th></tr></thead><tbody>'+jcRow+bestRow+rows+edgeRow+'</tbody></table>'+note+
   '</div>';
 }
 
