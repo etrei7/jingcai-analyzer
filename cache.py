@@ -181,6 +181,14 @@ def _build_payload():
     }
 
 
+def _is_fallback(payload):
+    """判断 payload 是否为降级（模拟/超时）数据。"""
+    try:
+        return str((payload or {}).get('stats', {}).get('source', '')).startswith('模拟')
+    except Exception:
+        return False
+
+
 def get_data(force=False, ttl=None):
     """读取缓存数据；缓存过期或 force 时重建。"""
     ttl = ttl if ttl is not None else _CACHE_TTL
@@ -193,6 +201,12 @@ def get_data(force=False, ttl=None):
     logger.info('[cache] 重建数据（冷启动/过期）')
     payload = _build_payload_with_timeout()
     with _lock:
+        cached = _cache.get('data')
+        # 本次构建降级为模拟数据、但存在较新的真实缓存 → 沿用旧缓存，避免展示假数据
+        if (_is_fallback(payload) and cached and not _is_fallback(cached['payload'])
+                and (now() - cached['ts']) < 1800):
+            logger.warning('[cache] 构建降级，沿用 %.0fs 前的真实缓存', now() - cached['ts'])
+            return cached['payload']
         _cache['data'] = {'ts': now(), 'payload': payload}
     return payload
 
