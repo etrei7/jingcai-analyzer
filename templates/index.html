@@ -1129,7 +1129,7 @@ function renderMatchesInternal(matches) {
     const dims = renderDimGrid(m);
 
     return `
-    <div class="match-card">
+    <div class="match-card" id="mc_${hid}">
       <div class="match-top">
         <div class="match-meta">
           <span class="match-id">${m.match_id}</span>
@@ -1227,9 +1227,18 @@ function renderIntlValueBoard(matches) {
   rows = rows.slice(0, 5);
   var label = {home:'主胜', draw:'平局', away:'客胜'};
   var items = rows.map(function(r){
-    return '<span class="ivb-item" title="竞彩该结果赔率相对国际最佳更划算"><b>'+r.m.home_team+' vs '+r.m.away_team+'</b> '+label[r.side]+' <i>+'+r.edge+'%</i></span>';
+    return '<span class="ivb-item" style="cursor:pointer" onclick="scrollToMatch(\''+r.m.match_id+'\')" title="点击定位到该场比赛"><b>'+r.m.home_team+' vs '+r.m.away_team+'</b> '+label[r.side]+' <i>+'+r.edge+'%</i></span>';
   }).join('');
   el.innerHTML = '<div class="ivb"><span class="ivb-title">&#128176; 今日国际价值榜</span>'+items+'</div>';
+}
+
+function scrollToMatch(matchId) {
+  var el = document.getElementById('mc_' + matchId);
+  if (!el) return;
+  el.scrollIntoView({behavior:'smooth', block:'center'});
+  el.style.transition = 'box-shadow 0.3s';
+  el.style.boxShadow = '0 0 0 3px var(--primary)';
+  setTimeout(function(){ el.style.boxShadow = ''; }, 1600);
 }
 
 /* ===== AI 串关推荐 ===== */
