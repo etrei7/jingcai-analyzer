@@ -47,6 +47,8 @@ def _refresh_intl_async(matches):
                             eid = str(m.get('raw_event_id', '') or '')
                             if eid in res:
                                 m['intl_odds'] = res[eid]
+                                if res[eid].get('movement'):
+                                    m['odds_movement'] = res[eid]['movement']
                 logger.info('[cache] 国际赔率后台更新 %d 场', len(res))
         except Exception as e:
             logger.warning('[cache] 国际赔率后台失败: %s', e)
@@ -141,6 +143,8 @@ def _build_payload():
                 eid = str(m.get('raw_event_id', '') or '')
                 if eid in _intl_cache:
                     m['intl_odds'] = _intl_cache[eid]
+                    if _intl_cache[eid].get('movement'):
+                        m['odds_movement'] = _intl_cache[eid]['movement']
         _refresh_intl_async(matches)
     except Exception as e:
         logger.warning('[cache] 国际赔率注入失败: %s', e)
