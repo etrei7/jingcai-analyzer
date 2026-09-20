@@ -593,9 +593,28 @@ def fetch_intl_odds_for_matches(matches, max_matches=6):
         def _best(k):
             vals = [b[k]['odds'] for b in bookmakers if b.get(k, {}).get('odds')]
             return max(vals) if vals else 0
+
+        # 汇总多公司赔率变动趋势（正=下降/资金流入，负=上升）
+        trend = {'home': 0, 'draw': 0, 'away': 0, 'total': 0}
+        for bm in bookmakers:
+            for side in ('home', 'draw', 'away'):
+                mv = (bm.get(side) or {}).get('move') or ''
+                if mv == 'SHORTENING':
+                    trend[side] += 1
+                    trend['total'] += 1
+                elif mv == 'DRIFTING':
+                    trend[side] -= 1
+                    trend['total'] += 1
+        if trend['total'] > 0 and any(trend[s] for s in ('home', 'draw', 'away')):
+            _mx = max(('home', 'draw', 'away'), key=lambda s: trend[s])
+            pressure_side = {'home': '主队资金热', 'draw': '平局资金热', 'away': '客队资金热'}[_mx]
+        else:
+            pressure_side = '资金均衡'
+
         intl[eid] = {
             'bookmakers': bookmakers,
             'best': {'home': _best('home'), 'draw': _best('draw'), 'away': _best('away')},
+            'movement': {'trend': trend, 'pressure_side': pressure_side},
             'count': len(bookmakers)
         }
 
