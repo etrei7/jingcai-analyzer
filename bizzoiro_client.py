@@ -558,7 +558,7 @@ def fetch_intl_odds_for_matches(matches, max_matches=6):
 
         bookmakers = []
         for code, d in per.items():
-            if len(d['sides']) < 3:
+            if len(d['sides']) < 2:
                 continue
             bookmakers.append({
                 'code': code, 'name': d['name'],
