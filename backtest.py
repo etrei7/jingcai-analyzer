@@ -3,6 +3,8 @@
 全部操作写入新增表（bt_*），不改变原有数据。
 """
 import logging
+import time
+import threading
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
@@ -10,6 +12,24 @@ logger = logging.getLogger(__name__)
 CST_HOURS = 8
 # 是否启用持久化回测（无则仅计算不入库，兼容测试环境）
 USE_DB = True
+
+# 战绩汇总缓存：前端每 30s 轮询，避免重复全表聚合与构建大 records
+_summary_cache = {}
+_summary_lock = threading.Lock()
+_SUMMARY_TTL = 60
+
+
+def compute_summary_cached(period='all', model_name=None, play_type=None):
+    """带 TTL 的 compute_summary（默认 60s），减少重复聚合。"""
+    key = f'{period}|{model_name}|{play_type}'
+    with _summary_lock:
+        v = _summary_cache.get(key)
+        if v and (time.time() - v[0]) < _SUMMARY_TTL:
+            return v[1]
+    data = compute_summary(period, model_name, play_type)
+    with _summary_lock:
+        _summary_cache[key] = (time.time(), data)
+    return data
 
 
 def _cn(name):
