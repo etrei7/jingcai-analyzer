@@ -655,6 +655,11 @@ def backtest_run():
     try:
         from data_pipeline import run_full
         res = run_full()
+        try:
+            from backtest import clear_summary_cache
+            clear_summary_cache()
+        except Exception:
+            pass
         return jsonify({'success': True, **res})
     except Exception as e:
         logging.warning('[API] backtest/run: %s', e)
