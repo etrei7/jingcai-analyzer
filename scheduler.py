@@ -119,6 +119,11 @@ def backtest_pipeline():
             return
         with app.app_context():
             res = run_full()
+        try:
+            from backtest import clear_summary_cache
+            clear_summary_cache()
+        except Exception:
+            pass
         logger.info('[定时任务] 回测流水线完成: %s', res)
     except Exception as e:
         logger.warning('[定时任务] 回测流水线异常: %s', e)
