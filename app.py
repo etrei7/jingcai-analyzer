@@ -639,10 +639,10 @@ def db_check():
 def backtest_stats():
     """回测战绩汇总：命中率 + ROI + 累计盈亏 + 样本量。供战绩面板读取。"""
     try:
-        from backtest import compute_summary
+        from backtest import compute_summary_cached
         play_type = request.args.get('play_type', 'all')
         period = request.args.get('period', 'all')
-        s = compute_summary(period=period, play_type=play_type)
+        s = compute_summary_cached(period=period, play_type=play_type)
         return jsonify(s)
     except Exception as e:
         logging.warning('[API] backtest: %s', e)
