@@ -1095,6 +1095,46 @@ def generate_parlay_recommendations(matches):
                 'expected_return': f"投2元返{round(co * 2, 2)}元"
             })
 
+    # ===== 多玩法自由组合串关：3串1 / 4串1（胜平负+让球+总进球+半全场）=====
+    pool = []
+    for m in matches:
+        plays = _match_play_options(m)
+        if plays:
+            pool.append({'match': m, 'plays': plays})
+    pool.sort(key=lambda x: x['match'].get('confidence_score', 0), reverse=True)
+
+    def _build(sel, name, ptype, risk, logic):
+        co = 1.0
+        details = []
+        for p in sel:
+            plays = sorted(p['plays'], key=lambda x: x['odds'] if x['odds'] > 0 else 999)
+            b = plays[0]
+            if b['odds'] > 0:
+                co *= b['odds']
+            details.append(_make_rec_detail({'match': p['match'],
+                                             'option': f"{b['option']}·{b['play']}", 'odds': b['odds']}))
+        co = round(co, 2)
+        return {
+            'name': name, 'plan_type': ptype, 'combo_odds': co, 'risk_level': risk,
+            'logic': logic, 'matches_detail': details,
+            'expected_return': f"投2元返{round(co * 2, 2)}元",
+            'stake_note': _stake_note(co),
+        }
+
+    if len(pool) >= 3:
+        recommendations.append(_build(pool[:3], '自由组合3串1', '多玩法3串1·稳健', '低风险',
+            '从高信心赛事中各取最稳玩法（胜平负/让球/总进球/半全场），组合3串1'))
+    if len(pool) >= 4:
+        recommendations.append(_build(pool[:4], '自由组合4串1', '多玩法4串1·均衡', '中风险',
+            '4场各取最稳玩法，回报与风险均衡'))
+    if len(pool) >= 4:
+        aggr = []
+        for p in pool[:6]:
+            plays = [x for x in p['plays'] if x['play'] in ('半全场', '总进球')] or p['plays']
+            aggr.append({'match': p['match'], 'plays': plays})
+        recommendations.append(_build(aggr[:4], '自由组合4串1·进攻', '多玩法4串1·激进', '高风险',
+            '优先半全场/总进球等高赔玩法，追求高回报（谨慎参与）'))
+
     return recommendations
 
 
@@ -1138,6 +1178,56 @@ def generate_total_goals_recommendations(matches):
     # 排序：确定性高（档位领先大）优先，其次超高概率；避免全是 2/3 球刷屏
     tg_recs.sort(key=lambda r: (r['margin'], r['main_prob']), reverse=True)
     return tg_recs
+
+
+def _match_play_options(m):
+    """一场比赛在 4 大玩法下的最佳选项（赔率最低=最可能）。
+    返回 [{play, option, odds, prob}]，赔率<=0 的玩法跳过。
+    """
+    out = []
+
+    def add(play, opts):
+        opts = [o for o in opts if o[1] and o[1] > 0]
+        if not opts:
+            return
+        b = min(opts, key=lambda x: x[1])
+        out.append({'play': play, 'option': b[0], 'odds': round(float(b[1]), 2),
+                    'prob': round(100.0 / b[1], 1)})
+
+    # 1. 胜平负
+    add('胜平负', [('胜', m.get('win_odds')), ('平', m.get('draw_odds')), ('负', m.get('lose_odds'))])
+    # 2. 让球胜平负
+    if m.get('handicap_line', 0):
+        add('让球' + str(m.get('handicap', '') or ''), [
+            ('让胜', m.get('handicap_win_odds')),
+            ('让平', m.get('handicap_draw_odds')),
+            ('让负', m.get('handicap_lose_odds'))])
+    # 3. 总进球（主推档，模型估算赔率）
+    top3 = m.get('top3_goals') or []
+    if top3 and top3[0].get('prob', 0) > 0:
+        p = top3[0]['prob']
+        out.append({'play': '总进球', 'option': top3[0]['label'], 'odds': round(100.0 / p, 2), 'prob': p})
+    # 4. 半全场
+    htft = m.get('htft') or {}
+    if htft.get('pick'):
+        o = htft.get('odds') or 0
+        out.append({'play': '半全场', 'option': htft['pick'],
+                    'odds': round(float(o), 2) if o else 0, 'prob': htft.get('prob') or 0})
+    return out
+
+
+def _stake_note(co):
+    """资金管理建议（按组合赔率给建议注额）。"""
+    try:
+        co = float(co)
+    except (TypeError, ValueError):
+        co = 0
+    if co <= 3:
+        return '建议注额 50-100元（低赔稳健）'
+    elif co <= 8:
+        return '建议注额 20-50元（中等回报）'
+    else:
+        return '建议注额 10-20元（高风险，小额试探）'
 
 
 def _make_rec_detail(item):
