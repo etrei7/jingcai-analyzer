@@ -1244,6 +1244,14 @@ def _stake_note(co):
         return '建议注额 10-20元（高风险，小额试探）'
 
 
+def _intl_edge_for(m, option):
+    """该选项对应的国际盘价值差（仅胜平负适用，正值=竞彩相对国际更划算）。"""
+    edges = (m.get('intl_value') or {}).get('edges') or {}
+    if not edges:
+        return None
+    return {'胜': edges.get('home'), '平': edges.get('draw'), '负': edges.get('away')}.get(option)
+
+
 def _make_rec_detail(item):
     m = item['match']
     return {
@@ -1254,4 +1262,5 @@ def _make_rec_detail(item):
         'home_rank': m.get('home_rank'), 'away_rank': m.get('away_rank'),
         'market_tendency': m.get('market_tendency', ''),
         'injury_impact': m.get('injury_impact', ''),
+        'intl_edge': _intl_edge_for(m, item.get('option', '')),
     }
