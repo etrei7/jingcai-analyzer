@@ -805,6 +805,20 @@ def analyze_single_match(match, standings=None, prediction=None):
     elif min_odds < 1.4 and conf_level == '高' and not strong_fund and fund.get('score', 0) < 0.3:
         conf_level = '中'
         confidence_score = min(confidence_score, 0.5)
+
+    # 国际盘口价值：主推方向若竞彩赔率相对国际更划算则加分，背离则减分
+    iv_edges = (match.get('intl_value') or {}).get('edges') or {}
+    if iv_edges:
+        _side_key = {'主胜': 'home', '平局': 'draw', '客胜': 'away'}.get(market_tendency)
+        _iv = iv_edges.get(_side_key) if _side_key else None
+        if _iv is not None:
+            if _iv >= 2.0:
+                confidence_score = min(0.95, confidence_score * 1.06)
+                cross_signal = (cross_signal + '·国际盘有利+%s%%' % _iv) if cross_signal else ('国际盘有利+%s%%' % _iv)
+            elif _iv <= -2.0:
+                confidence_score = min(0.95, confidence_score * 0.94)
+                cross_signal = (cross_signal + '·国际盘不利%s%%' % _iv) if cross_signal else ('国际盘不利%s%%' % _iv)
+
     confidence_level = conf_level
     result_extra = {'cross_signal': cross_signal, 'fund_signals': fund_sig, 'fund_strength': fund['score']}
 
