@@ -12,8 +12,46 @@ logger = logging.getLogger(__name__)
 # 全局缓存
 _cache = {}
 _lock = threading.Lock()
+# 国际赔率缓存（后台线程拉取，避免阻塞主 payload 构建）
+_intl_cache = {}
+_intl_lock = threading.Lock()
+_intl_pending = False
 # 默认缓存有效期（秒）；竞彩官方赔率更新较快，适中TTL避免频繁重建
 _CACHE_TTL = 180
+
+
+def _refresh_intl_async(matches):
+    """后台线程拉取国际博彩公司赔率；完成后注入当前已缓存的 payload。
+    不阻塞主构建（主构建超时会降级为模拟数据，代价太大）。"""
+    global _intl_pending
+    with _intl_lock:
+        if _intl_pending:
+            return
+        _intl_pending = True
+
+    def work():
+        global _intl_pending
+        try:
+            from bizzoiro_client import fetch_intl_odds_for_matches
+            res = fetch_intl_odds_for_matches(matches, max_matches=8)
+            if res:
+                with _intl_lock:
+                    _intl_cache.update(res)
+                with _lock:
+                    cached = _cache.get('data')
+                    if cached and cached.get('payload'):
+                        for m in cached['payload'].get('matches', []):
+                            eid = str(m.get('raw_event_id', '') or '')
+                            if eid in res:
+                                m['intl_odds'] = res[eid]
+                logger.info('[cache] 国际赔率后台更新 %d 场', len(res))
+        except Exception as e:
+            logger.warning('[cache] 国际赔率后台失败: %s', e)
+        finally:
+            with _intl_lock:
+                _intl_pending = False
+
+    threading.Thread(target=work, daemon=True).start()
 
 
 def now():
@@ -90,6 +128,17 @@ def _build_payload():
                 m['odds_move'] = om
     except Exception as e:
         logger.warning('[cache] 赔率追踪失败: %s', e)
+
+    # 国际盘口对比：先从后台缓存注入（避免阻塞），再触发后台刷新
+    try:
+        with _intl_lock:
+            for m in matches:
+                eid = str(m.get('raw_event_id', '') or '')
+                if eid in _intl_cache:
+                    m['intl_odds'] = _intl_cache[eid]
+        _refresh_intl_async(matches)
+    except Exception as e:
+        logger.warning('[cache] 国际赔率注入失败: %s', e)
 
     # 模拟数据最终兜底
     if not matches or len(matches) < 3:
