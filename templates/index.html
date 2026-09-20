@@ -318,6 +318,10 @@ button{font-family:inherit}
 .bt-note{font-size:0.62rem;color:var(--text-light);margin-top:8px;line-height:1.5}
 .bt-group{margin-top:10px}
 .bt-group-head{display:flex;align-items:center;justify-content:space-between;margin:8px 0 5px;padding-bottom:3px;border-bottom:1px solid var(--border-light)}
+.bt-collapsible{cursor:pointer;user-select:none;padding:6px 8px;border-radius:6px}
+.bt-collapsible:hover{background:var(--card-stripe)}
+.bt-arrow{font-size:0.6rem;margin-right:5px;color:var(--text-muted)}
+.bt-group-body{padding-left:4px}
 .bt-group-head .gh-name{font-weight:800;font-size:0.78rem;color:var(--text)}
 .bt-group-head .gh-meta{font-size:0.6rem;color:var(--text-muted)}
 .bt-item{display:flex;justify-content:space-between;align-items:center;padding:6px 9px;border-radius:8px;margin-bottom:3px;font-size:0.68rem}
@@ -1593,6 +1597,14 @@ function updateTimeNote(stats){
 }
 
 /* ===== 回测面板 ===== */
+function toggleBtGroup(id){
+  var body = document.getElementById(id);
+  var arrow = document.getElementById(id + '_a');
+  if(!body) return;
+  var open = body.style.display !== 'none';
+  body.style.display = open ? 'none' : 'block';
+  if(arrow) arrow.innerHTML = open ? '&#9654;' : '&#9660;';
+}
 async function loadBacktestPanel(){
   var c = document.getElementById('historyContainer');
   try{
@@ -1614,11 +1626,7 @@ function renderBacktestPanel(s){
   var rateColor = rate >= 50 ? 'var(--high)' : rate >= 40 ? 'var(--amber)' : 'var(--low)';
   var pnl = s.total_pnl || 0;
   var estTotal = s.estimated_total || 0;   // 估算赔率玩法（比分/半全场）未计入ROI
-  var playOrder = ['胜平负', '让胜平负', '比分', '半全场', '大小球'];
-  var groups = {};
-  records.forEach(function(r){ var pt = r.play_type_cn || '其他'; (groups[pt] = groups[pt] || []).push(r); });
   var groupHtml = '';
-  function isEstimated(pt){ return pt === '比分' || pt === '半全场'; }
   function rElemFn(r){
     var cls = r.outcome === 'win' ? 'win' : r.outcome === 'lose' ? 'lose' : 'pend';
     var team = (r.home_team || '?') + ' vs ' + (r.away_team || '?');
@@ -1626,22 +1634,20 @@ function renderBacktestPanel(s){
     var estTag = r.estimated ? '<span style="opacity:.7;margin-left:4px" title="模型估算赔率，非真实市场盘口，不计入ROI">(参考)</span>' : '';
     return '<div class="bt-item '+cls+'"><span class="bt-team">'+team+'</span><span>'+r.pick_cn+' @'+(r.odds||'—')+estTag+'</span><span style="margin-left:auto">'+st+'</span></div>';
   }
-  playOrder.forEach(function(pt){
-    if(!groups[pt] || !groups[pt].length) return;
-    var list = groups[pt].slice().sort(function(a,b){ var ra = a.outcome? (a.outcome==='win'?2:1) : 0; var rb = b.outcome? (b.outcome==='win'?2:1) : 0; return rb - ra; });
-    var isEst = isEstimated(pt);
-    var w = list.filter(x=>x.outcome==='win').length;
-    var l = list.filter(x=>x.outcome==='lose').length;
-    var p = list.filter(x=>!x.outcome).length;
-    var pnl2 = 0; list.forEach(x=>{ if(x.pnl) pnl2 += x.pnl; });
-    var stake = 0; list.forEach(x=>{ if(x.outcome==='win'||x.outcome==='lose'&&x.stake) stake += x.stake; });
-    var roll = stake? Math.round(pnl2/stake*1000)/10 : 0;
-    var metatxt = isEst ? '命中 '+w+'/'+l+'（'+p+'待结算）｜ 模型估算，不计入ROI' : '命中 '+w+'/'+l+'（'+p+'待结算）｜ 盈亏 '+(pnl2>0?'+':'')+pnl2+' ｜ ROI '+roll+'%';
-    groupHtml += '<div class="bt-group"><div class="bt-group-head"><span class="gh-name">'+pt+(isEst?' (估算)':'')+'</span><span class="gh-meta">'+metatxt+'</span></div>' + list.map(rElemFn).join('') + '</div>';
+  // 按日期分组 + 可折叠（避免记录平铺过长）
+  var dateGroups = {};
+  records.forEach(function(r){
+    var d = String(r.settled_at || r.date || '').substring(0, 10) || '待结算';
+    (dateGroups[d] = dateGroups[d] || []).push(r);
   });
-  Object.keys(groups).forEach(function(pt){
-    if(playOrder.indexOf(pt) >= 0) return;
-    groupHtml += '<div class="bt-group"><div class="bt-group-head"><span class="gh-name">'+pt+'</span></div>' + groups[pt].map(rElemFn).join('') + '</div>';
+  var dateKeys = Object.keys(dateGroups).sort().reverse();
+  dateKeys.forEach(function(d, di){
+    var list = dateGroups[d];
+    var w = list.filter(function(x){return x.outcome==='win';}).length;
+    var l = list.filter(function(x){return x.outcome==='lose';}).length;
+    var p = list.filter(function(x){return !x.outcome;}).length;
+    var pid = 'btDg' + di;
+    groupHtml += '<div class="bt-group"><div class="bt-group-head bt-collapsible" onclick="toggleBtGroup(\''+pid+'\')"><span class="gh-name"><span class="bt-arrow" id="'+pid+'_a">&#9654;</span> '+d+'</span><span class="gh-meta">'+list.length+' 条 ｜ 中'+w+'/失'+l+'/待'+p+'</span></div><div class="bt-group-body" id="'+pid+'" style="display:none">'+list.map(rElemFn).join('')+'</div></div>';
   });
   var estNote = estTotal>0 ? '<div class="bt-note" style="color:var(--amber)">&#9432; 另有 '+estTotal+' 条「比分/半全场」为模型估算赔率（非真实市场盘口），已从上方ROI统计中剔除，仅供参考命中率。</div>' : '';
   c.innerHTML = `
