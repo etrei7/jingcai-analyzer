@@ -349,6 +349,8 @@ def enrich_jingcai_matches(matches):
                     best = b
             if best and best_score >= 3:
                 m['bz_event_id'] = str(best.get('raw_event_id', '') or '')
+                if best.get('ai_preview'):
+                    m['ai_preview'] = best.get('ai_preview')
                 m['injuries'] = best.get('injuries', {'home': [], 'away': [], 'home_count': 0, 'away_count': 0})
                 m['referee'] = best.get('referee', {}) or {'name': '待定', 'strictness': '未知', 'avg_yellows': 0, 'avg_reds': 0, 'games': 0}
                 m['weather'] = best.get('weather', {}) or {'code': None, 'desc': '未知', 'temp': None, 'wind': None, 'impact': '无明显影响'}
