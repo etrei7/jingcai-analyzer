@@ -447,7 +447,7 @@ def analyze_data():
                     eid = str(m.get('bz_event_id', '') or '')
                     if eid and eid in _intl_cache:
                         m['intl_odds'] = _intl_cache[eid]
-            _refresh_intl_async(matches)
+            _refresh_intl_async([x for x in matches if x.get('bz_event_id')])
             # 竞彩 vs 国际：归一化隐含概率差（>0 表示该结果竞彩赔率相对更划算）
             for m in matches:
                 io = m.get('intl_odds')
