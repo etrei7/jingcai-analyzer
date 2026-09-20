@@ -428,14 +428,16 @@ def analyze_data():
         except Exception:
             pass
 
-        # 赔率快照追踪：记录「初盘→即时」变动（供模型与前端展示）
+        # 赔率快照追踪：批量记录「初盘→即时」变动（一次读写，供模型与前端展示）
         try:
-            from odds_tracker import track as track_odds
+            from odds_tracker import track_many
+            _items = [(m.get('raw_event_id') or m.get('match_id'),
+                       m.get('win_odds'), m.get('draw_odds'), m.get('lose_odds')) for m in matches]
+            _om = track_many(_items)
             for m in matches:
-                om = track_odds(m.get('raw_event_id') or m.get('match_id'),
-                                m.get('win_odds'), m.get('draw_odds'), m.get('lose_odds'))
-                if om:
-                    m['odds_move'] = om
+                _mid = str(m.get('raw_event_id') or m.get('match_id') or '')
+                if _mid in _om:
+                    m['odds_move'] = _om[_mid]
         except Exception:
             pass
 
