@@ -189,6 +189,7 @@ button{font-family:inherit}
 .intl-best{color:var(--text);font-weight:600}
 .intl-list{display:flex;flex-wrap:wrap;gap:8px;color:var(--text-muted)}
 .intl-bk{background:var(--card);border:1px solid var(--border-light);border-radius:6px;padding:1px 6px;white-space:nowrap}
+.intl-val{display:inline-flex;gap:4px;align-items:center;background:var(--primary-soft);border:1px solid var(--primary-border);border-radius:6px;padding:1px 7px;white-space:nowrap}
 .htft-pick{margin-top:4px;font-size:0.72rem;background:var(--amber-soft);border:1px dashed var(--amber);border-radius:8px;padding:5px 9px;color:var(--text-muted);display:inline-flex;align-items:center;gap:5px;width:fit-content;line-height:1.4}
 
 /* 市场走势条 */
@@ -942,8 +943,15 @@ function renderIntlOdds(m) {
   const rows = list.map(function(x){
     return '<span class="intl-bk"><b>'+x.name+'</b> 主'+fmt(x.home)+' 平'+fmt(x.draw)+' 客'+fmt(x.away)+'</span>';
   }).join('');
+  let valHtml = '';
+  const iv = m.intl_value;
+  if (iv && iv.edges) {
+    const sgn = function(v){ return '<b style="color:'+(v>0?'var(--high)':v<0?'var(--low)':'var(--text-muted)')+'">'+(v>0?'+':'')+v+'%</b>'; };
+    valHtml = '<span class="intl-val" title="归一化隐含概率差（正值=该结果竞彩赔率相对国际更划算）；竞彩返奖 '+(100-iv.jc_overround).toFixed(1)+'% vs 市场 '+(100-iv.mkt_overround).toFixed(1)+'%">价值 主'+sgn(iv.edge_home)+' 平'+sgn(iv.edge_draw)+' 客'+sgn(iv.edge_away)+'</span>';
+  }
   return '<div class="intl-row" title="国际主流博彩公司 1x2 欧赔（最佳报价），供与竞彩盘口对比参考">'+
     '<span class="intl-best">&#127760; 国际最佳 主<b>'+(b.home||'—')+'</b> 平<b>'+(b.draw||'—')+'</b> 客<b>'+(b.away||'—')+'</b> <span style="color:var(--text-muted)">('+(io.count||0)+'家)</span></span>'+
+    valHtml+
     '<span class="intl-list">'+rows+'</span>'+
   '</div>';
 }
