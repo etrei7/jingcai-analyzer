@@ -32,6 +32,12 @@ def compute_summary_cached(period='all', model_name=None, play_type=None):
     return data
 
 
+def clear_summary_cache():
+    """清空汇总缓存（结算/流水线跑完后调用，避免展示旧数据）。"""
+    with _summary_lock:
+        _summary_cache.clear()
+
+
 def _cn(name):
     """队名归一：英文名经 TEAM_NAME_CN 转中文，中英文统一到同一基准便于匹配。
     若无法映射（小联赛/杯赛队）则原样返回，配合小写去符号规约兜底。"""
