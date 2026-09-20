@@ -439,6 +439,18 @@ def analyze_data():
         except Exception:
             pass
 
+        # 国际盘口：用队名匹配到的 Bzzoiro 事件ID，从后台缓存注入（不阻塞请求）
+        try:
+            from cache import _intl_cache, _intl_lock, _refresh_intl_async
+            with _intl_lock:
+                for m in matches:
+                    eid = str(m.get('bz_event_id', '') or '')
+                    if eid and eid in _intl_cache:
+                        m['intl_odds'] = _intl_cache[eid]
+            _refresh_intl_async(matches)
+        except Exception:
+            pass
+
         source = '竞彩官方'
         analyzed = analyze_matches(matches, None, {})
         recommendations = generate_parlay_recommendations(analyzed)
