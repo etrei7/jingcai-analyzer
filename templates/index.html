@@ -305,6 +305,8 @@ button{font-family:inherit}
 .rec-match-item .detail{font-size:0.68rem;color:var(--text-muted);display:flex;gap:6px;flex-wrap:wrap}
 .rec-odds-display{text-align:center;margin-top:8px;padding:11px;background:var(--primary-soft);border:1px solid var(--primary-border);border-radius:10px}
 .rec-meta{font-size:0.64rem;color:var(--text-muted);margin-top:6px;display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+.rec-cutoff{color:var(--amber-text,var(--amber))}
+.rec-warn{color:var(--amber-text,var(--amber));font-weight:600}
 .rec-odds-display .combo{font-size:1.15rem;font-weight:900;color:var(--primary-dark)}
 .rec-odds-display .ret{font-size:0.74rem;color:var(--text-muted);margin-top:3px}
 
@@ -577,6 +579,12 @@ button{font-family:inherit}
     <div class="rec-section" style="margin-top:20px">
       <div class="section-title">历史预测回测 <button class="copy-all-btn" onclick="runBacktestNow(this)">&#128260; 立即结算</button></div>
       <div id="historyContainer"><div class="loading">加载战绩…</div></div>
+    </div>
+
+    <!-- 串关战绩（串关级命中率，独立于单场） -->
+    <div class="rec-section" style="margin-top:20px">
+      <div class="section-title">串关方案战绩 <span class="st-tag">串关级</span></div>
+      <div id="parlayStatsContainer"><div class="loading">加载串关战绩…</div></div>
     </div>
 
     <!-- 分析师 -->
@@ -1284,10 +1292,12 @@ function renderRecommendations(recs) {
     const co=r.combo_odds||0;
     const mds=r.matches_detail||[];
     const times=mds.map(x=>x.match_time).filter(t=>t).sort();
-    const earliest=times[0]||'';
+    const earliest=r.earliest_time||times[0]||'';
     const lg={}; mds.forEach(x=>{ if(x.league) lg[x.league]=(lg[x.league]||0)+1; });
     const sameLg=Object.keys(lg).filter(k=>lg[k]>=2);
-    const corr=sameLg.length?('&#9888; '+sameLg.map(k=>lg[k]+'场'+k).join('、')+' 关联风险'):'';
+    const corrTxt=r.correlation_warning||(sameLg.length?(sameLg.map(k=>lg[k]+'场'+k).join('、')+' 关联风险'):'');
+    const corr=corrTxt?('&#9888; '+corrTxt):'';
+    const cutoff=r.cutoff_note||(earliest?('请在 '+earliest+' 前完成投注'):'');
     const riskNote=co<2.5?'(含保底场，稳健型)':co<5?'(中等回报，攻守兼备)':'(高风险高回报，谨慎参考)';
     return `<div class="rec-card">
       <div class="rec-header"><div><div class="rec-name">${r.name}</div><div class="rec-type">${r.plan_type}</div></div><span class="rec-risk ${riskCls}">${r.risk_level}</span></div>
@@ -1297,7 +1307,7 @@ function renderRecommendations(recs) {
         <div class="detail"><span>推荐: <strong style="color:var(--primary)">${md.option}</strong> @${md.odds}</span><span>${md.hotness_label} | ${md.bookmaker_intent}</span>${md.market_tendency?'<span>市场: '+md.market_tendency+'</span>':''}${(md.intl_edge!=null)?('<span title="国际盘价值差，正值=竞彩相对更划算" style="color:'+(md.intl_edge>0?'var(--high)':md.intl_edge<0?'var(--low)':'var(--text-muted)')+'">国际'+((md.intl_edge>0?'+':'')+md.intl_edge)+'%</span>'):''}</div>
       </div>`).join('')}
       <div class="rec-odds-display"><div class="combo">组合赔率 ${r.combo_odds}</div><div class="ret">${r.expected_return} <span style="font-size:0.6rem;color:var(--text-muted)">${riskNote}</span></div>${r.stake_note?('<div class="ret" style="color:var(--amber);margin-top:2px">&#128176; '+r.stake_note+'</div>'):''}</div>
-      <div class="rec-meta">${earliest?('&#9200; 最早 '+earliest+' 开赛'):''} ${corr}</div>
+      <div class="rec-meta">${cutoff?('<span class="rec-cutoff">&#9200; '+cutoff+'</span>'):(earliest?('&#9200; 最早 '+earliest+' 开赛'):'')} ${corr?('<span class="rec-warn">'+corr+'</span>'):''}</div>
       <button class="rec-copy" onclick="copyRec(${ri})">&#128203; 复制方案</button>
     </div>`;
   }).join('')+'</div>';
@@ -1728,6 +1738,7 @@ function showData(data){
   (data.total_goals_recs||[]).forEach(function(tg){ if(tg && tg.match_id) allTotalGoals[tg.match_id] = tg; });
   renderHistoryPanel(data.history_stats);
   loadBacktestPanel();
+  loadParlayPanel();
   renderParlay();
   setConnStatus(true, '已连接');
 }
@@ -1781,6 +1792,7 @@ async function runBacktestNow(btn){
   } catch(e) { ok = false; }
   if(btn){ btn.textContent = ok ? '✓ 已完成' : '✗ 失败'; }
   try { await loadBacktestPanel(); } catch(e) {}
+  try { await loadParlayPanel(); } catch(e) {}
   setTimeout(function(){ if(btn){ btn.disabled = false; btn.innerHTML = '&#128260; 立即结算'; } }, 1800);
 }
 
@@ -1844,6 +1856,52 @@ function renderBacktestPanel(s){
       ${groupHtml}
       <div class="bt-note">模型 ${s.model_name||'—'} ｜ 更新 ${s.computed_at||'—'}</div>
       <div class="bt-note">命中率≠盈利：只看命中率可能亏，ROI=总盈亏/总投入，&gt;0 才长期为正期望</div>
+    </div>`;
+}
+
+/* ===== 串关级战绩（独立于单场命中率） ===== */
+async function loadParlayPanel(){
+  var c = document.getElementById('parlayStatsContainer');
+  if(!c) return;
+  try{
+    var resp = await fetch('/api/parlay-stats');
+    if(!resp.ok){ c.innerHTML='<div class="loading">加载串关战绩…</div>'; return; }
+    var s = await resp.json();
+    renderParlayPanel(s);
+  }catch(e){}
+}
+function renderParlayPanel(s){
+  var c = document.getElementById('parlayStatsContainer');
+  if(!c) return;
+  var total = (s && s.total) || 0;
+  if(!total){ c.innerHTML = '<div class="bt-note">暂无串关方案记录（生成推荐后自动记录，赛后自动结算）</div>'; return; }
+  var rate = (s && s.hit_rate) || 0;
+  var roi = (s && s.roi) || 0;
+  var pnl = (s && s.total_pnl) || 0;
+  var rateColor = rate >= 50 ? 'var(--high)' : rate >= 30 ? 'var(--amber)' : 'var(--low)';
+  var roiColor = roi > 0 ? 'var(--high)' : roi < 0 ? 'var(--low)' : 'var(--text)';
+  var recs = (s && s.records) || [];
+  var items = recs.slice(0, 40).map(function(r){
+    var cls = r.outcome === 'win' ? 'win' : r.outcome === 'lose' ? 'lose' : 'pend';
+    var legs = (r.legs || []).map(function(l){
+      return (l.home_team || '?') + 'vs' + (l.away_team || '?') + ' ' + (l.option || '') + '@' + (l.odds || '—');
+    }).join(' | ');
+    var st = r.outcome === 'win' ? '✓ 命中 +' + (r.pnl || 0) : r.outcome === 'lose' ? '✗ 未中 ' + (r.pnl || 0) : '⏳ 待结算';
+    return '<div class="bt-item ' + cls + '"><span class="bt-team">' + (r.name || r.plan_type || '串关') + ' ×' + (r.combo_odds || '—') + '</span><span style="margin-left:auto">' + st + '</span></div>' +
+      '<div class="bt-note" style="margin:-2px 0 6px 4px">' + legs + '</div>';
+  }).join('');
+  c.innerHTML = `
+    <div class="backtest-card">
+      <div class="bt-stats">
+        <div class="bt-stat"><div class="num" style="color:${rateColor}">${rate}%</div><div class="lab">串关命中率</div></div>
+        <div class="bt-stat"><div class="num" style="color:${roiColor}">${roi>0?'+':''}${roi}%</div><div class="lab">串关 ROI</div></div>
+        <div class="bt-stat"><div class="num">${s.wins||0}/${s.losses||0}</div><div class="lab">中/未中</div></div>
+        <div class="bt-stat"><div class="num" style="color:${pnl>0?'var(--high)':pnl<0?'var(--low)':'var(--text)'}">${pnl>0?'+':''}${pnl}</div><div class="lab">累计盈亏</div></div>
+        <div class="bt-stat"><div class="num">${s.pending||0}</div><div class="lab">待结算</div></div>
+      </div>
+      <div class="bt-note">共 ${total} 套方案 ｜ 更新 ${s.computed_at||'—'}</div>
+      ${items}
+      <div class="bt-note">串关为乘法关系：任一腿未中即整套未中，串关命中率通常显著低于单场命中率</div>
     </div>`;
 }
 
