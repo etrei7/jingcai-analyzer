@@ -1142,12 +1142,15 @@ def generate_parlay_recommendations(matches):
             'expected_return': f"投2元返{round(co * 2, 2)}元"
         })
 
-    # 方案四：市场+AI 双确认
+    # 方案四：市场+AI 双确认（要求「基本面独立信号」与市场一致，
+    # 否则 predicted_option 默认即市场最热，双确认会退化为伪确认）
     overlap = []
     for m in matches:
         po = m.get('predicted_option')
         mt = m.get('market_tendency')
-        if po and mt:
+        cs = m.get('cross_signal', '') or ''
+        _fund_agree = ('一致' in cs) or (m.get('fund_strength') or 0) >= 0.4
+        if po and mt and _fund_agree:
             mm = {'主胜': '胜', '平局': '平', '客胜': '负'}
             mo = mm.get(mt)
             if mo and mo == po:
@@ -1201,9 +1204,15 @@ def generate_parlay_recommendations(matches):
     def _build(sel, name, ptype, risk, logic):
         co = 1.0
         details = []
+        est_any = False
         for p in sel:
-            plays = sorted(p['plays'], key=lambda x: x['odds'] if x['odds'] > 0 else 999)
+            # 准确性优先：优先选真实赔率玩法，估算玩法仅在没有实盘时使用
+            plays = sorted(p['plays'],
+                           key=lambda x: (1 if x.get('estimated') else 0,
+                                          x['odds'] if x['odds'] > 0 else 999))
             b = plays[0]
+            if b.get('estimated'):
+                est_any = True
             if b['odds'] > 0:
                 co *= b['odds']
             details.append(_make_rec_detail({'match': p['match'],
@@ -1214,6 +1223,7 @@ def generate_parlay_recommendations(matches):
             'logic': logic, 'matches_detail': details,
             'expected_return': f"投2元返{round(co * 2, 2)}元",
             'stake_note': _stake_note(co),
+            'has_estimated_legs': est_any,
         }
 
     if len(pool) >= 3:
@@ -1302,27 +1312,30 @@ def _match_play_options(m):
             return
         b = min(opts, key=lambda x: x[1])
         out.append({'play': play, 'option': b[0], 'odds': round(float(b[1]), 2),
-                    'prob': round(100.0 / b[1], 1)})
+                    'prob': round(100.0 / b[1], 1), 'estimated': False})
 
-    # 1. 胜平负
+    # 1. 胜平负（真实竞彩赔率）
     add('胜平负', [('胜', m.get('win_odds')), ('平', m.get('draw_odds')), ('负', m.get('lose_odds'))])
-    # 2. 让球胜平负
+    # 2. 让球胜平负（真实竞彩赔率）
     if m.get('handicap_line', 0):
         add('让球' + str(m.get('handicap', '') or ''), [
             ('让胜', m.get('handicap_win_odds')),
             ('让平', m.get('handicap_draw_odds')),
             ('让负', m.get('handicap_lose_odds'))])
-    # 3. 总进球（主推档，模型估算赔率）
+    # 3. 总进球（模型估算赔率，非实盘 → estimated）
     top3 = m.get('top3_goals') or []
     if top3 and top3[0].get('prob', 0) > 0:
         p = top3[0]['prob']
-        out.append({'play': '总进球', 'option': top3[0]['label'], 'odds': round(100.0 / p, 2), 'prob': p})
-    # 4. 半全场
+        out.append({'play': '总进球', 'option': top3[0]['label'], 'odds': round(100.0 / p, 2),
+                    'prob': p, 'estimated': True})
+    # 4. 半全场（官方 hafu 赔率为真，否则模型估算）
     htft = m.get('htft') or {}
     if htft.get('pick'):
         o = htft.get('odds') or 0
         out.append({'play': '半全场', 'option': htft['pick'],
-                    'odds': round(float(o), 2) if o else 0, 'prob': htft.get('prob') or 0})
+                    'odds': round(float(o), 2) if o else 0,
+                    'prob': htft.get('prob') or 0,
+                    'estimated': (htft.get('source') != '竞彩官方')})
     return out
 
 
