@@ -19,14 +19,14 @@ _summary_lock = threading.Lock()
 _SUMMARY_TTL = 60
 
 
-def compute_summary_cached(period='all', model_name=None, play_type=None):
+def compute_summary_cached(period='all', model_name=None, play_type=None, jingcai_only=True):
     """带 TTL 的 compute_summary（默认 60s），减少重复聚合。"""
-    key = f'{period}|{model_name}|{play_type}'
+    key = f'{period}|{model_name}|{play_type}|{jingcai_only}'
     with _summary_lock:
         v = _summary_cache.get(key)
         if v and (time.time() - v[0]) < _SUMMARY_TTL:
             return v[1]
-    data = compute_summary(period, model_name, play_type)
+    data = compute_summary(period, model_name, play_type, jingcai_only=jingcai_only)
     with _summary_lock:
         _summary_cache[key] = (time.time(), data)
     return data
@@ -89,15 +89,30 @@ def record_odds_snapshot(match_id, market, home, draw, away, line=None, source='
 
 def record_prediction(match_id, play_type, pick, predicted_prob, odds,
                       model_name='jingcai-model', confidence=None, combo='single',
-                      home_team=None, away_team=None, estimated=False):
+                      home_team=None, away_team=None, estimated=False, jingcai=False,
+                      existing_keys=None):
     """记录一条 AI 推荐，并评估是否为价值盘。
     estimated=True 表示赔率为模型估算（如比分/半全场），非真实市场赔率，
-    不参与"可投注价值"的 ROI 统计，避免虚构高赔率撑高盈利。"""
+    不参与"可投注价值"的 ROI 统计，避免虚构高赔率撑高盈利。
+    jingcai=True 表示该场为竞彩官方开售场次（战绩面板只统计竞彩场次）。
+    existing_keys 可选：预载的 (match_id, play_type) 集合，用于批量去重，避免重复入库。"""
     value, edge = (False, 0.0)
     if not estimated and predicted_prob is not None and odds:
         value, edge = is_value_bet(predicted_prob, odds)
     if not USE_DB:
         return {'value': value, 'edge': round(edge, 4)}
+
+    # 去重：同一场比赛同一玩法只记一条，消除每次刷新/定时任务的重复入库
+    try:
+        if existing_keys is not None:
+            if (match_id, play_type) in existing_keys:
+                return {'value': value, 'edge': round(edge, 4), 'skipped': True}
+        else:
+            from backtest_models import BtBet as _BB
+            if _BB.query.filter_by(match_id=match_id, play_type=play_type, jingcai=jingcai).first():
+                return {'value': value, 'edge': round(edge, 4), 'skipped': True}
+    except Exception:
+        pass
 
     try:
         from backtest_models import BtPrediction, BtBet, db
@@ -113,7 +128,7 @@ def record_prediction(match_id, play_type, pick, predicted_prob, odds,
             prediction_id=pred.id, match_id=match_id, play_type=play_type,
             pick=pick, odds=odds, stake=1.0,
             home_team=home_team, away_team=away_team,
-            estimated=estimated,
+            estimated=estimated, jingcai=jingcai,
         )
         db.session.add(bet)
         db.session.commit()
@@ -249,11 +264,14 @@ def _eval_play(b, actual, hs, aw, hht, awt, stake):
         return 'void', 0.0
 
 
-def compute_summary(period='all', model_name=None, play_type=None):
-    """聚合战绩：命中率、ROI、累计盈亏。供面板读取。"""
+def compute_summary(period='all', model_name=None, play_type=None, jingcai_only=True):
+    """聚合战绩：命中率、ROI、累计盈亏。供面板读取。
+    jingcai_only=True 时只统计竞彩官方开售场次（过滤体彩不开的 Bzzoiro 场次）。"""
     try:
         from backtest_models import BtBet, db
         q = BtBet.query
+        if jingcai_only:
+            q = q.filter_by(jingcai=True)
         if play_type and play_type != 'all':
             q = q.filter_by(play_type=play_type)
         bets = q.all()
