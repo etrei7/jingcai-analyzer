@@ -642,7 +642,6 @@ def robots():
     return """
 User-agent: *
 Disallow: /api/
-Disallow: /robots.txt
 Allow: /
 
 # 本站内容仅供娱乐参考，非投注平台，不提供实质购彩服务。
@@ -656,8 +655,15 @@ def health():
 
 @app.route('/api/db-check')
 def db_check():
-    """临时诊断：输出 Web 进程实际连接的数据库 URI 与回测表行数。"""
-    info = {'uri': app.config.get('SQLALCHEMY_DATABASE_URI')}
+    """诊断接口：输出回测表行数。默认关闭（避免泄露数据库路径），
+    需设置环境变量 DIAG_ENABLED=1 才启用。"""
+    if os.environ.get('DIAG_ENABLED', '0') != '1':
+        return jsonify({'error': 'not found'}), 404
+    info = {}
+    try:
+        info['has_uri'] = bool(app.config.get('SQLALCHEMY_DATABASE_URI'))
+    except Exception:
+        pass
     try:
         from backtest import compute_summary
         s = compute_summary()
