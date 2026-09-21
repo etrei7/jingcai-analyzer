@@ -118,11 +118,30 @@ def init_scheduler(app):
         max_instances=1,
         coalesce=True,
     )
+    # 资讯刷新：RSS 抓取+分类+队名匹配（只读文件，轻量，不阻塞）
+    scheduler.add_job(
+        refresh_news,
+        'interval',
+        minutes=15,
+        id='news_refresh',
+        max_instances=1,
+        coalesce=True,
+    )
     # 说明：不额外加定时缓存预热任务。uWSGI 单 worker 环境下，后台高频拉取
     # 会阻塞请求处理；缓存改为「请求时按需构建 + 手动 /cache-refresh 强制刷新」。
     scheduler.start()
     app.extensions['scheduler'] = scheduler
     logger.info('[定时任务] APScheduler 已启动：每日 2:30 结算，每 30 分钟回测流水线')
+
+
+def refresh_news():
+    """定时资讯刷新：RSS → 分类 → 队名匹配（失败静默）。"""
+    try:
+        from news_ingest import refresh
+        n = refresh()
+        logger.info('[定时任务] 资讯刷新完成：%d 条', n)
+    except Exception as e:
+        logger.warning('[定时任务] 资讯刷新异常: %s', e)
 
 
 def backtest_pipeline():
