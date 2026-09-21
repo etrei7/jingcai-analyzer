@@ -88,6 +88,7 @@ class BtBet(db.Model):
     play_type = db.Column(db.String(10), nullable=True)
     pick = db.Column(db.String(10), nullable=True)
     odds = db.Column(db.Float, nullable=True)
+    predicted_prob = db.Column(db.Float, nullable=True)  # 模型概率（用于 Brier/log-loss 校准评估）
     stake = db.Column(db.Float, default=1.0)
     outcome = db.Column(db.String(10), nullable=True)
     pnl = db.Column(db.Float, nullable=True)
