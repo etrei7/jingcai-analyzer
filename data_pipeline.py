@@ -250,9 +250,8 @@ def settle_finished():
 
         def _cn(s):
             try:
-                from team_names import TEAM_NAME_CN
-                n = (s or '').strip()
-                return TEAM_NAME_CN.get(n, n)
+                from team_alias import canon
+                return canon(s)
             except Exception:
                 return s or ''
 
@@ -329,6 +328,13 @@ def settle_finished():
                 ev = name_idx.get((_norm(_cn(b.home_team)), _norm(_cn(b.away_team))))
             if ev is None:
                 continue
+            # 学习别名：命中同一场比赛时，记录名(竞彩中文) 与 事件名(Bzzoiro英文) 可能不同
+            try:
+                from team_alias import learn
+                learn(ev.get('home_team'), b.home_team)
+                learn(ev.get('away_team'), b.away_team)
+            except Exception:
+                pass
             hs, aw = ev.get('home_score'), ev.get('away_score')
             if hs is None or aw is None:
                 continue
@@ -360,8 +366,62 @@ def settle_finished():
         return 0
 
 
+_STALE_DAYS = 3
+
+
+def expire_stale(days=_STALE_DAYS):
+    """超期作废：超过 N 天仍无法结算的待结算记录标记 void（pnl=0），保持统计口径干净。
+    返回作废条数。"""
+    n = 0
+    try:
+        from datetime import datetime as _dt, timedelta as _td
+        from backtest_models import BtBet, BtParlay, db
+        now_str = _dt.now().strftime('%Y-%m-%d %H:%M:%S')
+        cutoff = _dt.utcnow() - _td(days=days)
+        try:
+            bets = BtBet.query.filter(BtBet.settled_at.is_(None)) \
+                .filter(BtBet.created_at.isnot(None)) \
+                .filter(BtBet.created_at < cutoff).all()
+        except Exception:
+            bets = []
+        for b in bets:
+            b.outcome = 'void'
+            b.pnl = 0.0
+            b.settled_at = now_str
+            n += 1
+        cutoff_date = (_dt.now() - _td(days=days)).strftime('%Y-%m-%d')
+        try:
+            parlays = BtParlay.query.filter(BtParlay.settled_at.is_(None)) \
+                .filter(BtParlay.plan_date.isnot(None)) \
+                .filter(BtParlay.plan_date < cutoff_date).all()
+        except Exception:
+            parlays = []
+        for p in parlays:
+            p.outcome = 'void'
+            p.pnl = 0.0
+            p.settled_at = now_str
+            n += 1
+        if n:
+            db.session.commit()
+            try:
+                from backtest import clear_summary_cache
+                clear_summary_cache()
+            except Exception:
+                pass
+            try:
+                import parlay_tracker
+                parlay_tracker.clear_parlay_cache()
+            except Exception:
+                pass
+        logger.info('[pipeline] expired %d stale records', n)
+    except Exception as e:
+        logger.warning('[pipeline] expire_stale error: %s', e)
+    return n
+
+
 def run_full():
     """完整流水线（定时任务入口）。"""
     n1 = run_pipeline()
     n2 = settle_finished()
-    return {'snapshots': n1, 'settled': n2}
+    n3 = expire_stale()
+    return {'snapshots': n1, 'settled': n2, 'expired': n3}
