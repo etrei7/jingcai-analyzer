@@ -90,7 +90,7 @@ def record_odds_snapshot(match_id, market, home, draw, away, line=None, source='
 def record_prediction(match_id, play_type, pick, predicted_prob, odds,
                       model_name='jingcai-model', confidence=None, combo='single',
                       home_team=None, away_team=None, estimated=False, jingcai=False,
-                      existing_keys=None, confidence_level=None):
+                      existing_keys=None, confidence_level=None, league=None):
     """记录一条 AI 推荐，并评估是否为价值盘。
     estimated=True 表示赔率为模型估算（如比分/半全场），非真实市场赔率，
     不参与"可投注价值"的 ROI 统计，避免虚构高赔率撑高盈利。
@@ -129,6 +129,7 @@ def record_prediction(match_id, play_type, pick, predicted_prob, odds,
             pick=pick, odds=odds, predicted_prob=predicted_prob, stake=1.0,
             home_team=home_team, away_team=away_team,
             estimated=estimated, jingcai=jingcai, confidence_level=confidence_level,
+            league=league,
         )
         db.session.add(bet)
         db.session.commit()
