@@ -15,18 +15,21 @@ flowchart TD
   end
 
   subgraph Backend[Flask 后端]
-    API["/api/analyze · /api/data · /api/realtime<br/>/api/backtest · /api/parlay-stats · /api/value-stats · /api/calibration"]
+    API["/api/analyze · /api/data · /api/realtime<br/>/api/backtest · /api/parlay-stats · /api/value-stats<br/>/api/calibration · /api/news · /api/lineup · /api/ab-test"]
     CACHE[cache.py<br/>内存缓存 + 构建互斥]
     AN[analysis.py<br/>分析引擎]
     VE[value_engine.py<br/>价值盘引擎]
     PT[parlay_tracker.py<br/>串关追踪]
     CAL[calibration.py<br/>信心/同类场次校准]
+    NWS[news_ingest.py<br/>RSS 资讯信号]
+    LUP[lineup_client.py<br/>官方首发]
   end
 
   subgraph Sources[外部数据源]
     BZ[Bzzoiro API<br/>赛事/赔率/伤停/国际盘]
-    AFB[API-Football<br/>积分榜基本面]
+    AFB[API-Football<br/>积分榜]
     TSD[thesportsdb / rankings.py<br/>联赛排名]
+    RSS[Sky / BBC / Goal / ESPN RSS]
     OD[odds_tracker.py<br/>初盘→即时]
   end
 
@@ -36,16 +39,45 @@ flowchart TD
   CACHE --> API
   BZ --> API
   AFB --> CACHE
+  AFB --> LUP
   TSD --> AN
+  RSS --> NWS
   OD --> API
   API --> AN
   AN --> VE
   AN --> PT
-  AN --> CAL
+  API --> CAL
+  API --> NWS
+  API --> LUP
+  NWS --> API
+  LUP --> API
   VE --> API
   PT --> API
   API --> IDX
 ```
+
+### 资讯 / 首发闭环
+
+```mermaid
+flowchart LR
+  RSS[Sky/BBC/Goal/ESPN RSS] --> ING[news_ingest.refresh<br/>每 15 分钟]
+  ING --> CLS[关键词分类<br/>伤停/停赛/轮换/主帅/首发]
+  CLS --> MATCH[队名匹配<br/>team_names + team_alias]
+  MATCH --> SIG[(instance/news_cache.json)]
+  AFB2[API-Football] --> LUP[lineup_client<br/>临场 120min 窗口<br/>严格匹配 联赛+日期+双队名]
+  SIG --> APPLY[apply_to_matches<br/>保守降级 / 提示]
+  LUP --> ATT[attach<br/>只读展示]
+  APPLY --> REC[推荐 / 信心调整]
+  ATT --> REC
+  APPLY --> BTF[bt_bets.news_flag]
+  ATT --> BTL[bt_bets.lineup_flag]
+  BTF --> AB[ab_summary /api/ab-test<br/>有 vs 无 命中率/ROI]
+  BTL --> AB
+  AB --> REC
+```
+
+> 资讯/首发**只做保守处理**：预测方伤停/停赛不利才降级，绝不据此改方向；
+> 是否真的有效，由 `ab_summary` 用「有 vs 无」的命中率/ROI 数据说话。
 
 ### 模块职责
 
@@ -85,7 +117,8 @@ flowchart TD
 4. **同类场次校准**：等级/赔率区间/联赛历史不盈利 → **降级**（只降不升）。
 5. **资讯信号（保守）**：RSS 抓取 Sky/BBC/Goal/ESPN → 分类伤停/停赛/轮换 → 匹配到队；
    仅当**预测方**有伤停/停赛不利时降级，绝不据此改方向；前端比赛卡展示「资讯」。
-5. **价值盘**（独立输出）：以锐盘去水概率为基准，Dixon-Coles 对数几率校准
+   临场 120 分钟内额外拉**官方首发**（`lineup_client`），只读展示 + 标记「首发已确认」。
+6. **价值盘**（独立输出）：以锐盘去水概率为基准，Dixon-Coles 对数几率校准
    （权重 0.9→0.6 随样本自适应），`edge ≥ 2%` 才推荐，分数凯利定注。
 
 ---
@@ -95,19 +128,20 @@ flowchart TD
 ```mermaid
 flowchart LR
   A[前端加载竞彩场次] --> B[/api/analyze 分析+推荐/]
-  B --> C[record_jingcai_plays<br/>bt_bets: 1X2/AH/TG/HTFT/CS]
+  B --> N[资讯/首发标记<br/>news_flag / lineup_flag]
+  N --> C[record_jingcai_plays<br/>bt_bets: 1X2/AH/TG/HTFT/CS]
   B --> D[record_value_picks<br/>bt_bets: VAL 价值盘]
   B --> E[record_parlays<br/>bt_parlays: 各套串关]
   C --> F[scheduler 每30min<br/>data_pipeline.run_full]
   D --> F
   E --> F
   F --> G[settle_finished<br/>事件ID + 队名 双索引]
-  G --> H[expire_stale<br/>超3天作废 void]
   G --> I[team_alias.learn<br/>别名自学习]
   I --> G
+  G --> H[expire_stale<br/>超3天作废 void]
   H --> J[calibration<br/>等级/分段/联赛 → 降级]
   J --> B
-  G --> K[compute_summary<br/>命中率 / ROI / Brier / LogLoss]
+  G --> K[compute_summary 命中率/ROI/Brier<br/>ab_summary: 有资讯/首发 vs 无]
   K --> B
 ```
 
