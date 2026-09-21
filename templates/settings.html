@@ -112,7 +112,7 @@ select:hover{border-color:var(--primary)}
     <div class="card-head"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></svg>数据源</div>
     <div class="card-body">
       <div class="setting-row">
-        <div><div class="setting-label">数据来源</div><div class="setting-desc">用于实时数据接口 /api/realtime 的默认数据源</div></div>
+        <div><div class="setting-label">数据来源</div><div class="setting-desc">首页优先使用的数据源（竞彩官方直连 或 Bzzoiro 第三方）</div></div>
         <div class="radio-group" id="sourceGroup">
           <button class="radio-btn active" data-src="sporttery">竞彩官方</button>
           <button class="radio-btn" data-src="bzzoiro">Bzzoiro</button>
@@ -151,7 +151,7 @@ select:hover{border-color:var(--primary)}
 
 <div class="footer">
   <p class="disclaimer">免责声明：本网站所有数据及分析仅供娱乐参考，不构成任何投注建议。赛果与赔率实时变动，请以中国体育彩票官方发布为准。</p>
-  <p>&copy; 2024 竞彩足球智能分析 | AI生成内容仅供参考 | 数据来源于公开信息</p>
+  <p>&copy; <span class="copyYear">2026</span> 竞彩足球智能分析 | AI生成内容仅供参考 | 数据来源于公开信息</p>
 </div>
 
 <div class="toast" id="toast">设置已保存</div>
@@ -211,6 +211,7 @@ function saveSettings(){
   showToast('设置已保存');
 }
 loadSettings();
+document.querySelectorAll('.copyYear').forEach(function(e){ e.textContent = new Date().getFullYear(); });
 </script>
 </body>
 </html>
