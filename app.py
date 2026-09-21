@@ -65,6 +65,15 @@ with app.app_context():
 init_scheduler(app)
 
 
+def _record_parlays_safe(recs, source):
+    """记录串关方案用于串关级命中率追踪（失败不影响主流程）。"""
+    try:
+        import parlay_tracker
+        parlay_tracker.record_parlays(recs, source=source)
+    except Exception as e:
+        logging.warning('[API] parlay record failed: %s', e)
+
+
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -156,6 +165,7 @@ def get_data():
             save_predictions(analyzed)
         except Exception:
             pass
+        _record_parlays_safe(recommendations, source)
     history_stats = get_stats()
 
     return jsonify({
@@ -244,6 +254,7 @@ def get_realtime():
             save_predictions(analyzed)
         except Exception:
             pass
+        _record_parlays_safe(recommendations, 'realtime:' + str(source))
         return analyses, recommendations, total_goals_recs
 
     try:
@@ -484,6 +495,7 @@ def analyze_data():
         total_goals_recs = generate_total_goals_recommendations(analyzed)
         try: save_predictions(analyzed)
         except Exception: pass
+        _record_parlays_safe(recommendations, '竞彩官方')
         return jsonify({
             'matches': analyzed, 'recommendations': recommendations,
             'total_goals_recs': total_goals_recs, 'history_stats': get_stats(),
@@ -558,6 +570,7 @@ def analyze_data():
             save_predictions(analyzed)
         except Exception:
             pass
+        _record_parlays_safe(recommendations, source)
     history_stats = get_stats()
 
     return jsonify({
@@ -649,6 +662,18 @@ def backtest_stats():
     except Exception as e:
         logging.warning('[API] backtest: %s', e)
         return jsonify({'total_bets': 0, 'total_pnl': 0, 'roi': 0, 'hit_rate': 0, 'pending': 0})
+
+
+@app.route('/api/parlay-stats')
+def parlay_stats():
+    """串关级命中率/ROI 汇总：单场命中率≠串关命中率，此处独立统计每套方案。"""
+    try:
+        from parlay_tracker import parlay_summary_cached
+        return jsonify(parlay_summary_cached())
+    except Exception as e:
+        logging.warning('[API] parlay-stats: %s', e)
+        return jsonify({'total': 0, 'settled': 0, 'pending': 0, 'wins': 0, 'losses': 0,
+                        'hit_rate': 0, 'total_stake': 0, 'total_pnl': 0, 'roi': 0, 'records': []})
 
 
 @app.route('/api/backtest/run', methods=['POST'])
