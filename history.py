@@ -86,23 +86,6 @@ def save_predictions(matches):
     _recalc_stats(hist)
     _save_history(hist)
     logger.info(f'[History] saved {added} new, {len(hist["predictions"])} total predictions')
-
-
-def verify_prediction(raw_event_id, actual_result, score=''):
-    """验证单条预测结果: actual_result = '胜'/'平'/'负'"""
-    hist = _load_history()
-    for p in hist['predictions']:
-        if str(p.get('raw_event_id', '')) == str(raw_event_id) and not p.get('verified'):
-            p['verified'] = True
-            p['actual'] = actual_result
-            p['score'] = score
-            p['hit'] = (p['predicted'] == actual_result)
-            logger.info(f'[History] {p["match_id"]} {p["home_team"]}vs{p["away_team"]}: predicted={p["predicted"]} actual={actual_result} hit={p["hit"]}')
-            break
-    _recalc_stats(hist)
-    _save_history(hist)
-
-
 def get_stats():
     """返回当前战绩统计数据"""
     hist = _load_history()
