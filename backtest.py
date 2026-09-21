@@ -350,24 +350,3 @@ def compute_summary(period='all', model_name=None, play_type=None):
     except Exception as e:
         logger.warning('[backtest] summary failed: %s', e)
         return {'period': period, 'total_bets': 0, 'total_pnl': 0, 'roi': 0, 'hit_rate': 0, 'pending': 0, 'records': []}
-
-
-def persist_summary(period='all', model_name=None, play_type=None):
-    """物化战绩汇总到 bt_backtest_summary，供面板快速读取。"""
-    if not USE_DB:
-        return None
-    try:
-        from backtest_models import BtBacktestSummary, db
-        s = compute_summary(period, model_name, play_type)
-        row = BtBacktestSummary(
-            period=period, model_name=model_name, play_type=play_type or 'all',
-            total_bets=s['total_bets'], wins=s['wins'], losses=s['losses'], voids=s['voids'],
-            hit_rate=s['hit_rate'], total_stake=s['total_stake'], total_pnl=s['total_pnl'],
-            roi=s['roi'], avg_odds=s['avg_odds'], computed_at=s['computed_at'],
-        )
-        db.session.add(row)
-        db.session.commit()
-        return row
-    except Exception as e:
-        logger.warning('[backtest] persist failed: %s', e)
-        return None
