@@ -58,6 +58,11 @@ def _migrate_bt_bets():
                 conn.execute(text("ALTER TABLE bt_bets ADD COLUMN confidence_level VARCHAR(10)"))
                 conn.commit()
             logging.info('[迁移] bt_bets 已补充 confidence_level 列（信心校准）')
+        if 'league' not in cols:
+            with db.engine.connect() as conn:
+                conn.execute(text("ALTER TABLE bt_bets ADD COLUMN league VARCHAR(50)"))
+                conn.commit()
+            logging.info('[迁移] bt_bets 已补充 league 列（同类场次校准）')
         # 回填历史估算玩法（半全场 HTFT / 比分 CS）为 estimated=1，
         # 修复旧记录被误计入真实赔率 ROI 的问题
         with db.engine.connect() as conn:
@@ -653,32 +658,67 @@ def analyze_data():
 
 
 def _filter_by_jingcai(matches, jc_list):
-    """将 Bzzoiro 场次匹配到竞彩官单，过滤非竞彩场次并覆盖 match_id"""
+    """将 Bzzoiro 场次**按队名规约精确匹配**到竞彩官单（主客队名都必须匹配），
+    过滤非竞彩场次并覆盖 match_id。
+
+    准确性优先：旧实现按「联赛+顺序」硬匹配，容易把无关比赛配上竞彩编号，已弃用。
+    现要求 jc_list 提供队名：
+      - 新格式（推荐）：[{'id': '周日001', 'home': '曼联', 'away': '曼城', 'league': '英超'}, ...]
+      - 旧格式 [id, league] 因缺队名**不再做顺序猜测**，直接跳过（避免错配）。
+    无任一条目含队名时，返回 (matches, False)，由上层走「匹配失败」分支。
+    """
     if not jc_list:
         return matches, False
 
-    bz_by_league = {}
-    for m in matches:
-        league_cn = m.get('league', '')
-        bz_by_league.setdefault(league_cn, []).append(m)
+    def _norm(s):
+        return (s or '').replace(' ', '').replace('-', '').lower()
 
-    jc_by_league = {}
+    def _cn(s):
+        try:
+            from team_names import TEAM_NAME_CN
+            n = (s or '').strip()
+            return TEAM_NAME_CN.get(n, n)
+        except Exception:
+            return s or ''
+
+    entries = []
     for item in jc_list:
-        if isinstance(item, list) and len(item) >= 2:
-            jid, jleague = item[0], item[1]
-            jc_by_league.setdefault(jleague, []).append(jid)
+        if isinstance(item, dict):
+            jid = item.get('id') or item.get('match_id') or ''
+            home = item.get('home') or item.get('home_team') or ''
+            away = item.get('away') or item.get('away_team') or ''
+            lg = item.get('league') or ''
+        elif isinstance(item, list) and len(item) >= 2:
+            jid, lg = item[0], item[1]
+            home = away = ''   # 旧格式无队名 → 不参与匹配
+        else:
+            continue
+        if not jid:
+            continue
+        entries.append({'id': jid, 'league': lg,
+                        'h': _norm(_cn(home)), 'a': _norm(_cn(away))})
+
+    named = [e for e in entries if e['h'] and e['a']]
+    if not named:
+        return matches, False
 
     matched = []
-    for jleague, jids in jc_by_league.items():
-        bz_list = bz_by_league.get(jleague, [])
-        if not bz_list:
+    used = set()
+    for m in matches:
+        h = _norm(_cn(m.get('home_team')))
+        a = _norm(_cn(m.get('away_team')))
+        if not h or not a:
             continue
-        bz_list.sort(key=lambda m: m.get('match_time', '99:99'))
-        for idx, jid in enumerate(jids):
-            if idx < len(bz_list):
-                m = bz_list[idx]
-                m['match_id'] = jid
+        for e in named:
+            if e['id'] in used:
+                continue
+            h_ok = (h == e['h'] or h in e['h'] or e['h'] in h)
+            a_ok = (a == e['a'] or a in e['a'] or e['a'] in a)
+            if h_ok and a_ok:
+                m['match_id'] = e['id']
+                used.add(e['id'])
                 matched.append(m)
+                break
 
     if matched:
         return matched, True
