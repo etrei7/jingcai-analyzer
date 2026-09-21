@@ -667,6 +667,16 @@ let hasLoadedOnce = false;  // 已成功加载过（用于避免刷新时闪烁/
 var JINGCAI_TOKEN = '';
 var JINGCAI_ODDS_TIME = '';
 
+// 读取用户设置的自动刷新间隔（秒），默认 30 秒，范围 10-600
+function getRefreshSec(){
+  try{
+    var s = JSON.parse(localStorage.getItem('app-settings')||'{}');
+    var v = parseInt(s.refreshSec, 10);
+    if(v >= 10 && v <= 600) return v;
+  }catch(e){}
+  return 30;
+}
+
 /* ===== 数据获取 ===== */
 // 带重试的 fetch：遇 403/429/5xx 或网络错误时指数退避重试。
 // 注意：浏览器禁止 JS 设置 User-Agent/Origin/Accept-Language（forbidden headers），
@@ -1673,8 +1683,12 @@ async function refreshData(force){
       setConnStatus(false);
     }
 
+    // 数据源偏好（系统设置）：bzzoiro 时跳过竞彩直连，直接走缓存/Bzzoiro
+    var prefs={}; try{ prefs=JSON.parse(localStorage.getItem('app-settings')||'{}'); }catch(e){}
+    var preferBz = prefs.dataSource === 'bzzoiro';
+
     // 竞彩官方（后端 /api/analyze 优先）：成功可获最真实赔率与场单
-    var jcResp = fetchJingcaiList().then(async function(jc){
+    var jcResp = preferBz ? Promise.resolve(null) : fetchJingcaiList().then(async function(jc){
       if(jc&&jc.length>=3){
         var r=await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({jingcai_matches:jc,client_time:new Date().toISOString(),odds_time:JINGCAI_ODDS_TIME})});
         return r.ok?r.json():null;
@@ -1920,7 +1934,7 @@ document.addEventListener('DOMContentLoaded', function(){
 function startCountdown(){
   if(countdownTimer) clearInterval(countdownTimer);
   var el = document.getElementById('refreshCountdown');
-  countdownSec = 30;
+  countdownSec = getRefreshSec();
   if(!el) return;
   countdownTimer = setInterval(function(){
     countdownSec--;
@@ -1931,7 +1945,7 @@ function startCountdown(){
 function startAutoRefresh(){
   if(autoRefreshTimer) clearInterval(autoRefreshTimer);
   startCountdown();
-  autoRefreshTimer=setInterval(function(){ refreshData(false); startCountdown(); }, 30000);
+  autoRefreshTimer=setInterval(function(){ refreshData(false); startCountdown(); }, getRefreshSec()*1000);
 }
 function toggleAutoRefresh(el){
   const on = !el.classList.contains('on');
