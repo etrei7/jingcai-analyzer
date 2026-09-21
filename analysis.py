@@ -1131,7 +1131,8 @@ def generate_parlay_recommendations(matches):
     # 方案一：稳胆2串1 (胜平负)
     plan1 = []
     for m in matches:
-        if m['confidence_level'] == '高' and m['hotness_label'] == '适度热门' and not m.get('overpriced'):
+        if (m['confidence_level'] == '高' and m['hotness_label'] == '适度热门'
+                and not m.get('overpriced') and not m.get('seg_bad')):
             opts = [('胜', m['win_odds']), ('平', m['draw_odds']), ('负', m['lose_odds'])]
             q = [o for o in opts if o[1] < 1.8]
             if q:
@@ -1179,7 +1180,8 @@ def generate_parlay_recommendations(matches):
             })
 
     # 方案三：高信心双选2串1（两场高信心赛事各自最低赔组合，使用真实赔率，不编造大小球盘口）
-    hc = [m for m in matches if m['confidence_level'] == '高' and not m.get('overpriced')]
+    hc = [m for m in matches if m['confidence_level'] == '高'
+          and not m.get('overpriced') and not m.get('seg_bad')]
     if len(hc) >= 2:
         hc.sort(key=lambda m: m.get('confidence_score', 0), reverse=True)
         a, b = hc[0], hc[1]
@@ -1203,7 +1205,7 @@ def generate_parlay_recommendations(matches):
         mt = m.get('market_tendency')
         cs = m.get('cross_signal', '') or ''
         _fund_agree = ('一致' in cs) or (m.get('fund_strength') or 0) >= 0.4
-        if po and mt and _fund_agree and not m.get('overpriced'):
+        if po and mt and _fund_agree and not m.get('overpriced') and not m.get('seg_bad'):
             mm = {'主胜': '胜', '平局': '平', '客胜': '负'}
             mo = mm.get(mt)
             if mo and mo == po:
