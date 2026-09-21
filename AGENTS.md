@@ -72,6 +72,10 @@ python tools/test_logic.py
   在 analyze 后调用；`/api/calibration` 供前端展示校准表。
 - **价值覆盖**：`analysis.py` 给每场打 `overpriced`（推荐方向竞彩赔率相对锐盘 edge≤-3%）标记，
   串关的稳胆/高信心/双确认方案**排除 overpriced 场次**；AI 预览会提示"价值不足"。
+- **单场多玩法独立回测**：竞彩记录 1X2/AH/TG/HTFT（真实赔率）与 CS（估算）。
+  官方盘口来源：`hhad`→AH、`ttg`→TG(`analysis._tg_from_official`/`result.tg_pick`)、
+  `hafu`→HTFT；非官方(模型)推算的一律 `estimated=True`，不计入 ROI 但计命中率。
+  `backtest._eval_play` 支持 TG 精确进球结算（`'7+'`=≥7）。
 - **串关级追踪**：表 `bt_parlays`，逻辑在 `parlay_tracker.py`（`record_parlays` 记录 /
   `settle_parlays` 结算 / `parlay_summary_cached` 汇总，60s TTL）。单场命中率≠串关命中率。
   结算任一腿未中即整套未中；腿的结算玩法/pick 由 `analysis.py::_infer_leg_meta` 从 option 推断
