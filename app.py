@@ -675,9 +675,8 @@ def _filter_by_jingcai(matches, jc_list):
 
     def _cn(s):
         try:
-            from team_names import TEAM_NAME_CN
-            n = (s or '').strip()
-            return TEAM_NAME_CN.get(n, n)
+            from team_alias import canon
+            return canon(s)
         except Exception:
             return s or ''
 
