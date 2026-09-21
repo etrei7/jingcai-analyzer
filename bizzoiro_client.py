@@ -339,7 +339,9 @@ def enrich_jingcai_matches(matches):
                 if score > best_score:
                     best_score = score
                     best = b
-            if best and best_score >= 3:
+            # 准确性优先：要求「主客队双队名」均匹配（满分4）才认定，
+            # 避免仅凭单队名子串+同小时(3分)错配到无关比赛，污染伤停/排名/国际盘。
+            if best and best_score >= 4:
                 m['bz_event_id'] = str(best.get('raw_event_id', '') or '')
                 if best.get('ai_preview'):
                     m['ai_preview'] = best.get('ai_preview')
