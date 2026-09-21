@@ -26,6 +26,15 @@ def _norm(s):
     return (s or '').replace(' ', '').replace('-', '').lower()
 
 
+def _key(name):
+    """队名匹配键：先规范（含学习别名转中文）再去符号小写。"""
+    try:
+        from team_alias import canon
+        return _norm(canon(name))
+    except Exception:
+        return _norm(name)
+
+
 def _leg_signature(legs):
     parts = []
     for l in sorted(legs, key=lambda x: (str(x.get('match_id')), str(x.get('option')))):
@@ -130,7 +139,7 @@ def settle_parlays(results):
         results = results or {}
         name_idx = {}
         for _mid, ev in results.items():
-            h, a = _norm(ev.get('home_team')), _norm(ev.get('away_team'))
+            h, a = _key(ev.get('home_team')), _key(ev.get('away_team'))
             if h and a:
                 name_idx[(h, a)] = ev
         pending = BtParlay.query.filter_by(settled_at=None).all()
@@ -146,7 +155,7 @@ def settle_parlays(results):
                 mid = str(l.get('match_id'))
                 ev = results.get(mid)
                 if ev is None:
-                    ev = name_idx.get((_norm(l.get('home_team')), _norm(l.get('away_team'))))
+                    ev = name_idx.get((_key(l.get('home_team')), _key(l.get('away_team'))))
                 if ev is None:
                     outcomes.append('pending')
                     continue
