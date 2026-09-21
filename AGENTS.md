@@ -48,3 +48,19 @@ python tools/selfcheck.py
 - 表 `bt_*`（`odds_snapshots` / `bets` / `summary`），定时任务见 `scheduler.py`。
 - 结算按 Bzzoiro `match_id` 精确查；流水线 `data_pipeline.run_full()` 采集+结算。
 - 战绩汇总 `compute_summary` 有 60s TTL 缓存，结算后调 `clear_summary_cache()`。
+
+## 已知死代码（技术债，可清理，无功能影响）
+
+以下函数经 AST 静态分析确认**无任何引用**（历史重构遗留），如清理请确认后统一删除：
+
+- `bizzoiro_client.py::_format_time`（已被 `_format_time_cst` 取代）
+- `bizzoiro_client.py::fetch_actionable_results`、`fetch_same_odds_stats`、`_monte_carlo_same_odds`
+- `analysis.py::_goal_distribution`、`_stable_random`
+- `jingcai_scraper.py::_get_share_token`
+- `backtest.py::persist_summary`
+- `history.py::verify_prediction`
+- `odds_tracker.py::track`（已被 `track_many` 取代，保留作 API 兼容）
+- `scheduler.py::warmup_cache`（保留的手动预热入口）
+
+> 注意：`data_generator.generate_matches` 虽被报为"未引用"，实际是通过 `from data_generator import generate_matches as generate_mock_matches` **别名导入**使用，**不可删**。
+
