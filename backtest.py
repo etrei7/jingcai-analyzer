@@ -126,7 +126,7 @@ def record_prediction(match_id, play_type, pick, predicted_prob, odds,
         db.session.flush()
         bet = BtBet(
             prediction_id=pred.id, match_id=match_id, play_type=play_type,
-            pick=pick, odds=odds, stake=1.0,
+            pick=pick, odds=odds, predicted_prob=predicted_prob, stake=1.0,
             home_team=home_team, away_team=away_team,
             estimated=estimated, jingcai=jingcai,
         )
@@ -196,8 +196,8 @@ def _eval_play(b, actual, hs, aw, hht, awt, stake):
         pt = b.play_type or '1X2'
         pick = b.pick or ''
 
-        # 1X2 胜平负
-        if pt == '1X2':
+        # 1X2 胜平负（VAL 为价值盘胜平负，判定同 1X2）
+        if pt in ('1X2', 'VAL'):
             if pick == actual:
                 return 'win', round((b.odds - 1) * stake, 4)
             elif pick in ('H', 'D', 'A'):
@@ -300,6 +300,8 @@ def compute_summary(period='all', model_name=None, play_type=None, jingcai_only=
             if pt == '1X2':
                 p = {'H': '主胜', 'D': '平', 'A': '客胜'}.get(pick, pick)
                 return p
+            if pt == 'VAL':
+                return '价值' + {'H': '主胜', 'D': '平', 'A': '客胜'}.get(pick, pick)
             if pt == 'AH':
                 if '|' in pick:
                     p, line = pick.split('|', 1)
@@ -323,7 +325,8 @@ def compute_summary(period='all', model_name=None, play_type=None, jingcai_only=
                        ('小' + str(float(pick[1:]) / 10.0) + '球') if pick.startswith('U') else pick
             return pick
 
-        play_cn = {'1X2': '胜平负', 'AH': '让胜平负', 'CS': '比分', 'HTFT': '半全场', 'OU': '大小球'}
+        play_cn = {'1X2': '胜平负', 'AH': '让胜平负', 'CS': '比分', 'HTFT': '半全场',
+                   'OU': '大小球', 'VAL': '价值盘'}
         records = []
         for b in bets:
             rec = {
