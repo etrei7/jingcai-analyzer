@@ -605,8 +605,23 @@ LEAGUE_QUALITY = {
 
 
 def _generate_ai_preview(r):
-    """本地规则生成综合分析要点（数据源无 ai_preview 时兜底）。"""
+    """本地规则生成综合分析要点（数据源无 ai_preview 时兜底）。
+    尽量结合排名/状态/伤停/赔率异动等具体数据，减少模板化表述。"""
     seg = []
+    # 排名对比（最直观的实力信号）
+    hr, ar = r.get('home_rank'), r.get('away_rank')
+    if hr and ar and hr > 0 and ar > 0:
+        if hr < ar:
+            seg.append('主队排名第%d、高于客队第%d' % (hr, ar))
+        elif ar < hr:
+            seg.append('客队排名第%d、高于主队第%d' % (ar, hr))
+        else:
+            seg.append('双方排名并列第%d' % hr)
+    # 近期状态
+    hf, af = r.get('home_form'), r.get('away_form')
+    if hf or af:
+        seg.append('近5场 主队%s / 客队%s' % (
+            _format_string(hf) or '数据不足', _format_string(af) or '数据不足'))
     mt = r.get('market_tendency')
     if mt and mt != '均衡':
         seg.append('赔率显示资金偏向「%s」' % mt)
@@ -629,6 +644,8 @@ def _generate_ai_preview(r):
         items = ['%s%s%s%%' % (lab[k], '+' if edges[k] >= 0 else '', edges[k])
                  for k in ('home', 'draw', 'away') if k in edges]
         seg.append('竞彩相对国际最佳赔率价值差：' + ' / '.join(items))
+    if r.get('hotness_label'):
+        seg.append('热度「%s」、庄家%s' % (r.get('hotness_label'), r.get('bookmaker_intent') or '中性'))
     eg = r.get('expected_goals')
     if eg:
         seg.append('预期总进球 %s 球，%s' % (eg, r.get('over_under_tendency') or ''))
@@ -644,11 +661,16 @@ def _generate_ai_preview(r):
     inj = r.get('injury_impact')
     if inj and inj != '无影响':
         seg.append('伤停影响：%s' % inj)
+    csig = r.get('cross_signal')
+    if csig and '国际盘' not in csig and csig != '赔率主导':
+        seg.append('信号：%s' % csig)
     rs = r.get('recommended_score')
     if rs:
         seg.append('最可能比分 %s' % rs)
     if not seg:
-        return ''
+        # 极端缺数据时也给出可读结论，避免空白
+        return '数据较有限，模型以赔率为主给出参考倾向「%s」。（本地模型自动生成，仅供参考）' \
+               % (r.get('predicted_option') or '待定')
     return '；'.join(seg) + '。（本地模型自动生成，仅供参考）'
 
 
