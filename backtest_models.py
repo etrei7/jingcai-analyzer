@@ -116,3 +116,26 @@ class BtBacktestSummary(db.Model):
     roi = db.Column(db.Float, default=0)
     avg_odds = db.Column(db.Float, default=0)
     computed_at = db.Column(db.String(25), nullable=True)
+
+
+class BtParlay(db.Model):
+    """串关方案记录（回测单位）：单场命中率 ≠ 串关命中率（乘法关系），
+    故独立建表追踪每套串关的结算结果与累计盈亏。"""
+    __tablename__ = 'bt_parlays'
+
+    id = db.Column(db.Integer, primary_key=True)
+    plan_date = db.Column(db.String(10), index=True)      # 生成日期 YYYY-MM-DD
+    name = db.Column(db.String(120), nullable=True)
+    plan_type = db.Column(db.String(60), nullable=True)
+    risk_level = db.Column(db.String(20), nullable=True)
+    combo_odds = db.Column(db.Float, nullable=True)
+    stake = db.Column(db.Float, default=1.0)              # 回测单位本金
+    stake_pct = db.Column(db.Float, default=0)            # 建议投入比例(%)
+    source = db.Column(db.String(30), nullable=True)
+    legs_json = db.Column(db.Text, nullable=True)         # 各场明细 JSON
+    signature = db.Column(db.String(200), index=True)     # 去重签名
+    outcome = db.Column(db.String(10), nullable=True)     # win/lose
+    pnl = db.Column(db.Float, nullable=True)
+    earliest_time = db.Column(db.String(10), nullable=True)
+    created_at = db.Column(db.String(25), nullable=True)
+    settled_at = db.Column(db.String(25), nullable=True)
