@@ -1355,6 +1355,8 @@ def generate_total_goals_recommendations(matches):
         if _tgp.get('source') == '竞彩官方' and _tgp.get('label'):
             rec['main_pick'] = _tgp['label']
             rec['main_prob'] = _tgp.get('prob', rec['main_prob'])
+        # 备选：排除主推，避免与主推重复（官方主推与模型 top3 可能不同）
+        rec['alt_picks'] = [g['label'] for g in top3 if g['label'] != rec['main_pick']][:2]
         tg_recs.append(rec)
     # 排序：确定性高（档位领先大）优先，其次超高概率；避免全是 2/3 球刷屏
     tg_recs.sort(key=lambda r: (r['margin'], r['main_prob']), reverse=True)
