@@ -1,7 +1,7 @@
 """
 竞彩官方数据刮削器 - 从 sporttery.cn 获取每日场单和赔率
 """
-import requests, json, logging, re, random
+import requests, json, logging, re
 from datetime import datetime, timezone, timedelta
 
 logger = logging.getLogger(__name__)
@@ -89,7 +89,9 @@ def fetch_jingcai_matches():
                     'source': '竞彩官方',
                     # 附加数据字段
                     'handicap': '0',
-                    'injuries': {'home': [], 'away': [], 'home_count': random.randint(0, 3), 'away_count': random.randint(0, 3)},
+                    # 不编造伤停：真实伤停由 Bzzoiro 富化(enrich_jingcai_matches)覆盖；
+                    # 未匹配到时保持为空，避免用随机数据误导用户与模型。
+                    'injuries': {'home': [], 'away': [], 'home_count': 0, 'away_count': 0},
                     'referee': {'name': '待定', 'strictness': '未知', 'avg_yellows': 0, 'avg_reds': 0, 'games': 0},
                     'weather': {'code': None, 'desc': '未知', 'temp': None, 'wind': None, 'impact': '无明显影响'},
                     'travel_distance_km': None,
