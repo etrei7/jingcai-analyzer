@@ -457,9 +457,15 @@ def fetch_standings(league_id):
         return {}
 
 
+_pred_cache = {'ts': 0, 'data': {}}
+_PRED_TTL = 300
+
+
 def fetch_predictions():
     if not API_KEY:
         return {}
+    if _pred_cache['data'] and (time.time() - _pred_cache['ts']) < _PRED_TTL:
+        return _pred_cache['data']
     url = f'{BASE_URL}/predictions/'
     try:
         resp = requests.get(url, headers=_headers(), params={'upcoming': 'true'}, timeout=20)
@@ -486,10 +492,13 @@ def fetch_predictions():
                     'prob_btts': p.get('prob_btts_yes'),
                 }
         logger.info(f'[Bzzoiro] {len(pred_map)} 条预测')
+        if pred_map:
+            _pred_cache['ts'] = time.time()
+            _pred_cache['data'] = pred_map
         return pred_map
     except Exception as e:
         logger.warning(f'[Bzzoiro] predictions: {e}')
-        return {}
+        return _pred_cache['data'] or {}
 
 
 def fetch_standings_for_matches(matches):
