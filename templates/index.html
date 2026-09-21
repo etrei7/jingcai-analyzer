@@ -575,7 +575,7 @@ button{font-family:inherit}
 
     <!-- 战绩面板 -->
     <div class="rec-section" style="margin-top:20px">
-      <div class="section-title">历史预测回测</div>
+      <div class="section-title">历史预测回测 <button class="copy-all-btn" onclick="runBacktestNow(this)">&#128260; 立即结算</button></div>
       <div id="historyContainer"><div class="loading">加载战绩…</div></div>
     </div>
 
@@ -1771,6 +1771,19 @@ function toggleBtGroup(id){
   body.style.display = open ? 'none' : 'block';
   if(arrow) arrow.innerHTML = open ? '&#9654;' : '&#9660;';
 }
+async function runBacktestNow(btn){
+  if(btn){ btn.disabled = true; btn.textContent = '结算中…'; }
+  var ok = false;
+  try {
+    var r = await fetch('/api/backtest/run', {method:'POST'});
+    var d = await r.json();
+    ok = !!(d && d.success);
+  } catch(e) { ok = false; }
+  if(btn){ btn.textContent = ok ? '✓ 已完成' : '✗ 失败'; }
+  try { await loadBacktestPanel(); } catch(e) {}
+  setTimeout(function(){ if(btn){ btn.disabled = false; btn.innerHTML = '&#128260; 立即结算'; } }, 1800);
+}
+
 async function loadBacktestPanel(){
   var c = document.getElementById('historyContainer');
   try{
