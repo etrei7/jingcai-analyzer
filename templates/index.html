@@ -1942,7 +1942,7 @@ function renderBacktestPanel(s){
   function rElemFn(r){
     var cls = r.outcome === 'win' ? 'win' : r.outcome === 'lose' ? 'lose' : 'pend';
     var team = (r.home_team || '?') + ' vs ' + (r.away_team || '?');
-    var st = r.outcome==='win' ? '✓ 命中'+(r.estimated?' (估算赔率)':' +'+(r.pnl||0)) : r.outcome==='lose' ? '✗ 未中'+(r.estimated?' (估算赔率)':' '+(r.pnl||0)) : '⏳ 待结算';
+    var st = r.outcome==='win' ? '✓ 命中'+(r.estimated?' (估算赔率)':' +'+(r.pnl||0)) : r.outcome==='lose' ? '✗ 未中'+(r.estimated?' (估算赔率)':' '+(r.pnl||0)) : r.outcome==='void' ? '— 作废(超期未结算)' : '⏳ 待结算';
     var estTag = r.estimated ? '<span style="opacity:.7;margin-left:4px" title="模型估算赔率，非真实市场盘口，不计入ROI">(参考)</span>' : '';
     return '<div class="bt-item '+cls+'"><span class="bt-team">'+team+'</span><span>'+r.pick_cn+' @'+(r.odds||'—')+estTag+'</span><span style="margin-left:auto">'+st+'</span></div>';
   }
@@ -2007,7 +2007,7 @@ function renderParlayPanel(s){
     var legs = (r.legs || []).map(function(l){
       return (l.home_team || '?') + 'vs' + (l.away_team || '?') + ' ' + (l.option || '') + '@' + (l.odds || '—');
     }).join(' | ');
-    var st = r.outcome === 'win' ? '✓ 命中 +' + (r.pnl || 0) : r.outcome === 'lose' ? '✗ 未中 ' + (r.pnl || 0) : '⏳ 待结算';
+    var st = r.outcome === 'win' ? '✓ 命中 +' + (r.pnl || 0) : r.outcome === 'lose' ? '✗ 未中 ' + (r.pnl || 0) : r.outcome === 'void' ? '— 作废' : '⏳ 待结算';
     return '<div class="bt-item ' + cls + '"><span class="bt-team">' + (r.name || r.plan_type || '串关') + ' ×' + (r.combo_odds || '—') + '</span><span style="margin-left:auto">' + st + '</span></div>' +
       '<div class="bt-note" style="margin:-2px 0 6px 4px">' + legs + '</div>';
   }).join('');
