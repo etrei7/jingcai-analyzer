@@ -57,6 +57,7 @@ flowchart TD
 | `parlay_tracker.py` | 串关级独立追踪：记录 / 逐腿结算 / 命中率与 ROI |
 | `calibration.py` | 信心等级 + 同类场次（玩法\|赔率区间 / 联赛）校准，保守降级 |
 | `team_alias.py` | 队名别名学习（英文→中文），提升队名兜底结算率 |
+| `news_ingest.py` | 资讯（RSS）抓取→关键词分类→队名匹配，做保守降级/提示 |
 | `backtest.py` | 回测业务：记录投注、按玩法结算、汇总命中率/ROI/Brier/LogLoss |
 | `backtest_models.py` | `bt_*` 表模型（赔率快照 / 预测 / 投注 / 串关 / 汇总） |
 | `data_pipeline.py` | 结算流水线：`run_full` = `settle_finished` + `expire_stale` |
@@ -81,6 +82,8 @@ flowchart TD
    与市场一致→提信心；强信号相悖→改判；否则降信心。
 3. **价值覆盖**：推荐方向竞彩赔率相对国际锐盘 `edge ≤ -3%` → 标 `overpriced`，**串关排除**。
 4. **同类场次校准**：等级/赔率区间/联赛历史不盈利 → **降级**（只降不升）。
+5. **资讯信号（保守）**：RSS 抓取 Sky/BBC/Goal/ESPN → 分类伤停/停赛/轮换 → 匹配到队；
+   仅当**预测方**有伤停/停赛不利时降级，绝不据此改方向；前端比赛卡展示「资讯」。
 5. **价值盘**（独立输出）：以锐盘去水概率为基准，Dixon-Coles 对数几率校准
    （权重 0.9→0.6 随样本自适应），`edge ≥ 2%` 才推荐，分数凯利定注。
 
@@ -133,6 +136,7 @@ flowchart LR
 | `GET /api/parlay-stats` | 串关级命中率与 ROI |
 | `GET /api/value-stats` | 价值盘 ROI + Brier/LogLoss + 权重 |
 | `GET /api/calibration` | 信心/分段/联赛校准表 |
+| `GET /api/news` · `POST /api/news/refresh` | 资讯概要 / 手动刷新 RSS 资讯 |
 | `GET /health` · `GET /robots.txt` | 健康检查 / 爬虫声明 |
 
 ---
