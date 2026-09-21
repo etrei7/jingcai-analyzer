@@ -6,6 +6,8 @@ logger = logging.getLogger(__name__)
 CST = timezone(timedelta(hours=8))
 
 HISTORY_FILE = os.path.join(os.path.dirname(__file__), 'predictions_history.json')
+# 历史文件容量上限：超出后仅保留最新 N 条，避免 JSON 无限增长拖慢读写
+_MAX_RECORDS = 3000
 
 
 def _load_history():
@@ -20,6 +22,11 @@ def _load_history():
 
 def _save_history(hist):
     try:
+        # 容量上限：只保留最新记录，防止文件无限增长
+        for key in ('predictions', 'bets'):
+            lst = hist.get(key)
+            if isinstance(lst, list) and len(lst) > _MAX_RECORDS:
+                hist[key] = lst[-_MAX_RECORDS:]
         with open(HISTORY_FILE, 'w', encoding='utf-8') as f:
             json.dump(hist, f, ensure_ascii=False, indent=2)
     except Exception as e:
