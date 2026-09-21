@@ -197,8 +197,8 @@ def _eval_play(b, actual, hs, aw, hht, awt, stake):
                     line = float(line)
                 except Exception:
                     line = 0
-                diff = (hs or 0) - (aw or 0)
-                adj = diff - line
+                # line 为让球线（负=主让）：让球后主队净胜 = 主进球 + line - 客进球
+                adj = (hs or 0) + line - (aw or 0)
                 ah_actual = 'H' if adj > 0 else 'A' if adj < 0 else 'D'
                 if p == ah_actual:
                     return 'win', round((b.odds - 1) * stake, 4)
