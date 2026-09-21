@@ -572,7 +572,25 @@ def analyze_data():
             pass
 
         source = '竞彩官方'
-        analyzed = analyze_matches(matches, None, {})
+        # 结合 Bzzoiro 备用源：把 Bzzoiro 预测（期望进球/概率/信心）按 bz_event_id 映射到竞彩场次
+        pred_map = {}
+        try:
+            from bizzoiro_client import fetch_predictions
+            _preds = fetch_predictions()
+            for m in matches:
+                eid = str(m.get('bz_event_id') or '')
+                key = str(m.get('raw_event_id') or m.get('match_id') or '')
+                if eid and key and eid in _preds:
+                    pred_map[key] = _preds[eid]
+        except Exception as e:
+            logging.warning('[API] bzzoiro predictions merge failed: %s', e)
+        analyzed = analyze_matches(matches, None, pred_map)
+        # 联赛排名增强（thesportsdb / Bzzoiro 备选）
+        try:
+            from rankings import enhance_matches
+            enhance_matches(analyzed)
+        except Exception:
+            pass
         _apply_post_analyze(analyzed)
         recommendations = generate_parlay_recommendations(analyzed)
         total_goals_recs = generate_total_goals_recommendations(analyzed)
