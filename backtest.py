@@ -88,7 +88,8 @@ def record_odds_snapshot(match_id, market, home, draw, away, line=None, source='
 def record_prediction(match_id, play_type, pick, predicted_prob, odds,
                       model_name='jingcai-model', confidence=None, combo='single',
                       home_team=None, away_team=None, estimated=False, jingcai=False,
-                      existing_keys=None, confidence_level=None, league=None):
+                      existing_keys=None, confidence_level=None, league=None,
+                      news_flag=False, lineup_flag=False):
     """记录一条 AI 推荐，并评估是否为价值盘。
     estimated=True 表示赔率为模型估算（如比分/半全场），非真实市场赔率，
     不参与"可投注价值"的 ROI 统计，避免虚构高赔率撑高盈利。
@@ -100,15 +101,21 @@ def record_prediction(match_id, play_type, pick, predicted_prob, odds,
     if not USE_DB:
         return {'value': value, 'edge': round(edge, 4)}
 
-    # 去重：同一场比赛同一玩法只记一条，消除每次刷新/定时任务的重复入库
+    # 去重：同一场比赛同一玩法只记一条；若本次带更完整信号，则补写 news/lineup 标记
     try:
-        if existing_keys is not None:
-            if (match_id, play_type) in existing_keys:
-                return {'value': value, 'edge': round(edge, 4), 'skipped': True}
-        else:
-            from backtest_models import BtBet as _BB
-            if _BB.query.filter_by(match_id=match_id, play_type=play_type, jingcai=jingcai).first():
-                return {'value': value, 'edge': round(edge, 4), 'skipped': True}
+        from backtest_models import BtBet as _BB, db as _db
+        ex = _BB.query.filter_by(match_id=match_id, play_type=play_type, jingcai=jingcai).first()
+        if ex:
+            _upd = False
+            if news_flag and not getattr(ex, 'news_flag', False):
+                ex.news_flag = True
+                _upd = True
+            if lineup_flag and not getattr(ex, 'lineup_flag', False):
+                ex.lineup_flag = True
+                _upd = True
+            if _upd:
+                _db.session.commit()
+            return {'value': value, 'edge': round(edge, 4), 'skipped': True}
     except Exception:
         pass
 
@@ -127,7 +134,7 @@ def record_prediction(match_id, play_type, pick, predicted_prob, odds,
             pick=pick, odds=odds, predicted_prob=predicted_prob, stake=1.0,
             home_team=home_team, away_team=away_team,
             estimated=estimated, jingcai=jingcai, confidence_level=confidence_level,
-            league=league,
+            league=league, news_flag=news_flag, lineup_flag=lineup_flag,
         )
         db.session.add(bet)
         db.session.commit()
@@ -382,3 +389,41 @@ def compute_summary(period='all', model_name=None, play_type=None, jingcai_only=
     except Exception as e:
         logger.warning('[backtest] summary failed: %s', e)
         return {'period': period, 'total_bets': 0, 'total_pnl': 0, 'roi': 0, 'hit_rate': 0, 'pending': 0, 'records': []}
+
+
+def _group_stat(sel):
+    n = len(sel)
+    wins = sum(1 for b in sel if b.outcome == 'win')
+    stake = sum((b.stake or 1.0) for b in sel)
+    pnl = sum((b.pnl or 0.0) for b in sel)
+    return {
+        'n': n, 'wins': wins, 'losses': n - wins,
+        'hit_rate': round(wins / n * 100, 1) if n else 0.0,
+        'roi': round(pnl / stake * 100, 1) if stake else 0.0,
+        'pnl': round(pnl, 2),
+    }
+
+
+def ab_summary():
+    """A/B 对比：有资讯 / 有首发 vs 无（仅竞彩 1X2 真实推荐）。
+    量化 Phase1（RSS 资讯）/ Phase2（官方首发）是否提升命中率与 ROI。"""
+    try:
+        from backtest_models import BtBet
+        rows = [b for b in BtBet.query.filter_by(play_type='1X2', jingcai=True).all()
+                if b.settled_at and b.outcome in ('win', 'lose')]
+        news = [b for b in rows if getattr(b, 'news_flag', False)]
+        lineup = [b for b in rows if getattr(b, 'lineup_flag', False)]
+        either = [b for b in rows if getattr(b, 'news_flag', False) or getattr(b, 'lineup_flag', False)]
+        none = [b for b in rows if not getattr(b, 'news_flag', False) and not getattr(b, 'lineup_flag', False)]
+        return {
+            'total': len(rows),
+            'with_news': _group_stat(news),
+            'with_lineup': _group_stat(lineup),
+            'with_any': _group_stat(either),
+            'without': _group_stat(none),
+            'computed_at': _now_str(),
+        }
+    except Exception as e:
+        logger.warning('[backtest] ab_summary failed: %s', e)
+        return {'total': 0, 'with_news': _group_stat([]), 'with_lineup': _group_stat([]),
+                'with_any': _group_stat([]), 'without': _group_stat([])}
