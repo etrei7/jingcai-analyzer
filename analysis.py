@@ -1,4 +1,4 @@
-import random, math, copy, json, os, hashlib
+import random, math, copy, json, os, hashlib, re
 
 
 def _stable_gauss(seed_str, mean, sigma):
@@ -1199,6 +1199,21 @@ def generate_parlay_recommendations(matches):
         recommendations.append(_build(aggr[:4], '自由组合4串1·进攻', '多玩法4串1·激进', '高风险',
             '优先半全场/总进球等高赔玩法，追求高回报（谨慎参与）'))
 
+    # ===== 统一后处理：截止时间 / 关联性 / 资金管理，覆盖全部方案 =====
+    for r in recommendations:
+        mds = r.get('matches_detail') or []
+        r.update(_parlay_meta(mds))
+        confs = [d.get('confidence_score') or 0 for d in mds]
+        avg_conf = (sum(confs) / len(confs)) if confs else 0.5
+        stake = _stake_plan(r.get('combo_odds'), avg_conf, r.get('risk_level', ''))
+        r['avg_confidence'] = round(avg_conf, 3)
+        r['stake_pct'] = stake['pct']
+        r['stake_note'] = stake['note']
+        # 可结算场次数（play_type 可识别）；用于串关级命中率追踪的可靠性判断
+        settleable = sum(1 for d in mds if d.get('play_type'))
+        r['settleable_legs'] = settleable
+        r['trackable'] = (len(mds) >= 2 and settleable == len(mds))
+
     return recommendations
 
 
@@ -1280,18 +1295,114 @@ def _match_play_options(m):
     return out
 
 
-def _stake_note(co):
-    """资金管理建议（按组合赔率给建议注额）。"""
+# 玩法的中文选项 → 结算用 pick 映射（供串关逐场结算）
+_1X2_PICK = {'胜': 'H', '平': 'D', '负': 'A'}
+_AH_PICK = {'让胜': 'H', '让平': 'D', '让负': 'A'}
+_HTFT_LABEL2CODE = {'胜胜': 'HH', '胜平': 'HD', '胜负': 'HA',
+                    '平胜': 'DH', '平平': 'DD', '平负': 'DA',
+                    '负胜': 'AH', '负平': 'AD', '负负': 'AA'}
+
+
+def _infer_leg_meta(m, option):
+    """从推荐项的中文 option 推断结算玩法与 pick，供串关级命中率追踪使用。
+    返回 (play_type, pick)；无法识别时返回 (None, None)。
+    - 胜/平/负 → 1X2
+    - 让胜/让平/让负 → AH（pick 形如 'H|-1'）
+    - 半全场中文（胜胜…）→ HTFT
+    - 总进球（2球/7+）→ TG
+    """
+    opt = (option or '').strip()
+    play = ''
+    if '·' in opt:
+        opt, play = opt.split('·', 1)
+    opt = opt.split('(')[0].strip()          # 去括号如「让胜(让球-1)」
+    if opt in _1X2_PICK and play in ('', '胜平负'):
+        return '1X2', _1X2_PICK[opt]
+    if opt in _AH_PICK:
+        try:
+            line = float(m.get('handicap_line', 0) or 0)
+        except (TypeError, ValueError):
+            line = 0.0
+        return 'AH', '%s|%s' % (_AH_PICK[opt], line)
+    if opt in _HTFT_LABEL2CODE and play in ('', '半全场'):
+        return 'HTFT', _HTFT_LABEL2CODE[opt]
+    if (opt.endswith('球') or opt == '7+') and play in ('', '总进球'):
+        num = opt[:-1] if opt.endswith('球') else '7+'
+        if num.isdigit() or num == '7+':
+            return 'TG', num
+    return None, None
+
+
+def _stake_plan(combo_odds, avg_conf, risk_level=''):
+    """资金管理建议：按组合赔率 + 平均信心给出建议投入本金比例与金额。
+    avg_conf 为 0~1 的平均信心分（缺失按 0.5）。返回 dict。
+    原则：低赔稳健可多投、高赔高风险小额；信心越高比例越高；上限 10% 防过度下注。
+    """
     try:
-        co = float(co)
+        co = float(combo_odds)
     except (TypeError, ValueError):
-        co = 0
+        co = 0.0
+    try:
+        ac = float(avg_conf)
+    except (TypeError, ValueError):
+        ac = 0.5
+    ac = max(0.2, min(ac, 0.95))
     if co <= 3:
-        return '建议注额 50-100元（低赔稳健）'
+        base = 5.0
     elif co <= 8:
-        return '建议注额 20-50元（中等回报）'
+        base = 2.0
+    elif co <= 20:
+        base = 1.0
     else:
-        return '建议注额 10-20元（高风险，小额试探）'
+        base = 0.5
+    pct = base * (0.6 + ac)                  # 信心 0.2→×0.8；0.95→×1.55
+    pct = round(max(0.2, min(pct, 10.0)), 2)
+    amount = max(1, round(pct * 10))         # 按 1000 元本金折算单注额（元）
+    tag = '稳健可多投' if co <= 3 else '中等仓位' if co <= 8 else '高风险小额试探'
+    return {
+        'pct': pct,
+        'amount': amount,
+        'note': '建议投入本金 %s%%（约 %s 元/千元 · %s），忌追高加注' % (pct, amount, tag),
+    }
+
+
+def _stake_note(co):
+    """兼容旧调用：仅按组合赔率给粗略建议（新代码请用 _stake_plan）。"""
+    return _stake_plan(co, 0.5)['note']
+
+
+def _parlay_meta(details):
+    """由串关各场明细推导：最早开赛/投注截止时间 + 同联赛/同时段关联风险。"""
+    details = details or []
+    times = sorted([d.get('match_time') for d in details if d.get('match_time')])
+    leagues = {}
+    slots = {}
+    for d in details:
+        lg = d.get('league') or ''
+        if lg:
+            leagues[lg] = leagues.get(lg, 0) + 1
+        t = d.get('match_time') or ''
+        if len(t) >= 2:
+            slots[t[:2] + ':00'] = slots.get(t[:2] + ':00', 0) + 1
+    same_league = ['%d场%s' % (n, k) for k, n in leagues.items() if n >= 2]
+    same_slot = ['%d场%s' % (n, k) for k, n in slots.items() if n >= 2]
+    warns = []
+    if same_league:
+        warns.append('同联赛 ' + '、'.join(same_league))
+    if same_slot:
+        warns.append('同一时段 ' + '、'.join(same_slot))
+    earliest = times[0] if times else ''
+    return {
+        'earliest_time': earliest,
+        'cutoff_time': earliest,
+        'cutoff_note': ('请在 %s 前完成投注（以最早开赛场次为准）' % earliest) if earliest else '',
+        'same_league': same_league,
+        'same_slot': same_slot,
+        'correlation_warning': ('；'.join(warns) + ' 关联风险，建议分散') if warns else '',
+        'kickoff_list': [{'time': d.get('match_time', ''), 'home_team': d.get('home_team', ''),
+                          'away_team': d.get('away_team', ''), 'option': d.get('option', ''),
+                          'odds': d.get('odds')} for d in details],
+    }
 
 
 def _intl_edge_for(m, option):
@@ -1304,13 +1415,17 @@ def _intl_edge_for(m, option):
 
 def _make_rec_detail(item):
     m = item['match']
+    option = item['option']
+    _pt, _pk = _infer_leg_meta(m, option)
     return {
         'match_id': m['match_id'], 'league': m['league'],
         'home_team': m['home_team'], 'away_team': m['away_team'],
-        'match_time': m.get('match_time', ''), 'option': item['option'], 'odds': item['odds'],
+        'match_time': m.get('match_time', ''), 'option': option, 'odds': item['odds'],
+        'play_type': _pt, 'pick': _pk,
         'hotness_label': m.get('hotness_label', ''), 'bookmaker_intent': m.get('bookmaker_intent', ''),
         'home_rank': m.get('home_rank'), 'away_rank': m.get('away_rank'),
         'market_tendency': m.get('market_tendency', ''),
         'injury_impact': m.get('injury_impact', ''),
+        'confidence_score': m.get('confidence_score', 0),
         'intl_edge': _intl_edge_for(m, item.get('option', '')),
     }
