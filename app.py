@@ -702,7 +702,7 @@ def parlay_stats():
 
 @app.route('/api/backtest/run', methods=['POST'])
 def backtest_run():
-    """手动触发一次流水线：拉取快照 + 结算已完赛。"""
+    """手动触发一次流水线：拉取快照 + 结算已完赛（含历史预测与串关）。"""
     try:
         from data_pipeline import run_full
         res = run_full()
@@ -711,6 +711,14 @@ def backtest_run():
             clear_summary_cache()
         except Exception:
             pass
+        # 顺带结算 JSON 历史预测（竞彩编号场次按队名匹配赛果）。
+        # 后台线程执行，避免外部请求拖慢/阻塞单 worker。
+        try:
+            import threading
+            from scheduler import daily_settlement
+            threading.Thread(target=daily_settlement, daemon=True).start()
+        except Exception as e:
+            logging.warning('[API] history settle: %s', e)
         return jsonify({'success': True, **res})
     except Exception as e:
         logging.warning('[API] backtest/run: %s', e)
