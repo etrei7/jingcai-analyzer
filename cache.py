@@ -163,6 +163,11 @@ def _build_payload():
     analyzed = analyze_matches(matches, standings, predictions)
     recommendations = generate_parlay_recommendations(analyzed)
     total_goals_recs = generate_total_goals_recommendations(analyzed)
+    try:
+        from value_engine import generate_value_recommendations
+        value_recs = generate_value_recommendations(analyzed)
+    except Exception:
+        value_recs = []
 
     try:
         from history import save_predictions, get_stats
@@ -178,6 +183,7 @@ def _build_payload():
         'matches': analyzed,
         'recommendations': recommendations,
         'total_goals_recs': total_goals_recs,
+        'value_recs': value_recs,
         'history_stats': history_stats,
         'stats': {
             'total_matches': len(analyzed),
@@ -259,6 +265,7 @@ def _build_payload_with_timeout(timeout=15):
         'matches': analyzed,
         'recommendations': generate_parlay_recommendations(analyzed),
         'total_goals_recs': generate_total_goals_recommendations(analyzed),
+        'value_recs': [],
         'history_stats': {},
         'stats': {
             'total_matches': len(analyzed),
