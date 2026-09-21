@@ -11,8 +11,15 @@
 """
 import math
 import logging
+import threading
+import time
 
 logger = logging.getLogger(__name__)
+
+# 自适应权重 / isotonic 缓存
+_wcache = {}
+_wlock = threading.Lock()
+_WTTL = 300
 
 # ===== 可调参数 =====
 W_SHARP = 0.85        # 锐盘权重（市场高效，占主导）
@@ -24,6 +31,83 @@ KELLY_CAP = 0.05      # 单注本金上限 5%
 _SIDES = ('home', 'draw', 'away')
 _LAB = {'home': '主胜', 'draw': '平局', 'away': '客胜'}
 _PICK = {'home': 'H', 'draw': 'D', 'away': 'A'}
+
+
+def get_weights():
+    """自适应锐盘/模型权重：已结算竞彩样本越多，模型权重可略增（sharp 0.9→0.6）。"""
+    with _wlock:
+        v = _wcache.get('w')
+        if v and (time.time() - v[0]) < _WTTL:
+            return v[1]
+    ws = W_SHARP
+    try:
+        from backtest_models import BtBet
+        n = BtBet.query.filter_by(jingcai=True).filter(
+            BtBet.settled_at.isnot(None)).count()
+        ws = round(0.9 - min(0.3, (n or 0) / 1000.0 * 0.3), 2)
+    except Exception:
+        pass
+    w = (ws, round(1.0 - ws, 2))
+    with _wlock:
+        _wcache['w'] = (time.time(), w)
+    return w
+
+
+def _iso_fit():
+    """用已结算价值盘(VAL)样本做 PAVA 等渗回归，拟合 概率→经验命中率 校准曲线。
+    样本不足（<200）返回空（不做校准）。"""
+    try:
+        from backtest_models import BtBet
+        rows = [(float(b.predicted_prob), 1.0 if b.outcome == 'win' else 0.0)
+                for b in BtBet.query.filter_by(play_type='VAL').all()
+                if b.settled_at and b.outcome in ('win', 'lose') and b.predicted_prob is not None]
+        if len(rows) < 200:
+            return []
+        rows.sort(key=lambda x: x[0])
+        xs = [p for p, _ in rows]
+        # PAVA 池化相邻违规
+        stack = [[y, 1.0, i, i] for i, (_, y) in enumerate(rows)]
+        out = []
+        for blk in stack:
+            out.append(blk)
+            while len(out) >= 2 and out[-2][0] > out[-1][0]:
+                b2 = out.pop(); b1 = out.pop()
+                n = b1[1] + b2[1]
+                m = (b1[0] * b1[1] + b2[0] * b2[1]) / n
+                out.append([m, n, b1[2], b2[3]])
+        return [((xs[b[2]] + xs[b[3]]) / 2.0, b[0]) for b in out]
+    except Exception:
+        return []
+
+
+def get_isotonic():
+    with _wlock:
+        v = _wcache.get('iso')
+        if v and (time.time() - v[0]) < _WTTL:
+            return v[1]
+    bp = _iso_fit()
+    with _wlock:
+        _wcache['iso'] = (time.time(), bp)
+    return bp
+
+
+def _apply_iso(p, bp):
+    """按等渗曲线分段线性插值校准概率；bp 为空则原样返回。"""
+    if not bp:
+        return p
+    if p <= bp[0][0]:
+        return bp[0][1]
+    if p >= bp[-1][0]:
+        return bp[-1][1]
+    for i in range(1, len(bp)):
+        x0, y0 = bp[i - 1]
+        x1, y1 = bp[i]
+        if p <= x1:
+            if x1 <= x0:
+                return y1
+            t = (p - x0) / (x1 - x0)
+            return y0 + t * (y1 - y0)
+    return p
 
 
 def _logit(p):
@@ -84,17 +168,26 @@ def sharp_value(win_odds, draw_odds, lose_odds, intl_odds, lam_h, lam_a):
     except Exception:
         model = None
 
-    # 对数几率融合
+    # 对数几率融合（权重随已结算样本自适应）
+    w_sharp, w_model = get_weights()
     pc = {}
     for i, k in enumerate(_SIDES):
         if model:
-            pc[k] = _sigmoid(W_SHARP * _logit(sharp[i]) + W_MODEL * _logit(model[i]))
+            pc[k] = _sigmoid(w_sharp * _logit(sharp[i]) + w_model * _logit(model[i]))
         else:
             pc[k] = sharp[i]
     tot = sum(pc.values())
     if tot <= 0:
         return {'value_available': False, 'reason': '概率归一失败'}
     pc = {k: v / tot for k, v in pc.items()}
+
+    # 等渗校准（样本足够时生效，否则恒等）
+    _bp = get_isotonic()
+    if _bp:
+        pc = {k: _apply_iso(pc[k], _bp) for k in pc}
+        _t = sum(pc.values())
+        if _t > 0:
+            pc = {k: v / _t for k, v in pc.items()}
 
     edges = {}
     picks = []
@@ -123,10 +216,12 @@ def sharp_value(win_odds, draw_odds, lose_odds, intl_odds, lam_h, lam_a):
         'edges': edges,
         'picks': picks,
         'has_value': bool(picks),
-        'weights': {'sharp': W_SHARP, 'model': W_MODEL},
+        'weights': {'sharp': w_sharp, 'model': w_model},
+        'calibrated': bool(_bp),
         'threshold_pct': EDGE_MIN * 100,
-        'method': '锐盘去水基准 %d%% + Dixon-Coles 校准 %d%%，阈值 %s%%，分数凯利'
-                  % (round(W_SHARP * 100), round(W_MODEL * 100), EDGE_MIN * 100),
+        'method': '锐盘去水基准 %d%% + Dixon-Coles 校准 %d%%%s，阈值 %s%%，分数凯利'
+                  % (round(w_sharp * 100), round(w_model * 100),
+                     '（已等渗校准）' if _bp else '', EDGE_MIN * 100),
         'disclaimer': '价值盘=正期望估算，非必胜；竞彩含抽水，长期才体现',
     }
 
@@ -182,16 +277,24 @@ def record_value_picks(matches):
                     round(pk['prob'] / 100.0, 4), pk['jc_odds'],
                     model_name='value-sharp', confidence=pk['prob'] / 100.0,
                     home_team=m.get('home_team'), away_team=m.get('away_team'),
-                    jingcai=True, confidence_level=m.get('confidence_level'))
+                    jingcai=True, confidence_level=m.get('confidence_level'),
+                    league=m.get('league'))
                 existing.add((eid, 'VAL'))
                 n += 1
             except Exception as e:
                 logger.warning('[value] record failed: %s', e)
                 continue
+        if n:
+            clear_value_cache()
         return n
     except Exception as e:
         logger.warning('[value] record_value_picks: %s', e)
         return 0
+
+
+def clear_value_cache():
+    with _wlock:
+        _wcache.clear()
 
 
 def value_summary():
@@ -216,6 +319,12 @@ def value_summary():
         s['brier'] = round(brier / n, 4) if n else None
         s['log_loss'] = round(log_loss / n, 4) if n else None
         s['method'] = '锐盘基准 + Dixon-Coles 校准，阈值 %s%%，分数凯利' % (EDGE_MIN * 100)
+        try:
+            w = get_weights()
+            s['weights'] = {'sharp': w[0], 'model': w[1]}
+            s['calibrated'] = bool(get_isotonic())
+        except Exception:
+            pass
         return s
     except Exception as e:
         logger.warning('[value] value_summary: %s', e)
