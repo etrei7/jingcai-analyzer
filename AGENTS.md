@@ -63,6 +63,10 @@ python tools/test_logic.py
   前端 `/api/analyze` 处理竞彩场次时经 `data_pipeline.record_jingcai_plays` 写入（用 `bz_event_id`
   赛后结算），并按 (match_id, play_type) 去重。`compute_summary(jingcai_only=True)` 只聚合竞彩记录；
   `data_pipeline.run_pipeline` 已停用 Bzzoiro 全量采集。旧非竞彩记录保留但不计入战绩（可恢复）。
+- **价值盘引擎**（`value_engine.py`）：以国际锐盘去水概率为基准、Dixon-Coles 在对数几率空间
+  校准（默认权重 85%/15%），`edge = p×竞彩赔率−1 ≥ 2%` 才推荐，分数凯利(1/4, 上限5%)定注。
+  记录为 `bt_bets.play_type='VAL'`（判定同 1X2），接口 `/api/value-stats` 出 ROI + Brier/log-loss。
+  参数（权重/阈值/凯利）为保守默认，样本足够后可用最大似然拟合。前端「价值盘·锐盘基准」区。
 - **串关级追踪**：表 `bt_parlays`，逻辑在 `parlay_tracker.py`（`record_parlays` 记录 /
   `settle_parlays` 结算 / `parlay_summary_cached` 汇总，60s TTL）。单场命中率≠串关命中率。
   结算任一腿未中即整套未中；腿的结算玩法/pick 由 `analysis.py::_infer_leg_meta` 从 option 推断
