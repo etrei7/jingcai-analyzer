@@ -139,6 +139,7 @@ flowchart LR
 | `GET /api/calibration` | 信心/分段/联赛校准表 |
 | `GET /api/news` · `POST /api/news/refresh` | 资讯概要 / 手动刷新 RSS 资讯 |
 | `GET /api/lineup` | 官方首发缓存概要（临场窗口） |
+| `GET /api/ab-test` | 资讯/首发 A/B 对比（有 vs 无 的命中率/ROI） |
 | `GET /health` · `GET /robots.txt` | 健康检查 / 爬虫声明 |
 
 ---
