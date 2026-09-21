@@ -67,6 +67,11 @@ python tools/test_logic.py
   校准（默认权重 85%/15%），`edge = p×竞彩赔率−1 ≥ 2%` 才推荐，分数凯利(1/4, 上限5%)定注。
   记录为 `bt_bets.play_type='VAL'`（判定同 1X2），接口 `/api/value-stats` 出 ROI + Brier/log-loss。
   参数（权重/阈值/凯利）为保守默认，样本足够后可用最大似然拟合。前端「价值盘·锐盘基准」区。
+- **信心分级校准**（`calibration.py`）：按已结算竞彩 1X2 的 `bt_bets.confidence_level` 统计各等级
+  命中率 vs 盈亏平衡(1/平均赔率)，样本≥50 且优势<-5pp 时**自动降级**（只降不升）。`apply_calibration`
+  在 analyze 后调用；`/api/calibration` 供前端展示校准表。
+- **价值覆盖**：`analysis.py` 给每场打 `overpriced`（推荐方向竞彩赔率相对锐盘 edge≤-3%）标记，
+  串关的稳胆/高信心/双确认方案**排除 overpriced 场次**；AI 预览会提示"价值不足"。
 - **串关级追踪**：表 `bt_parlays`，逻辑在 `parlay_tracker.py`（`record_parlays` 记录 /
   `settle_parlays` 结算 / `parlay_summary_cached` 汇总，60s TTL）。单场命中率≠串关命中率。
   结算任一腿未中即整套未中；腿的结算玩法/pick 由 `analysis.py::_infer_leg_meta` 从 option 推断
