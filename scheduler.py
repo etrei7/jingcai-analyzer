@@ -30,9 +30,8 @@ def daily_settlement():
 
         def _cn(s):
             try:
-                from team_names import TEAM_NAME_CN
-                n = (s or '').strip()
-                return TEAM_NAME_CN.get(n, n)
+                from team_alias import canon
+                return canon(s)
             except Exception:
                 return s or ''
 
@@ -70,6 +69,13 @@ def daily_settlement():
                 ev = by_name.get((_norm(_cn(p.get('home_team'))), _norm(_cn(p.get('away_team')))))
             if not ev:
                 continue
+            # 学习别名（命中同场时，预测名 与 事件名 可能不同）
+            try:
+                from team_alias import learn
+                learn(ev.get('home_team'), p.get('home_team'))
+                learn(ev.get('away_team'), p.get('away_team'))
+            except Exception:
+                pass
             hs, aw = ev.get('home_score'), ev.get('away_score')
             if hs is None or aw is None:
                 continue
