@@ -644,6 +644,8 @@ def _generate_ai_preview(r):
         items = ['%s%s%s%%' % (lab[k], '+' if edges[k] >= 0 else '', edges[k])
                  for k in ('home', 'draw', 'away') if k in edges]
         seg.append('竞彩相对国际最佳赔率价值差：' + ' / '.join(items))
+    if r.get('overpriced'):
+        seg.append('注意：推荐方向竞彩赔率相对国际锐盘偏贵，价值不足')
     if r.get('hotness_label'):
         seg.append('热度「%s」、庄家%s' % (r.get('hotness_label'), r.get('bookmaker_intent') or '中性'))
     eg = r.get('expected_goals')
@@ -1002,6 +1004,16 @@ def analyze_single_match(match, standings=None, prediction=None):
             match.get('intl_odds'), _he, _ae)
     except Exception:
         result['sharp_value'] = {'value_available': False}
+    # 价值覆盖：推荐方向若竞彩赔率相对锐盘明显偏贵 → 标记，供串关过滤与提示
+    _sv = result.get('sharp_value') or {}
+    _side = {'胜': 'home', '平': 'draw', '负': 'away'}.get(predicted_option)
+    result['value_edge'] = None
+    result['overpriced'] = False
+    if _sv.get('value_available') and _side:
+        _edge = (_sv.get('edges') or {}).get(_side)
+        if _edge is not None:
+            result['value_edge'] = _edge
+            result['overpriced'] = (_edge <= -3.0)
     result['odds_move'] = match.get('odds_move')
     # 半全场推荐（主选+次选）：优先竞彩官方真实赔率，其次模型估算
     try:
@@ -1078,7 +1090,7 @@ def generate_parlay_recommendations(matches):
     # 方案一：稳胆2串1 (胜平负)
     plan1 = []
     for m in matches:
-        if m['confidence_level'] == '高' and m['hotness_label'] == '适度热门':
+        if m['confidence_level'] == '高' and m['hotness_label'] == '适度热门' and not m.get('overpriced'):
             opts = [('胜', m['win_odds']), ('平', m['draw_odds']), ('负', m['lose_odds'])]
             q = [o for o in opts if o[1] < 1.8]
             if q:
@@ -1126,7 +1138,7 @@ def generate_parlay_recommendations(matches):
             })
 
     # 方案三：高信心双选2串1（两场高信心赛事各自最低赔组合，使用真实赔率，不编造大小球盘口）
-    hc = [m for m in matches if m['confidence_level'] == '高']
+    hc = [m for m in matches if m['confidence_level'] == '高' and not m.get('overpriced')]
     if len(hc) >= 2:
         hc.sort(key=lambda m: m.get('confidence_score', 0), reverse=True)
         a, b = hc[0], hc[1]
@@ -1150,7 +1162,7 @@ def generate_parlay_recommendations(matches):
         mt = m.get('market_tendency')
         cs = m.get('cross_signal', '') or ''
         _fund_agree = ('一致' in cs) or (m.get('fund_strength') or 0) >= 0.4
-        if po and mt and _fund_agree:
+        if po and mt and _fund_agree and not m.get('overpriced'):
             mm = {'主胜': '胜', '平局': '平', '客胜': '负'}
             mo = mm.get(mt)
             if mo and mo == po:
