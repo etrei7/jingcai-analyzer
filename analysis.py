@@ -986,6 +986,7 @@ def analyze_single_match(match, standings=None, prediction=None):
     result['market_tendency'] = market_tendency
     result['overround'] = overround
     # 价值盘分析：模型概率(Dixon-Coles) vs 市场隐含概率(去水) + 凯利仓位
+    _he = _ae = 0.0
     try:
         _he = float(tg.get('expected_home_goals') or 0)
         _ae = float(tg.get('expected_away_goals') or 0)
@@ -993,6 +994,14 @@ def analyze_single_match(match, standings=None, prediction=None):
     except Exception:
         _va = {'value_available': False}
     result['value_analysis'] = _va
+    # 价值盘（锐盘基准 + Dixon-Coles 校准）：不预测胜负，只找正期望错价
+    try:
+        from value_engine import sharp_value
+        result['sharp_value'] = sharp_value(
+            match['win_odds'], match['draw_odds'], match['lose_odds'],
+            match.get('intl_odds'), _he, _ae)
+    except Exception:
+        result['sharp_value'] = {'value_available': False}
     result['odds_move'] = match.get('odds_move')
     # 半全场推荐（主选+次选）：优先竞彩官方真实赔率，其次模型估算
     try:
