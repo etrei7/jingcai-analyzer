@@ -8,52 +8,58 @@ logger = logging.getLogger(__name__)
 
 
 def run_pipeline():
-    """拉取未来赛事+赔率快照 + 生成价值盘预测落库。由 APScheduler 定时调用。"""
+    """原 Bzzoiro 全量采集已停用：战绩只统计竞彩官方开售场次，采集改由前端
+    /api/analyze（竞彩场次）经 record_jingcai_plays 写入。保留入口以兼容定时任务。"""
+    logger.info('[pipeline] Bzzoiro 全量采集已停用（回测只统计竞彩官方场次）')
+    return 0
+
+
+def record_jingcai_plays(matches):
+    """把竞彩官方场次写入回测（仅匹配到 Bzzoiro 事件ID的场次，便于赛后按ID精确结算）。
+    - 只记真实赔率玩法(1X2/AH)，估算玩法(比分/半全场)不记，避免噪声；
+    - 按 (match_id, play_type) 去重，重复刷新不重复入库。
+    返回处理的场次数。"""
+    if not matches:
+        return 0
     try:
-        from bizzoiro_client import API_KEY, fetch_events
-        if not API_KEY:
-            logger.info('[pipeline] no API key, skip')
-            return 0
-        from analysis import analyze_matches, generate_parlay_recommendations
         import backtest as bt
-
-        matches = fetch_events(limit=15)
-        if not matches:
-            return 0
-
-        analyzed = analyze_matches(matches, None, {})
-        # 串关级追踪：记录当日生成的串关方案（去重），供独立结算与命中率统计
+        from backtest_models import BtBet
         try:
-            recs = generate_parlay_recommendations(analyzed)
-            import parlay_tracker
-            parlay_tracker.record_parlays(recs, source='Bzzoiro')
-        except Exception as e:
-            logger.warning('[pipeline] parlay record error: %s', e)
-        saved = 0
-        for m in analyzed:
-            mid = m.get('raw_event_id') or m.get('match_id')
-            if not mid:
+            existing = {(b.match_id, b.play_type)
+                        for b in BtBet.query.filter_by(jingcai=True).all()}
+        except Exception:
+            existing = set()
+        n = 0
+        for m in matches:
+            eid = str(m.get('bz_event_id') or '')
+            if not eid:
                 continue
             try:
-                _record_match_plays(bt, m, str(mid))
-                saved += 1
+                _record_match_plays(bt, m, eid, jingcai=True,
+                                    include_estimated=False, existing_keys=existing)
+                existing.add((eid, '1X2'))
+                existing.add((eid, 'AH'))
+                n += 1
             except Exception as e:
-                logger.warning('[pipeline] match %s play record error: %s', mid, e)
+                logger.warning('[pipeline] jingcai play record error: %s', e)
                 continue
-        logger.info('[pipeline] processed %d matches with multi-play predictions', saved)
-        return saved
+        logger.info('[pipeline] 竞彩回测记录 %d 场', n)
+        return n
     except Exception as e:
-        logger.warning('[pipeline] run error: %s', e)
+        logger.warning('[pipeline] record_jingcai_plays error: %s', e)
         return 0
 
 
-def _record_match_plays(bt, m, mid):
-    """为单场比赛记录赔率快照 + 多玩法预测（1X2/AH/CS/HTFT）。单场异常不影响他场。"""
-    bt.record_odds_snapshot(
-        match_id=mid, market='1X2',
-        home=m.get('win_odds'), draw=m.get('draw_odds'), away=m.get('lose_odds'),
-        source='Bzzoiro'
-    )
+def _record_match_plays(bt, m, mid, jingcai=False, include_estimated=True, existing_keys=None):
+    """为单场比赛记录赔率快照 + 多玩法预测（1X2/AH/CS/HTFT）。单场异常不影响他场。
+    jingcai=True 标记为竞彩官方场次；include_estimated=False 只记真实赔率玩法(1X2/AH)。"""
+    # 已记录过则跳过快照，避免每次刷新重复写入
+    if not (existing_keys is not None and (mid, '1X2') in existing_keys):
+        bt.record_odds_snapshot(
+            match_id=mid, market='1X2',
+            home=m.get('win_odds'), draw=m.get('draw_odds'), away=m.get('lose_odds'),
+            source='竞彩官方' if jingcai else 'Bzzoiro'
+        )
     home, away = m.get('home_team'), m.get('away_team')
     conf_level = m.get('confidence_level', '')
     conf = 0.8 if conf_level == '高' else 0.6 if conf_level == '中' else 0.4
@@ -66,7 +72,8 @@ def _record_match_plays(bt, m, mid):
     bt.record_prediction(mid, '1X2', pick1x2,
                          round(bt.implied_prob(odds1x2) * conf, 4), odds1x2,
                          model_name='jingcai-value', confidence=conf,
-                         home_team=home, away_team=away)
+                         home_team=home, away_team=away,
+                         jingcai=jingcai, existing_keys=existing_keys)
 
     # AH 让胜平负（_compute_handicap 推算，始终有值）
     try:
@@ -92,9 +99,13 @@ def _record_match_plays(bt, m, mid):
             bt.record_prediction(mid, 'AH', pick_ah,
                                  round(bt.implied_prob(pt_odds) * conf, 4), pt_odds,
                                  model_name='jingcai-value', confidence=conf,
-                                 home_team=home, away_team=away)
+                                 home_team=home, away_team=away,
+                                 jingcai=jingcai, existing_keys=existing_keys)
     except Exception:
         pass
+
+    if not include_estimated:
+        return
 
     # CS 正确比分：模型估算赔率，命中率极低，仅作参考（标记 estimated，不计入 ROI）
     try:
@@ -106,7 +117,8 @@ def _record_match_plays(bt, m, mid):
                                  round(0.12 * conf, 4), est_odds,
                                  model_name='jingcai-value', confidence=conf,
                                  home_team=home, away_team=away,
-                                 estimated=True)
+                                 estimated=True, jingcai=jingcai,
+                                 existing_keys=existing_keys)
     except Exception:
         pass
 
@@ -118,7 +130,8 @@ def _record_match_plays(bt, m, mid):
             bt.record_prediction(mid, 'HTFT', pick_htft, prob_htft, odds_htft,
                                  model_name='jingcai-value', confidence=conf,
                                  home_team=home, away_team=away,
-                                 estimated=True)
+                                 estimated=True, jingcai=jingcai,
+                                 existing_keys=existing_keys)
     except Exception:
         pass
 
