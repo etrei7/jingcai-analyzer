@@ -278,7 +278,8 @@ def record_value_picks(matches):
                     model_name='value-sharp', confidence=pk['prob'] / 100.0,
                     home_team=m.get('home_team'), away_team=m.get('away_team'),
                     jingcai=True, confidence_level=m.get('confidence_level'),
-                    league=m.get('league'))
+                    league=m.get('league'),
+                    news_flag=bool(m.get('news')), lineup_flag=bool(m.get('lineup')))
                 existing.add((eid, 'VAL'))
                 n += 1
             except Exception as e:
