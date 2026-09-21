@@ -53,6 +53,11 @@ python tools/test_logic.py
 - **Bzzoiro**（后端可访问）：赛事、赔率、伤病、裁判、天气、AI 预览、积分榜等。
 - **API-Football**（`API_FOOTBALL_KEY`）：积分榜排名/状态/主客场/净胜球（免费版 100 次/天，已做内存缓存与限流降级）。
 - **国际博彩公司赔率**（Bzzoiro `/odds/`，`market=1x2|asian_handicap|double_chance|draw_no_bet`）：用于"国际盘口对比/价值差"。注意单次返回**硬上限 50 条**。
+- **资讯（RSS，Phase 1）**：`news_ingest.py` 抓 Sky/BBC/Goal/ESPN 的 **RSS**（不抓正文），
+  关键词分类（伤停/停赛/轮换/主帅/首发）→ 队名匹配（`team_names` + `team_alias`）→ 存
+  `instance/news_cache.json`。`apply_to_matches` 对分析**只做保守降级或提示**（预测方伤停/停赛
+  不利才降级，不改方向）；`scheduler.refresh_news` 每 15 分钟刷新；接口 `/api/news`、
+  `POST /api/news/refresh`。前端比赛卡「资讯」区展示。无网络/无信号时静默失效。
 
 ## 回测闭环
 
