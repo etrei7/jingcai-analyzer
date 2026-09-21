@@ -28,25 +28,6 @@ def refresh_jingcai_token():
     except Exception as e:
         logger.warning(f'[竞彩] token刷新失败: {e}')
     return None
-
-
-def _get_share_token():
-    global _cached_token
-    if _cached_token:
-        return _cached_token
-
-    # 方法1：从页面抓取
-    token = refresh_jingcai_token()
-    if token:
-        return token
-
-    # 方法2：备用 token
-    FALLBACK_TOKEN = 'C3C11C6B-A1A8-4C6C-A080-7214090C78A5'
-    _cached_token = FALLBACK_TOKEN
-    logger.info('[竞彩] 使用备用share_token')
-    return FALLBACK_TOKEN
-
-
 def fetch_jingcai_matches():
     """从竞彩官方获取今日场单：返回比赛列表，含编号、球队、赔率、时间、联赛"""
     try:
