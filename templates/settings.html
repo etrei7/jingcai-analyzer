@@ -126,12 +126,12 @@ select:hover{border-color:var(--primary)}
     <div class="card-head"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>自动刷新</div>
     <div class="card-body">
       <div class="setting-row">
-        <div><div class="setting-label">启动自动刷新</div><div class="setting-desc">今日赛事页每 <strong id="intervalVal">2</strong> 分钟自动拉取最新数据</div></div>
+        <div><div class="setting-label">启动自动刷新</div><div class="setting-desc">今日赛事页每 <strong id="intervalVal">30</strong> 秒自动拉取最新数据</div></div>
         <div class="toggle-track" id="autoToggle" onclick="toggleAuto(this)"><div class="toggle-knob"></div></div>
       </div>
       <div class="setting-row">
-        <div><div class="setting-label">刷新间隔（分钟）</div><div class="setting-desc">自动刷新频率</div></div>
-        <input class="num-input" id="intervalInput" type="number" min="1" max="60" value="2" onchange="onIntervalChange()">
+        <div><div class="setting-label">刷新间隔（秒）</div><div class="setting-desc">自动刷新频率，建议 30-120 秒</div></div>
+        <input class="num-input" id="intervalInput" type="number" min="10" max="600" value="30" onchange="onIntervalChange()">
       </div>
     </div>
   </div>
@@ -157,7 +157,7 @@ select:hover{border-color:var(--primary)}
 <div class="toast" id="toast">设置已保存</div>
 
 <script>
-let settings = { dataSource:'sporttery', autoRefresh:true, refreshInterval:2 };
+let settings = { dataSource:'sporttery', autoRefresh:true, refreshSec:30 };
 
 function toggleTheme(){
   const html = document.documentElement;
@@ -175,8 +175,8 @@ function loadSettings(){
   document.querySelectorAll('.radio-btn').forEach(b=>{ b.classList.toggle('active', b.dataset.src === src); });
   const auto = document.getElementById('autoToggle');
   if(auto.classList.contains('on') !== !!settings.autoRefresh) toggleAuto(auto, true);
-  document.getElementById('intervalInput').value = settings.refreshInterval || 2;
-  document.getElementById('intervalVal').textContent = settings.refreshInterval || 2;
+  document.getElementById('intervalInput').value = settings.refreshSec || 30;
+  document.getElementById('intervalVal').textContent = settings.refreshSec || 30;
 }
 
 function setSource(btn){
@@ -193,10 +193,10 @@ function toggleAuto(el, force){
   settings.autoRefresh = on;
 }
 function onIntervalChange(){
-  let val = parseInt(document.getElementById('intervalInput').value) || 2;
-  val = Math.max(1, Math.min(60, val));
+  let val = parseInt(document.getElementById('intervalInput').value) || 30;
+  val = Math.max(10, Math.min(600, val));
   document.getElementById('intervalInput').value = val;
-  settings.refreshInterval = val;
+  settings.refreshSec = val;
   document.getElementById('intervalVal').textContent = val;
 }
 
