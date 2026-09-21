@@ -14,7 +14,7 @@ def run_pipeline():
         if not API_KEY:
             logger.info('[pipeline] no API key, skip')
             return 0
-        from analysis import analyze_matches
+        from analysis import analyze_matches, generate_parlay_recommendations
         import backtest as bt
 
         matches = fetch_events(limit=15)
@@ -22,6 +22,13 @@ def run_pipeline():
             return 0
 
         analyzed = analyze_matches(matches, None, {})
+        # 串关级追踪：记录当日生成的串关方案（去重），供独立结算与命中率统计
+        try:
+            recs = generate_parlay_recommendations(analyzed)
+            import parlay_tracker
+            parlay_tracker.record_parlays(recs, source='Bzzoiro')
+        except Exception as e:
+            logger.warning('[pipeline] parlay record error: %s', e)
         saved = 0
         for m in analyzed:
             mid = m.get('raw_event_id') or m.get('match_id')
@@ -188,6 +195,22 @@ def settle_finished():
             if eid and eid not in seen_mid:
                 seen_mid.add(eid)
                 eids.append(eid)
+        # 串关待结算场次也纳入抓取（否则无单场待结算时，串关永不结算）
+        try:
+            import json as _json
+            from backtest_models import BtParlay
+            for _p in BtParlay.query.filter_by(settled_at=None).all():
+                try:
+                    for _l in _json.loads(_p.legs_json or '[]'):
+                        _eid = str(_l.get('match_id') or '')
+                        # 仅 Bzzoiro 数字事件ID可查；竞彩编号（如 周日001）跳过
+                        if _eid.isdigit() and _eid not in seen_mid:
+                            seen_mid.add(_eid)
+                            eids.append(_eid)
+                except Exception:
+                    continue
+        except Exception:
+            pass
 
         def _fetch(eid):
             try:
@@ -225,6 +248,13 @@ def settle_finished():
             except Exception:
                 continue
         logger.info('[pipeline] settled %d (by match_id)', settled)
+        # 串关级结算：用同一批赛果结算串关方案（任一腿未中即整套未中）
+        try:
+            import parlay_tracker
+            n3 = parlay_tracker.settle_parlays(data)
+            logger.info('[pipeline] settled %d parlays', n3)
+        except Exception as e:
+            logger.warning('[pipeline] parlay settle error: %s', e)
         return settled
     except Exception as e:
         logger.warning('[pipeline] settle error: %s', e)
