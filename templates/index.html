@@ -931,6 +931,12 @@ function renderDetailPanel(m) {
       <h4><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>AI 综合分析</h4>
       <div style="font-size:0.72rem;line-height:1.6;color:var(--text-muted);max-height:120px;overflow-y:auto">${m.ai_preview}</div>
     </div>` : ''}
+    ${(m.news && ((m.news.home && m.news.home.length) || (m.news.away && m.news.away.length))) ? (
+      '<div class="detail-section" style="grid-column:1/-1"><h4>&#128240; 资讯（' + (m.news.updated||'') + '）</h4>'
+      + '<div style="font-size:0.68rem;line-height:1.6">'
+      + (m.news.home||[]).map(function(n){ return '<div><span style="color:var(--home);font-weight:700">' + m.home_team + '</span> ' + n.type_cn + '：' + n.title + ' <span style="color:var(--text-light)">（' + n.source + '）</span></div>'; }).join('')
+      + (m.news.away||[]).map(function(n){ return '<div><span style="color:var(--away);font-weight:700">' + m.away_team + '</span> ' + n.type_cn + '：' + n.title + ' <span style="color:var(--text-light)">（' + n.source + '）</span></div>'; }).join('')
+      + '</div></div>') : ''}
     ${m.intl_odds ? renderIntlPanel(m) : ''}
   </div>`;
 }
