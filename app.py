@@ -48,6 +48,11 @@ def _migrate_bt_bets():
                 conn.execute(text("ALTER TABLE bt_bets ADD COLUMN jingcai BOOLEAN DEFAULT 0"))
                 conn.commit()
             logging.info('[迁移] bt_bets 已补充 jingcai 列（旧记录默认非竞彩，不再计入战绩）')
+        if 'predicted_prob' not in cols:
+            with db.engine.connect() as conn:
+                conn.execute(text("ALTER TABLE bt_bets ADD COLUMN predicted_prob FLOAT"))
+                conn.commit()
+            logging.info('[迁移] bt_bets 已补充 predicted_prob 列（价值盘校准评估）')
         # 回填历史估算玩法（半全场 HTFT / 比分 CS）为 estimated=1，
         # 修复旧记录被误计入真实赔率 ROI 的问题
         with db.engine.connect() as conn:
@@ -163,6 +168,11 @@ def get_data():
 
     recommendations = generate_parlay_recommendations(analyzed)
     total_goals_recs = generate_total_goals_recommendations(analyzed)
+    try:
+        from value_engine import generate_value_recommendations
+        value_recs = generate_value_recommendations(analyzed)
+    except Exception:
+        value_recs = []
 
     # 仅真实数据源（竞彩官方 / Bzzoiro）写入历史，模拟数据不污染战绩
     if source in ('竞彩官方', 'Bzzoiro API'):
@@ -178,12 +188,18 @@ def get_data():
             record_jingcai_plays(analyzed)
         except Exception as e:
             logging.warning('[API] jingcai backtest record failed: %s', e)
+        try:
+            from value_engine import record_value_picks
+            record_value_picks(analyzed)
+        except Exception as e:
+            logging.warning('[API] value record failed: %s', e)
     history_stats = get_stats()
 
     return jsonify({
         'matches': analyzed,
         'recommendations': recommendations,
         'total_goals_recs': total_goals_recs,
+        'value_recs': value_recs,
         'history_stats': history_stats,
         'stats': {
             'total_matches': len(analyzed),
@@ -514,9 +530,17 @@ def analyze_data():
             record_jingcai_plays(analyzed)
         except Exception as e:
             logging.warning('[API] jingcai backtest record failed: %s', e)
+        try:
+            from value_engine import generate_value_recommendations, record_value_picks
+            value_recs = generate_value_recommendations(analyzed)
+            record_value_picks(analyzed)
+        except Exception as e:
+            logging.warning('[API] value record failed: %s', e)
+            value_recs = []
         return jsonify({
             'matches': analyzed, 'recommendations': recommendations,
-            'total_goals_recs': total_goals_recs, 'history_stats': get_stats(),
+            'total_goals_recs': total_goals_recs, 'value_recs': value_recs,
+            'history_stats': get_stats(),
             'stats': {'total_matches': len(analyzed),
                        'update_time': fetch_ts, 'source': source,
                        'data_priority': 'primary',
@@ -581,6 +605,11 @@ def analyze_data():
     analyzed = analyze_matches(matches, None, pred_map)
     recommendations = generate_parlay_recommendations(analyzed)
     total_goals_recs = generate_total_goals_recommendations(analyzed)
+    try:
+        from value_engine import generate_value_recommendations
+        value_recs = generate_value_recommendations(analyzed)
+    except Exception:
+        value_recs = []
 
     # 仅对真实数据源（Bzzoiro）写入历史，模拟数据不污染战绩
     # 注意：回测/串关不记录 Bzzoiro 场次（可能体彩未开售），只统计竞彩官方场次
@@ -595,6 +624,7 @@ def analyze_data():
         'matches': analyzed,
         'recommendations': recommendations,
         'total_goals_recs': total_goals_recs,
+        'value_recs': value_recs,
         'history_stats': history_stats,
         'stats': {
             'total_matches': len(analyzed),
@@ -698,6 +728,19 @@ def parlay_stats():
         logging.warning('[API] parlay-stats: %s', e)
         return jsonify({'total': 0, 'settled': 0, 'pending': 0, 'wins': 0, 'losses': 0,
                         'hit_rate': 0, 'total_stake': 0, 'total_pnl': 0, 'roi': 0, 'records': []})
+
+
+@app.route('/api/value-stats')
+def value_stats():
+    """价值盘战绩：ROI/命中率 + Brier/log-loss（概率校准质量），供价值盘面板读取。"""
+    try:
+        from value_engine import value_summary
+        return jsonify(value_summary())
+    except Exception as e:
+        logging.warning('[API] value-stats: %s', e)
+        return jsonify({'total_bets': 0, 'wins': 0, 'losses': 0, 'pending': 0,
+                        'hit_rate': 0, 'roi': 0, 'total_pnl': 0, 'brier': None,
+                        'log_loss': None, 'scored': 0, 'records': []})
 
 
 @app.route('/api/backtest/run', methods=['POST'])
