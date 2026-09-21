@@ -258,6 +258,15 @@ def _eval_play(b, actual, hs, aw, hht, awt, stake):
                 return 'void', 0.0
             return 'void', 0.0
 
+        # TG 总进球（精确进球数；'7+' 表示 7 球及以上）
+        if pt == 'TG':
+            total = (hs or 0) + (aw or 0)
+            if str(pick) == '7+':
+                return ('win', round((b.odds - 1) * stake, 4)) if total >= 7 else ('lose', round(-stake, 4))
+            if str(pick).isdigit():
+                return ('win', round((b.odds - 1) * stake, 4)) if total == int(pick) else ('lose', round(-stake, 4))
+            return 'void', 0.0
+
         # 未知玩法兜底
         return 'void', 0.0
     except Exception:
@@ -302,6 +311,8 @@ def compute_summary(period='all', model_name=None, play_type=None, jingcai_only=
                 return p
             if pt == 'VAL':
                 return '价值' + {'H': '主胜', 'D': '平', 'A': '客胜'}.get(pick, pick)
+            if pt == 'TG':
+                return '总进球' + str(pick) + ('球' if str(pick).isdigit() else '')
             if pt == 'AH':
                 if '|' in pick:
                     p, line = pick.split('|', 1)
@@ -326,7 +337,7 @@ def compute_summary(period='all', model_name=None, play_type=None, jingcai_only=
             return pick
 
         play_cn = {'1X2': '胜平负', 'AH': '让胜平负', 'CS': '比分', 'HTFT': '半全场',
-                   'OU': '大小球', 'VAL': '价值盘'}
+                   'OU': '大小球', 'VAL': '价值盘', 'TG': '总进球'}
         records = []
         for b in bets:
             rec = {
