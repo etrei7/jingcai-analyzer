@@ -39,12 +39,10 @@ def clear_summary_cache():
 
 
 def _cn(name):
-    """队名归一：英文名经 TEAM_NAME_CN 转中文，中英文统一到同一基准便于匹配。
-    若无法映射（小联赛/杯赛队）则原样返回，配合小写去符号规约兜底。"""
+    """队名归一：英文名经 TEAM_NAME_CN / 学习别名 转中文，便于跨源匹配。"""
     try:
-        from team_names import TEAM_NAME_CN
-        n = (name or '').strip()
-        return TEAM_NAME_CN.get(n, n)
+        from team_alias import canon
+        return canon(name)
     except Exception:
         return name or ''
 
@@ -356,7 +354,8 @@ def compute_summary(period='all', model_name=None, play_type=None, jingcai_only=
                 'settled_at': b.settled_at,
                 'hit': (b.outcome == 'win'),
                 'estimated': getattr(b, 'estimated', False),
-                'result_cn': ('命中' if b.outcome == 'win' else '未中' if b.outcome == 'lose' else '待结算') if b.outcome else '待结算',
+                'result_cn': ('命中' if b.outcome == 'win' else '未中' if b.outcome == 'lose'
+                              else '作废' if b.outcome == 'void' else '待结算'),
             }
             records.append(rec)
 
