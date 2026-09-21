@@ -56,6 +56,10 @@ python tools/test_logic.py
 - 表 `bt_*`（`odds_snapshots` / `bets` / `summary`），定时任务见 `scheduler.py`。
 - 结算按 Bzzoiro `match_id` 精确查；流水线 `data_pipeline.run_full()` 采集+结算。
 - 战绩汇总 `compute_summary` 有 60s TTL 缓存，结算后调 `clear_summary_cache()`。
+- **串关级追踪**：表 `bt_parlays`，逻辑在 `parlay_tracker.py`（`record_parlays` 记录 /
+  `settle_parlays` 结算 / `parlay_summary_cached` 汇总，60s TTL）。单场命中率≠串关命中率。
+  结算任一腿未中即整套未中；腿的结算玩法/pick 由 `analysis.py::_infer_leg_meta` 从 option 推断
+  （新增盘口串关选项时需同步该函数与 `parlay_tracker.eval_leg`）。接口 `/api/parlay-stats`。
 
 ## 死代码（已清理）
 
