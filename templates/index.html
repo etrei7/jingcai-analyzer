@@ -1447,18 +1447,33 @@ async function loadCalibration(){
     var s = await resp.json();
     var b = (s && s.buckets) || {};
     var keys = ['高','中','低'].filter(function(k){ return b[k]; });
-    if(!keys.length){ el.innerHTML=''; return; }
-    var rows = keys.map(function(k){
-      var d = b[k];
+    function rowHtml(name, d){
       var edgeColor = d.edge >= 0 ? 'var(--high)' : 'var(--low)';
-      return '<tr><td>'+k+'</td><td align="right">'+(d.n||0)+'</td><td align="right">'+(d.hit_rate||0)+'%</td><td align="right">'+(d.required_rate||0)+'%</td><td align="right" style="color:'+edgeColor+'">'+(d.edge>0?'+':'')+d.edge+'%</td></tr>';
-    }).join('');
-    el.innerHTML = '<div class="backtest-card" style="margin-bottom:10px">'
-      + '<div class="bt-note">信心校准（历史命中率 vs 盈亏平衡，样本≥'+(s.min_n||50)+' 生效）</div>'
-      + '<table style="width:100%;font-size:0.68rem;border-collapse:collapse;margin-top:6px">'
-      + '<tr style="color:var(--text-muted)"><th align="left">信心</th><th align="right">样本</th><th align="right">命中率</th><th align="right">盈亏线</th><th align="right">优势</th></tr>'
-      + rows + '</table>'
-      + '<div class="bt-note">命中率低于盈亏线(1/平均赔率)说明该等级长期不盈利，系统会自动降级；总样本 '+(s.total||0)+'</div></div>';
+      return '<tr><td>'+name+'</td><td align="right">'+(d.n||0)+'</td><td align="right">'+(d.hit_rate||0)+'%</td><td align="right">'+(d.required_rate||0)+'%</td><td align="right" style="color:'+edgeColor+'">'+(d.edge>0?'+':'')+d.edge+'%</td></tr>';
+    }
+    var head = '<tr style="color:var(--text-muted)"><th align="left">分段</th><th align="right">样本</th><th align="right">命中率</th><th align="right">盈亏线</th><th align="right">优势</th></tr>';
+    var body = '';
+    if(keys.length){
+      body += '<div class="bt-note">信心等级校准（样本≥'+(s.min_n||50)+'）</div><table style="width:100%;font-size:0.68rem;border-collapse:collapse;margin-top:6px">'+head
+            + keys.map(function(k){ return rowHtml(k, b[k]); }).join('')+'</table>';
+    }
+    var seg = s.segments || {};
+    var segKeys = Object.keys(seg).filter(function(k){ return seg[k].n >= (s.min_seg||30); }).sort(function(x,y){ return seg[y].n-seg[x].n; }).slice(0,10);
+    if(segKeys.length){
+      body += '<div class="bt-note" style="margin-top:10px">同类场次校准：玩法|赔率区间（样本≥'+(s.min_seg||30)+'，负优势将触发降级）</div>'
+            + '<table style="width:100%;font-size:0.68rem;border-collapse:collapse;margin-top:6px">'+head
+            + segKeys.map(function(k){ return rowHtml(k, seg[k]); }).join('')+'</table>';
+    }
+    var lg = s.leagues || {};
+    var lgKeys = Object.keys(lg).filter(function(k){ return lg[k].n >= (s.min_seg||30); }).sort(function(x,y){ return lg[y].n-lg[x].n; }).slice(0,8);
+    if(lgKeys.length){
+      body += '<div class="bt-note" style="margin-top:10px">联赛分段（样本≥'+(s.min_seg||30)+'）</div>'
+            + '<table style="width:100%;font-size:0.68rem;border-collapse:collapse;margin-top:6px">'+head
+            + lgKeys.map(function(k){ return rowHtml(k, lg[k]); }).join('')+'</table>';
+    }
+    if(!body){ el.innerHTML=''; return; }
+    el.innerHTML = '<div class="backtest-card" style="margin-bottom:10px">'+ body
+      + '<div class="bt-note">命中率低于盈亏线(1/平均赔率)说明长期不盈利，系统会自动降级；总样本 '+(s.total||0)+'</div></div>';
   }catch(e){}
 }
 
