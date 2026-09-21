@@ -161,6 +161,11 @@ def _build_payload():
 
     from analysis import analyze_matches, generate_parlay_recommendations, generate_total_goals_recommendations
     analyzed = analyze_matches(matches, standings, predictions)
+    try:
+        from calibration import apply_calibration
+        apply_calibration(analyzed)
+    except Exception as e:
+        logger.warning('[cache] 信心校准失败: %s', e)
     recommendations = generate_parlay_recommendations(analyzed)
     total_goals_recs = generate_total_goals_recommendations(analyzed)
     try:
