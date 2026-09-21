@@ -85,14 +85,6 @@ def _map_league(name_en):
     return LEAGUE_NAME_MAP.get(name_en, name_en)
 
 
-def _format_time(event_date_str):
-    try:
-        dt = datetime.fromisoformat(event_date_str)
-        return (dt + timedelta(hours=4)).strftime('%H:%M')
-    except Exception:
-        return event_date_str
-
-
 def _parse_injuries(event):
     """解析伤停/缺席球员"""
     unavailable = event.get('unavailable_players') or {}
@@ -409,51 +401,6 @@ def fetch_events(date_from=None, date_to=None, limit=15):
     except Exception as e:
         logger.warning(f'[Bzzoiro] fetch_events: {e}')
         return []
-
-
-def fetch_actionable_results(date_from, date_to, limit=60):
-    """按队名匹配验证已完赛比赛：返回按(主队,客队)规约键的结果映射。
-    用于竞彩场次赛后结算（竞彩 raw_event_id 非 Bzzoiro ID，需按队名匹配）。
-    队名统一用中文名（TEAM_NAME_CN）规约，以兼容竞彩中文全名。
-    """
-    if not API_KEY:
-        return {}
-    url = f'{BASE_URL}/events/'
-    params = {'date_from': date_from, 'date_to': date_to, 'status': 'finished', 'limit': limit}
-
-    def norm(s):
-        return (s or '').replace(' ', '').replace('-', '').lower()
-
-    result = {}
-    try:
-        resp = requests.get(url, headers=_headers(), params=params, timeout=20)
-        resp.raise_for_status()
-        data = resp.json()
-        results = data.get('results', [])
-        if not isinstance(results, list):
-            results = []
-        for e in results:
-            hs = e.get('home_score')
-            aw = e.get('away_score')
-            if hs is None or aw is None:
-                continue
-            hht = e.get('home_score_ht')
-            awt = e.get('away_score_ht')
-            home_en = e.get('home_team', '')
-            away_en = e.get('away_team', '')
-            home = TEAM_NAME_CN.get(home_en, home_en)
-            away = TEAM_NAME_CN.get(away_en, away_en)
-            val = {'home': hs, 'away': aw, 'home_ht': hht, 'away_ht': awt}
-            # 存双方向键，便于双向匹配
-            result[f'{norm(home)}|{norm(away)}'] = val
-            result[f'{norm(away)}|{norm(home)}'] = val
-        logger.info(f'[Bzzoiro] 已完赛匹配表 {len(result)} 条')
-        return result
-    except Exception as e:
-        logger.warning(f'[Bzzoiro] fetch_actionable_results: {e}')
-        return {}
-
-
 def fetch_standings(league_id):
     if not API_KEY or not league_id:
         return {}
@@ -620,48 +567,3 @@ def fetch_intl_odds_for_matches(matches, max_matches=6):
 
     logger.info(f'[Bzzoiro] {len(intl)} 场国际赔率对比')
     return intl
-
-
-def fetch_same_odds_stats(win_odds, draw_odds, lose_odds, league_id=None):
-    """Estimate same-odds historical outcome rates.
-    Source: Bzzoiro events API + odds-based Monte Carlo simulation"""
-    if not API_KEY:
-        return None
-    try:
-        params = {'status': 'finished', 'limit': 50}
-        if league_id:
-            params['league'] = league_id
-        r = requests.get(f'{BASE_URL}/events/', headers=_headers(), params=params, timeout=15)
-        r.raise_for_status()
-        results = r.json().get('results', [])
-        total = len(results)
-        if total < 5:
-            return _monte_carlo_same_odds(win_odds, draw_odds, lose_odds)
-
-        home_wins = sum(1 for e in results if (e.get('home_score') or 0) > (e.get('away_score') or 0))
-        draws = sum(1 for e in results if (e.get('home_score') or 0) == (e.get('away_score') or 0))
-        away_wins = total - home_wins - draws
-
-        return {
-            'total': total, 'home_pct': round(home_wins / total * 100, 1),
-            'draw_pct': round(draws / total * 100, 1),
-            'away_pct': round(away_wins / total * 100, 1),
-            'method': '历史同联赛数据'
-        }
-    except Exception:
-        return _monte_carlo_same_odds(win_odds, draw_odds, lose_odds)
-
-
-def _monte_carlo_same_odds(win_odds, draw_odds, lose_odds):
-    imp_w = 1.0 / win_odds if win_odds > 0 else 0
-    imp_d = 1.0 / draw_odds if draw_odds > 0 else 0
-    imp_l = 1.0 / lose_odds if lose_odds > 0 else 0
-    total = imp_w + imp_d + imp_l
-    if total <= 0:
-        return None
-    return {
-        'total': 1000, 'home_pct': round(imp_w / total * 100, 1),
-        'draw_pct': round(imp_d / total * 100, 1),
-        'away_pct': round(imp_l / total * 100, 1),
-        'method': '隐含概率模型推估'
-    }
