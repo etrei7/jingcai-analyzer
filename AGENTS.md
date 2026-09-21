@@ -101,6 +101,10 @@ python tools/test_logic.py
   官方盘口来源：`hhad`→AH、`ttg`→TG(`analysis._tg_from_official`/`result.tg_pick`)、
   `hafu`→HTFT；非官方(模型)推算的一律 `estimated=True`，不计入 ROI 但计命中率。
   `backtest._eval_play` 支持 TG 精确进球结算（`'7+'`=≥7）。
+- **资讯/首发 A/B 对比**：`bt_bets.news_flag` / `lineup_flag` 记录推荐时是否已有信号；
+  同一 (match_id, play_type) 重复记录时会把更完整信号**补写到已有行**（仍保持去重）。
+  `backtest.ab_summary()` + `/api/ab-test` 对比「有资讯 / 有首发 / 有任一 vs 无」的命中率、
+  ROI、盈亏；前端回测区「A/B 对比」面板。用于量化 Phase1/2 是否真有增量。
 - **串关级追踪**：表 `bt_parlays`，逻辑在 `parlay_tracker.py`（`record_parlays` 记录 /
   `settle_parlays` 结算 / `parlay_summary_cached` 汇总，60s TTL）。单场命中率≠串关命中率。
   结算任一腿未中即整套未中；腿的结算玩法/pick 由 `analysis.py::_infer_leg_meta` 从 option 推断
