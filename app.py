@@ -63,6 +63,16 @@ def _migrate_bt_bets():
                 conn.execute(text("ALTER TABLE bt_bets ADD COLUMN league VARCHAR(50)"))
                 conn.commit()
             logging.info('[迁移] bt_bets 已补充 league 列（同类场次校准）')
+        if 'news_flag' not in cols:
+            with db.engine.connect() as conn:
+                conn.execute(text("ALTER TABLE bt_bets ADD COLUMN news_flag BOOLEAN DEFAULT 0"))
+                conn.commit()
+            logging.info('[迁移] bt_bets 已补充 news_flag 列（A/B 对比）')
+        if 'lineup_flag' not in cols:
+            with db.engine.connect() as conn:
+                conn.execute(text("ALTER TABLE bt_bets ADD COLUMN lineup_flag BOOLEAN DEFAULT 0"))
+                conn.commit()
+            logging.info('[迁移] bt_bets 已补充 lineup_flag 列（A/B 对比）')
         # 回填历史估算玩法（半全场 HTFT / 比分 CS）为 estimated=1，
         # 修复旧记录被误计入真实赔率 ROI 的问题
         with db.engine.connect() as conn:
@@ -831,6 +841,17 @@ def calibration_stats():
     except Exception as e:
         logging.warning('[API] calibration: %s', e)
         return jsonify({'buckets': {}, 'total': 0, 'min_n': 50})
+
+
+@app.route('/api/ab-test')
+def ab_test():
+    """A/B 对比：有资讯/有首发 vs 无（竞彩 1X2 真实推荐）的命中率与 ROI。"""
+    try:
+        from backtest import ab_summary
+        return jsonify(ab_summary())
+    except Exception as e:
+        logging.warning('[API] ab-test: %s', e)
+        return jsonify({'total': 0})
 
 
 @app.route('/api/news')
