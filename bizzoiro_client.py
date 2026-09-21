@@ -401,6 +401,29 @@ def fetch_events(date_from=None, date_to=None, limit=15):
     except Exception as e:
         logger.warning(f'[Bzzoiro] fetch_events: {e}')
         return []
+def fetch_finished_events(date_from=None, date_to=None, limit=300):
+    """拉取已完赛事件（含比分），供历史预测按队名匹配结算。"""
+    if not API_KEY:
+        return []
+    if date_from is None:
+        date_from = (datetime.now(timezone.utc) - timedelta(days=4)).strftime('%Y-%m-%d')
+    if date_to is None:
+        date_to = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+    url = f'{BASE_URL}/events/'
+    params = {'date_from': date_from, 'date_to': date_to, 'status': 'finished'}
+    try:
+        resp = requests.get(url, headers=_headers(), params=params, timeout=20)
+        resp.raise_for_status()
+        results = resp.json().get('results', [])
+        if not isinstance(results, list):
+            results = []
+        logger.info(f'[Bzzoiro] {len(results)} 场已完赛')
+        return results[:limit]
+    except Exception as e:
+        logger.warning(f'[Bzzoiro] fetch_finished_events: {e}')
+        return []
+
+
 def fetch_standings(league_id):
     if not API_KEY or not league_id:
         return {}
