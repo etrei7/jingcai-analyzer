@@ -96,6 +96,8 @@ class BtBet(db.Model):
     # 是否为估算赔率（非真实市场赔率）。1X2/AH 为真实，CS/HTFT 为模型估算。
     # 估算赔率不参与"可投注价值"的 ROI 统计，避免虚构高赔率撑高盈利。
     estimated = db.Column(db.Boolean, default=False)
+    # 是否为竞彩官方开售场次。战绩面板只统计竞彩场次，过滤体彩不开的 Bzzoiro 场次。
+    jingcai = db.Column(db.Boolean, default=False)
 
 
 class BtBacktestSummary(db.Model):
