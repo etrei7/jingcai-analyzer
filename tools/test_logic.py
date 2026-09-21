@@ -70,7 +70,22 @@ def main():
     check('pick=胜胜 & 来源竞彩', bool(r) and r['pick'] == '胜胜' and r['source'] == '竞彩官方')
     check('不足3项→None', an._htft_from_odds({'hafu_hh': 3.2, 'hafu_dd': 6.0}) is None)
 
-    print('[4] 串关组合生成')
+    print('[4] 让球线方向一致性')
+    def _hc(wo, do, lo):
+        return an._compute_handicap({'win_odds': wo, 'draw_odds': do, 'lose_odds': lo}, None, 0.5, 0.5, 0, 0)
+    strong_home = _hc(1.30, 5.5, 9.0)
+    even = _hc(2.70, 3.2, 2.60)
+    strong_away = _hc(9.0, 5.5, 1.30)
+    check('强主队 line<=0', strong_home['handicap_line'] <= 0)
+    check('强客队 line>=0', strong_away['handicap_line'] >= 0)
+    check('势均力敌 line==0', even['handicap_line'] == 0)
+    check('hcp_pick 结构完整', all(k in strong_home['hcp_pick'] for k in ('option', 'prob', 'odds', 'side')))
+    check('让球赔率在合理区间[1.05,16.7]',
+          all(1.05 <= _safe <= 16.7 for _safe in (strong_home['handicap_win_odds'],
+                                                  strong_home['handicap_draw_odds'],
+                                                  strong_home['handicap_lose_odds'])))
+
+    print('[5] 串关组合生成')
     from data_generator import generate_matches
     anl = an.analyze_matches(generate_matches(12), {}, {})
     recs = an.generate_parlay_recommendations(anl)
@@ -78,7 +93,7 @@ def main():
     check('方案含每场明细', all('matches_detail' in r for r in recs))
     check('组合赔率>0', all((r.get('combo_odds') or 0) > 0 for r in recs))
 
-    print('[5] 缺字段/None 不崩')
+    print('[6] 缺字段/None 不崩')
     bad_cases = [
         {'match_id': 'x1'},
         {'match_id': 'x2', 'win_odds': None, 'draw_odds': None, 'lose_odds': None},
