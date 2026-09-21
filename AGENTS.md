@@ -64,12 +64,16 @@ python tools/test_logic.py
   赛后结算），并按 (match_id, play_type) 去重。`compute_summary(jingcai_only=True)` 只聚合竞彩记录；
   `data_pipeline.run_pipeline` 已停用 Bzzoiro 全量采集。旧非竞彩记录保留但不计入战绩（可恢复）。
 - **价值盘引擎**（`value_engine.py`）：以国际锐盘去水概率为基准、Dixon-Coles 在对数几率空间
-  校准（默认权重 85%/15%），`edge = p×竞彩赔率−1 ≥ 2%` 才推荐，分数凯利(1/4, 上限5%)定注。
-  记录为 `bt_bets.play_type='VAL'`（判定同 1X2），接口 `/api/value-stats` 出 ROI + Brier/log-loss。
-  参数（权重/阈值/凯利）为保守默认，样本足够后可用最大似然拟合。前端「价值盘·锐盘基准」区。
-- **信心分级校准**（`calibration.py`）：按已结算竞彩 1X2 的 `bt_bets.confidence_level` 统计各等级
-  命中率 vs 盈亏平衡(1/平均赔率)，样本≥50 且优势<-5pp 时**自动降级**（只降不升）。`apply_calibration`
-  在 analyze 后调用；`/api/calibration` 供前端展示校准表。
+  校准，`edge = p×竞彩赔率−1 ≥ 2%` 才推荐，分数凯利(1/4, 上限5%)定注。
+  权重**自适应**：`get_weights()` 按已结算竞彩样本量把锐盘权重在 0.9→0.6 间调整（缓存 300s）；
+  概率**等渗校准**：`get_isotonic()` 用已结算 VAL 样本(≥200)做 PAVA，否则恒等（缓存 300s）。
+  记录为 `bt_bets.play_type='VAL'`（判定同 1X2），`/api/value-stats` 出 ROI + Brier/log-loss + 权重。
+  参数（阈值/凯利/边界）为保守默认，样本足够后可用最大似然拟合。前端「价值盘·锐盘基准」区。
+- **信心分级 + 同类场次校准**（`calibration.py`）：按已结算竞彩场次统计
+  ①各信心等级 ②`玩法|赔率区间`分段 ③联赛 的命中率 vs 盈亏平衡(1/平均赔率)；
+  样本足够(等级≥50/分段≥30)且优势<-5pp 时**自动降级**（高→中→低，只降不升）。
+  `apply_calibration` 在 analyze 后调用，返回的 `seg_bad` 会让串关排除该场；
+  `/api/calibration` 出 buckets/segments/leagues 供前端展示。`bt_bets` 增 `confidence_level`/`league`。
 - **价值覆盖**：`analysis.py` 给每场打 `overpriced`（推荐方向竞彩赔率相对锐盘 edge≤-3%）标记，
   串关的稳胆/高信心/双确认方案**排除 overpriced 场次**；AI 预览会提示"价值不足"。
 - **单场多玩法独立回测**：竞彩记录 1X2/AH/TG/HTFT（真实赔率）与 CS（估算）。
@@ -95,6 +99,10 @@ python tools/test_logic.py
 - `models.py::Match` / `Recommendation` / `TeamStat`（旧表模型，全站无引用；仅保留 `db`）
 - `config.py::REFRESH_INTERVAL`（未使用）
 - `templates/index.html::fetchData`（未调用）
+
+重写（非删除）：
+- `app.py::_filter_by_jingcai`：由「联赛+顺序」硬匹配改为**按队名规约精确匹配**（主客队名都需匹配）。
+  仅当 `jingcai_list` 提供含队名的 dict 条目才匹配；旧 `[id, league]` 格式跳过，避免错配。
 
 保留（有意）：
 - `odds_tracker.py::track`（已被 `track_many` 取代，保留作 API 兼容）
