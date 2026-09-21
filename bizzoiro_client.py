@@ -403,12 +403,12 @@ def fetch_events(date_from=None, date_to=None, limit=15):
     except Exception as e:
         logger.warning(f'[Bzzoiro] fetch_events: {e}')
         return []
-def fetch_finished_events(date_from=None, date_to=None, limit=300):
-    """拉取已完赛事件（含比分），供历史预测按队名匹配结算。"""
+def fetch_finished_events(date_from=None, date_to=None, limit=400):
+    """拉取已完赛事件（含比分），供历史预测/回测按队名匹配结算。默认近 7 天。"""
     if not API_KEY:
         return []
     if date_from is None:
-        date_from = (datetime.now(timezone.utc) - timedelta(days=4)).strftime('%Y-%m-%d')
+        date_from = (datetime.now(timezone.utc) - timedelta(days=7)).strftime('%Y-%m-%d')
     if date_to is None:
         date_to = datetime.now(timezone.utc).strftime('%Y-%m-%d')
     url = f'{BASE_URL}/events/'
