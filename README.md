@@ -58,6 +58,7 @@ flowchart TD
 | `calibration.py` | 信心等级 + 同类场次（玩法\|赔率区间 / 联赛）校准，保守降级 |
 | `team_alias.py` | 队名别名学习（英文→中文），提升队名兜底结算率 |
 | `news_ingest.py` | 资讯（RSS）抓取→关键词分类→队名匹配，做保守降级/提示 |
+| `lineup_client.py` | 官方首发（API-Football，临场 120 分钟窗口，只读展示） |
 | `backtest.py` | 回测业务：记录投注、按玩法结算、汇总命中率/ROI/Brier/LogLoss |
 | `backtest_models.py` | `bt_*` 表模型（赔率快照 / 预测 / 投注 / 串关 / 汇总） |
 | `data_pipeline.py` | 结算流水线：`run_full` = `settle_finished` + `expire_stale` |
@@ -137,6 +138,7 @@ flowchart LR
 | `GET /api/value-stats` | 价值盘 ROI + Brier/LogLoss + 权重 |
 | `GET /api/calibration` | 信心/分段/联赛校准表 |
 | `GET /api/news` · `POST /api/news/refresh` | 资讯概要 / 手动刷新 RSS 资讯 |
+| `GET /api/lineup` | 官方首发缓存概要（临场窗口） |
 | `GET /health` · `GET /robots.txt` | 健康检查 / 爬虫声明 |
 
 ---
