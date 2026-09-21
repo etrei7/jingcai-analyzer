@@ -110,3 +110,8 @@ def stats():
     al = _load()
     sample = list(al.items())[:20]
     return {'count': len(al), 'sample': sample}
+
+
+def all_items():
+    """返回全部 别名→规范名 映射（供新闻匹配构建索引）。"""
+    return dict(_load())
