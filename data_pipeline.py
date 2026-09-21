@@ -64,6 +64,8 @@ def _record_match_plays(bt, m, mid, jingcai=False, include_estimated=True, exist
         )
     home, away = m.get('home_team'), m.get('away_team')
     _lg = m.get('league')
+    _nf = bool(m.get('news'))       # 记录时是否已有资讯信号（A/B 对比）
+    _lf = bool(m.get('lineup'))     # 记录时是否已有官方首发
     conf_level = m.get('confidence_level', '')
     conf = 0.8 if conf_level == '高' else 0.6 if conf_level == '中' else 0.4
     win, draw, loss = m.get('win_odds'), m.get('draw_odds'), m.get('lose_odds')
@@ -84,7 +86,7 @@ def _record_match_plays(bt, m, mid, jingcai=False, include_estimated=True, exist
                              model_name='jingcai-value', confidence=conf,
                              home_team=home, away_team=away,
                              jingcai=jingcai, existing_keys=existing_keys,
-                             confidence_level=conf_level, league=_lg)
+                             confidence_level=conf_level, league=_lg, news_flag=_nf, lineup_flag=_lf)
 
     # AH 让胜平负（_compute_handicap 推算，始终有值）
     try:
@@ -115,7 +117,7 @@ def _record_match_plays(bt, m, mid, jingcai=False, include_estimated=True, exist
                                  home_team=home, away_team=away,
                                  estimated=ah_est,
                                  jingcai=jingcai, existing_keys=existing_keys,
-                                 confidence_level=conf_level, league=_lg)
+                                 confidence_level=conf_level, league=_lg, news_flag=_nf, lineup_flag=_lf)
     except Exception:
         pass
 
@@ -131,7 +133,7 @@ def _record_match_plays(bt, m, mid, jingcai=False, include_estimated=True, exist
                                  home_team=home, away_team=away,
                                  estimated=(tgp.get('source') != '竞彩官方'),
                                  jingcai=jingcai, existing_keys=existing_keys,
-                                 confidence_level=conf_level, league=_lg)
+                                 confidence_level=conf_level, league=_lg, news_flag=_nf, lineup_flag=_lf)
     except Exception:
         pass
 
@@ -149,7 +151,7 @@ def _record_match_plays(bt, m, mid, jingcai=False, include_estimated=True, exist
                                  model_name='jingcai-value', confidence=conf,
                                  home_team=home, away_team=away,
                                  estimated=True, jingcai=jingcai,
-                                 existing_keys=existing_keys, confidence_level=conf_level, league=_lg)
+                                 existing_keys=existing_keys, confidence_level=conf_level, league=_lg, news_flag=_nf, lineup_flag=_lf)
     except Exception:
         pass
 
@@ -168,7 +170,7 @@ def _record_match_plays(bt, m, mid, jingcai=False, include_estimated=True, exist
                                  home_team=home, away_team=away,
                                  estimated=(htft.get('source') != '竞彩官方'),
                                  jingcai=jingcai, existing_keys=existing_keys,
-                                 confidence_level=conf_level, league=_lg)
+                                 confidence_level=conf_level, league=_lg, news_flag=_nf, lineup_flag=_lf)
         else:
             _ht = _predict_htft(m, conf)
             if _ht:
@@ -177,7 +179,7 @@ def _record_match_plays(bt, m, mid, jingcai=False, include_estimated=True, exist
                                      model_name='jingcai-value', confidence=conf,
                                      home_team=home, away_team=away,
                                      estimated=True, jingcai=jingcai,
-                                     existing_keys=existing_keys, confidence_level=conf_level, league=_lg)
+                                     existing_keys=existing_keys, confidence_level=conf_level, league=_lg, news_flag=_nf, lineup_flag=_lf)
     except Exception:
         pass
 
