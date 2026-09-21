@@ -104,13 +104,25 @@ def _apply_calibration_safe(matches):
 
 
 def _apply_post_analyze(matches):
-    """分析后处理：信心/同类场次校准 + 资讯信号（保守降级/提示）。"""
+    """分析后处理：信心/同类场次校准 + 资讯信号 + 官方首发（只读展示）。"""
     _apply_calibration_safe(matches)
     try:
         import news_ingest
         news_ingest.apply_to_matches(matches)
     except Exception as e:
         logging.warning('[API] news apply failed: %s', e)
+    try:
+        import lineup_client
+        if lineup_client.attach(matches):
+            for m in matches:
+                lu = m.get('lineup')
+                if lu:
+                    m['ai_preview'] = (m.get('ai_preview') or '') + \
+                        '（官方首发已确认：主 %s / 客 %s）' % (
+                            (lu.get('home') or {}).get('formation') or '?',
+                            (lu.get('away') or {}).get('formation') or '?')
+    except Exception as e:
+        logging.warning('[API] lineup apply failed: %s', e)
 
 
 @app.route('/')
@@ -830,6 +842,17 @@ def news_summary():
     except Exception as e:
         logging.warning('[API] news: %s', e)
         return jsonify({'updated': '', 'items': 0, 'teams': 0, 'sources': []})
+
+
+@app.route('/api/lineup')
+def lineup_summary():
+    """官方首发缓存概要（临近开赛窗口内拉取）。"""
+    try:
+        from lineup_client import summary
+        return jsonify(summary())
+    except Exception as e:
+        logging.warning('[API] lineup: %s', e)
+        return jsonify({'cached': 0})
 
 
 @app.route('/api/news/refresh', methods=['POST'])
