@@ -647,7 +647,7 @@ button{font-family:inherit}
 <div class="footer">
   <div class="ft-links"><a href="/">今日赛事</a><a href="/history">历史战绩</a><a href="/settings">系统设置</a></div>
   <p class="disclaimer">免责声明：本网站所有数据及分析仅供娱乐参考，不构成任何投注建议。赛果与赔率实时变动，请以中国体育彩票官方发布为准。</p>
-  <p>&copy; 2024 竞彩足球智能分析 | AI生成内容仅供参考 | 数据来源于公开信息 | 仅供个人学习研究使用</p>
+  <p>&copy; <span class="copyYear">2026</span> 竞彩足球智能分析 | AI生成内容仅供参考 | 数据来源于公开信息 | 仅供个人学习研究使用</p>
 </div>
 
 <!-- 模态 -->
@@ -769,12 +769,6 @@ async function fetchJingcaiList() {
     console.warn('竞彩官方API失败: ' + e.message);
     return [];
   }
-}
-
-async function fetchData() {
-  const resp = await fetch('/api/data');
-  if (!resp.ok) throw new Error('Network error');
-  return await resp.json();
 }
 
 /* ===== 工具函数 ===== */
@@ -1992,6 +1986,7 @@ document.addEventListener('DOMContentLoaded', function(){
   refreshData();
   initAutoRefreshToggle();
   startLiveClock();
+  document.querySelectorAll('.copyYear').forEach(function(e){ e.textContent = new Date().getFullYear(); });
 });
 </script>
 <div class="copy-toast" id="copyToast"></div>
