@@ -101,6 +101,8 @@ class BtBet(db.Model):
     jingcai = db.Column(db.Boolean, default=False)
     # 推荐时的信心等级（高/中/低），用于按等级做历史命中率校准
     confidence_level = db.Column(db.String(10), nullable=True)
+    # 联赛名（同类场次经验校准：按联赛分段的命中率）
+    league = db.Column(db.String(50), nullable=True)
 
 
 class BtBacktestSummary(db.Model):
