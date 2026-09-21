@@ -38,6 +38,9 @@ python tools/test_logic.py
 ## 关键约束与坑（务必避免）
 
 - **竞彩官方数据**：服务器端直连 `sporttery.cn` 会 **403**（白名单限制）。竞彩数据只能由**浏览器前端直连** `webapi.sporttery.cn`（需 `Referer: https://m.sporttery.cn/`）。后端 `cache` 只走 Bzzoiro。
+- **前台只展示竞彩官方场次**：`index.html::refreshData` 仅用竞彩直连结果渲染（`jc.length>=1` 即展示）；
+  取不到竞彩时调用 `renderNoJingcai()` 显示空状态并继续后台等待，**绝不回退**到 Bzzoiro/模拟场次；
+  无竞彩即视为无数据（推荐/价值盘/回测面板均置空）。系统设置已移除 Bzzoiro 数据源开关。
 - **禁止用 PowerShell 以字面 `\n` 写 Python/JS 文件**：会破坏换行与中文编码，产生语法错误或损坏字符。
 - **前端 JS 禁止嵌套模板字符串**（反引号套反引号）：会让整段 `<script>` 解析失败、页面全白。
 - 所有对 `*.py` / `templates/*.html` 的写入都应保持 **UTF-8（无 BOM）**；`backtest.py` 现存 BOM 属历史遗留，改动时建议去掉。
