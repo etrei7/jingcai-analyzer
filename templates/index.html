@@ -585,6 +585,7 @@ button{font-family:inherit}
     <!-- 战绩面板 -->
     <div class="rec-section" style="margin-top:20px">
       <div class="section-title">历史预测回测（竞彩官方） <button class="copy-all-btn" onclick="runBacktestNow(this)">&#128260; 立即结算</button></div>
+      <div id="calibBox"></div>
       <div id="historyContainer"><div class="loading">加载战绩…</div></div>
     </div>
 
@@ -1429,6 +1430,30 @@ async function loadValueStats(){
   }catch(e){}
 }
 
+async function loadCalibration(){
+  var el = document.getElementById('calibBox');
+  if(!el) return;
+  try{
+    var resp = await fetch('/api/calibration');
+    if(!resp.ok){ el.innerHTML=''; return; }
+    var s = await resp.json();
+    var b = (s && s.buckets) || {};
+    var keys = ['高','中','低'].filter(function(k){ return b[k]; });
+    if(!keys.length){ el.innerHTML=''; return; }
+    var rows = keys.map(function(k){
+      var d = b[k];
+      var edgeColor = d.edge >= 0 ? 'var(--high)' : 'var(--low)';
+      return '<tr><td>'+k+'</td><td align="right">'+(d.n||0)+'</td><td align="right">'+(d.hit_rate||0)+'%</td><td align="right">'+(d.required_rate||0)+'%</td><td align="right" style="color:'+edgeColor+'">'+(d.edge>0?'+':'')+d.edge+'%</td></tr>';
+    }).join('');
+    el.innerHTML = '<div class="backtest-card" style="margin-bottom:10px">'
+      + '<div class="bt-note">信心校准（历史命中率 vs 盈亏平衡，样本≥'+(s.min_n||50)+' 生效）</div>'
+      + '<table style="width:100%;font-size:0.68rem;border-collapse:collapse;margin-top:6px">'
+      + '<tr style="color:var(--text-muted)"><th align="left">信心</th><th align="right">样本</th><th align="right">命中率</th><th align="right">盈亏线</th><th align="right">优势</th></tr>'
+      + rows + '</table>'
+      + '<div class="bt-note">命中率低于盈亏线(1/平均赔率)说明该等级长期不盈利，系统会自动降级；总样本 '+(s.total||0)+'</div></div>';
+  }catch(e){}
+}
+
 /* ===== 总进球 ===== */
 /* ===== 每场比赛卡片内的总进球推荐 ===== */
 function renderCardTotalGoals(m) {
@@ -1808,6 +1833,7 @@ function showData(data){
   (data.total_goals_recs||[]).forEach(function(tg){ if(tg && tg.match_id) allTotalGoals[tg.match_id] = tg; });
   renderHistoryPanel(data.history_stats);
   loadBacktestPanel();
+  loadCalibration();
   loadParlayPanel();
   renderParlay();
   setConnStatus(true, '已连接');
@@ -1864,6 +1890,7 @@ async function runBacktestNow(btn){
   try { await loadBacktestPanel(); } catch(e) {}
   try { await loadParlayPanel(); } catch(e) {}
   try { await loadValueStats(); } catch(e) {}
+  try { await loadCalibration(); } catch(e) {}
   setTimeout(function(){ if(btn){ btn.disabled = false; btn.innerHTML = '&#128260; 立即结算'; } }, 1800);
 }
 
