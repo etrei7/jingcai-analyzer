@@ -1,12 +1,6 @@
 import random, math, copy, json, os, hashlib
 
 
-def _stable_random(seed_str, min_val, max_val):
-    """确定性随机：同输入永远同输出"""
-    h = int(hashlib.md5(seed_str.encode()).hexdigest()[:8], 16)
-    return min_val + (h % 1000) / 1000.0 * (max_val - min_val)
-
-
 def _stable_gauss(seed_str, mean, sigma):
     h = int(hashlib.md5(seed_str.encode()).hexdigest()[:8], 16)
     return max(0, round(mean + ((h % 1000) / 500.0 - 1.0) * sigma))
@@ -221,16 +215,6 @@ def _skellam_prob(diff, lam1, lam2):
         if 0 <= j <= max_k:
             prob += pk * _poisson_prob(j, lam2)
     return prob
-
-
-def _goal_distribution(expected):
-    dist = {}
-    for k in range(7):
-        dist[str(k)] = round(_poisson_prob(k, expected) * 100, 1)
-    total_so_far = sum(dist.values())
-    dist['7+'] = round((1 - total_so_far / 100) * 100, 1)
-    dist['5+'] = round(sum(dist.get(str(k), 0) for k in range(5, 7)) + dist.get('7+', 0), 1)
-    return dist
 
 
 def _team_confidence_10(form_str=None, rank=None, xgd=None,
