@@ -56,6 +56,10 @@ python tools/test_logic.py
 - 表 `bt_*`（`odds_snapshots` / `bets` / `summary`），定时任务见 `scheduler.py`。
 - 结算按 Bzzoiro `match_id` 精确查；流水线 `data_pipeline.run_full()` 采集+结算。
 - 战绩汇总 `compute_summary` 有 60s TTL 缓存，结算后调 `clear_summary_cache()`。
+- **只统计竞彩官方场次**：`bt_bets.jingcai` 标记 + `_migrate_bt_bets` 自动加列。
+  前端 `/api/analyze` 处理竞彩场次时经 `data_pipeline.record_jingcai_plays` 写入（用 `bz_event_id`
+  赛后结算），并按 (match_id, play_type) 去重。`compute_summary(jingcai_only=True)` 只聚合竞彩记录；
+  `data_pipeline.run_pipeline` 已停用 Bzzoiro 全量采集。旧非竞彩记录保留但不计入战绩（可恢复）。
 - **串关级追踪**：表 `bt_parlays`，逻辑在 `parlay_tracker.py`（`record_parlays` 记录 /
   `settle_parlays` 结算 / `parlay_summary_cached` 汇总，60s TTL）。单场命中率≠串关命中率。
   结算任一腿未中即整套未中；腿的结算玩法/pick 由 `analysis.py::_infer_leg_meta` 从 option 推断
