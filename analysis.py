@@ -653,6 +653,17 @@ def _generate_ai_preview(r):
 
 
 def analyze_single_match(match, standings=None, prediction=None):
+    # 归一化可能缺失或为 None 的字段，避免后续比较/运算崩溃（如未开盘场次）
+    for _k in ('win_odds', 'draw_odds', 'lose_odds', 'handicap_line',
+               'handicap_win_odds', 'handicap_draw_odds', 'handicap_lose_odds'):
+        try:
+            if match.get(_k) is None:
+                match[_k] = 0
+        except Exception:
+            pass
+    for _k in ('home_team', 'away_team', 'league', 'match_time'):
+        if not match.get(_k):
+            match[_k] = ''
     odds_list = [('胜', match['win_odds']), ('平', match['draw_odds']), ('负', match['lose_odds'])]
     # 无胜平负场次（只开让球）：用安全值，避免 /0，预测标记为"无胜负"
     _has_1x2 = any(o[1] and o[1] > 0 for o in odds_list)
