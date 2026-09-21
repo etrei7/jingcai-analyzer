@@ -55,6 +55,10 @@ python tools/test_logic.py
 
 - 表 `bt_*`（`odds_snapshots` / `bets` / `summary`），定时任务见 `scheduler.py`。
 - 结算按 Bzzoiro `match_id` 精确查；流水线 `data_pipeline.run_full()` 采集+结算。
+- **结算覆盖率**：`data_pipeline.settle_finished()` 构建「事件ID + 队名」双索引
+  （近 7 天 `fetch_finished_events` + 数字ID并发补查），ID优先、队名兜底，
+  竞彩编号场次也能闭环。`record_jingcai_plays` 无 `bz_event_id` 时用竞彩编号记录（靠队名结算）。
+  `backtest.settle_bet` 已不再被调用，保留作 API 兼容。
 - 战绩汇总 `compute_summary` 有 60s TTL 缓存，结算后调 `clear_summary_cache()`。
 - **历史预测结算**（`scheduler.daily_settlement`）：数字 `raw_event_id` 按 Bzzoiro 事件ID精确查；
   竞彩编号（如「周日001」）走 `bizzoiro_client.fetch_finished_events()` 拉近几日已完赛事件按队名
