@@ -65,15 +65,22 @@ def _record_match_plays(bt, m, mid, jingcai=False, include_estimated=True, exist
     conf = 0.8 if conf_level == '高' else 0.6 if conf_level == '中' else 0.4
     win, draw, loss = m.get('win_odds'), m.get('draw_odds'), m.get('lose_odds')
 
-    # 1X2 胜平负
-    best = min((o for o in [('H', win), ('D', draw), ('A', loss)] if o[1] and o[1] > 0),
-               key=lambda x: x[1])
-    pick1x2, odds1x2 = best
-    bt.record_prediction(mid, '1X2', pick1x2,
-                         round(bt.implied_prob(odds1x2) * conf, 4), odds1x2,
-                         model_name='jingcai-value', confidence=conf,
-                         home_team=home, away_team=away,
-                         jingcai=jingcai, existing_keys=existing_keys)
+    # 1X2 胜平负：按「页面实际推荐的 predicted_option」记录（可能被基本面改判），
+    # 使回测评估的策略与用户看到的推荐一致；无推荐时退化为最低赔方。
+    _po_map = {'胜': 'H', '平': 'D', '负': 'A'}
+    _odds_by = {'H': win, 'D': draw, 'A': loss}
+    pick1x2 = _po_map.get(m.get('predicted_option'))
+    odds1x2 = _odds_by.get(pick1x2) if pick1x2 else None
+    if not (odds1x2 and odds1x2 > 0):
+        _opts = [(k, v) for k, v in _odds_by.items() if v and v > 0]
+        if _opts:
+            pick1x2, odds1x2 = min(_opts, key=lambda x: x[1])
+    if pick1x2 and odds1x2 and odds1x2 > 0:
+        bt.record_prediction(mid, '1X2', pick1x2,
+                             round(bt.implied_prob(odds1x2) * conf, 4), odds1x2,
+                             model_name='jingcai-value', confidence=conf,
+                             home_team=home, away_team=away,
+                             jingcai=jingcai, existing_keys=existing_keys)
 
     # AH 让胜平负（_compute_handicap 推算，始终有值）
     try:
