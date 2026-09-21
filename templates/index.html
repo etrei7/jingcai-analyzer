@@ -575,6 +575,13 @@ button{font-family:inherit}
       <div id="recContainer"><div class="loading">生成推荐方案…</div></div>
     </div>
 
+    <!-- 价值盘（锐盘基准） -->
+    <div class="rec-section" style="margin-top:20px">
+      <div class="section-title">价值盘 · 锐盘基准 <span class="st-tag">正期望</span></div>
+      <div id="valueStats"></div>
+      <div id="valueContainer"><div class="loading">计算价值盘…</div></div>
+    </div>
+
     <!-- 战绩面板 -->
     <div class="rec-section" style="margin-top:20px">
       <div class="section-title">历史预测回测（竞彩官方） <button class="copy-all-btn" onclick="runBacktestNow(this)">&#128260; 立即结算</button></div>
@@ -1369,6 +1376,59 @@ function notifyCopied() {
   setTimeout(function(){ t.classList.remove('show'); }, 1600);
 }
 
+/* ===== 价值盘（锐盘基准） ===== */
+function renderValueRecs(recs){
+  var c = document.getElementById('valueContainer');
+  if(!c) return;
+  if(!recs || !recs.length){
+    c.innerHTML = '<div class="bt-note">当前无正期望价值盘：需竞彩赔率相对国际锐盘（去水）有 ≥2% 价值时才会出现。</div>';
+    return;
+  }
+  c.innerHTML = '<div class="rec-grid">' + recs.map(function(r){
+    var cls = r.edge_pct >= 5 ? 'rec-risk-low' : 'rec-risk-mid';
+    var sp = r.sharp_prob || {};
+    return '<div class="rec-card">' +
+      '<div class="rec-header"><div><div class="rec-name">' + r.home_team + ' vs ' + r.away_team + '</div>' +
+      '<div class="rec-type">' + (r.league||'') + ' #' + (r.match_id||'') + ' ' + (r.match_time||'') + '</div></div>' +
+      '<span class="rec-risk ' + cls + '">+' + r.edge_pct + '%</span></div>' +
+      '<div class="rec-match-item"><div class="detail">' +
+        '<span>方向: <strong style="color:var(--primary)">' + r.option + '</strong></span>' +
+        '<span>竞彩赔率 ' + r.jc_odds + '</span>' +
+        '<span>公平赔率 ' + r.fair_odds + '</span>' +
+        '<span>正期望 ' + r.edge_pct + '%</span>' +
+        '<span>估算概率 ' + r.prob + '%</span>' +
+      '</div></div>' +
+      '<div class="rec-odds-display">' +
+        '<div class="ret">锐盘概率 主' + (sp.home||'-') + '/平' + (sp.draw||'-') + '/客' + (sp.away||'-') + '%</div>' +
+        '<div class="ret" style="color:var(--amber);margin-top:2px">&#128176; 建议仓位 ' + r.kelly_pct + '%（约 ' + r.amount + ' 元/千元 · 分数凯利）</div>' +
+      '</div>' +
+    '</div>';
+  }).join('') + '</div>';
+}
+
+async function loadValueStats(){
+  var el = document.getElementById('valueStats');
+  if(!el) return;
+  try{
+    var resp = await fetch('/api/value-stats');
+    if(!resp.ok){ el.innerHTML=''; return; }
+    var s = await resp.json();
+    if(!s || !s.total_bets){ el.innerHTML=''; return; }
+    var roi = s.roi || 0, rate = s.hit_rate || 0;
+    var roiColor = roi > 0 ? 'var(--high)' : roi < 0 ? 'var(--low)' : 'var(--text)';
+    var brier = (s.brier!=null) ? s.brier : '—';
+    var ll = (s.log_loss!=null) ? s.log_loss : '—';
+    el.innerHTML = '<div class="backtest-card" style="margin-bottom:10px"><div class="bt-stats">' +
+      '<div class="bt-stat"><div class="num" style="color:'+roiColor+'">'+(roi>0?'+':'')+roi+'%</div><div class="lab">价值盘 ROI</div></div>' +
+      '<div class="bt-stat"><div class="num">'+(s.total_bets||0)+'</div><div class="lab">样本(结算)</div></div>' +
+      '<div class="bt-stat"><div class="num">'+rate+'%</div><div class="lab">命中率</div></div>' +
+      '<div class="bt-stat"><div class="num">'+(s.wins||0)+'/'+(s.losses||0)+'</div><div class="lab">胜/负</div></div>' +
+      '<div class="bt-stat"><div class="num">'+brier+'</div><div class="lab">Brier(越低越好)</div></div>' +
+      '<div class="bt-stat"><div class="num">'+ll+'</div><div class="lab">LogLoss</div></div>' +
+      '</div><div class="bt-note">价值盘 = 正期望估算（锐盘基准+模型校准），命中率天然偏低，需看 ROI 与校准指标</div></div>';
+  }catch(e){}
+}
+
 /* ===== 总进球 ===== */
 /* ===== 每场比赛卡片内的总进球推荐 ===== */
 function renderCardTotalGoals(m) {
@@ -1742,6 +1802,8 @@ function showData(data){
   fillAnalystMatches(data.matches);
   renderIntlValueBoard(data.matches);
   renderRecommendations(data.recommendations);
+  renderValueRecs(data.value_recs);
+  loadValueStats();
   allTotalGoals = {};
   (data.total_goals_recs||[]).forEach(function(tg){ if(tg && tg.match_id) allTotalGoals[tg.match_id] = tg; });
   renderHistoryPanel(data.history_stats);
@@ -1801,6 +1863,7 @@ async function runBacktestNow(btn){
   if(btn){ btn.textContent = ok ? '✓ 已完成' : '✗ 失败'; }
   try { await loadBacktestPanel(); } catch(e) {}
   try { await loadParlayPanel(); } catch(e) {}
+  try { await loadValueStats(); } catch(e) {}
   setTimeout(function(){ if(btn){ btn.disabled = false; btn.innerHTML = '&#128260; 立即结算'; } }, 1800);
 }
 
