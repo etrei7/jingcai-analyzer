@@ -103,6 +103,16 @@ def _apply_calibration_safe(matches):
         logging.warning('[API] calibration failed: %s', e)
 
 
+def _apply_post_analyze(matches):
+    """分析后处理：信心/同类场次校准 + 资讯信号（保守降级/提示）。"""
+    _apply_calibration_safe(matches)
+    try:
+        import news_ingest
+        news_ingest.apply_to_matches(matches)
+    except Exception as e:
+        logging.warning('[API] news apply failed: %s', e)
+
+
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -177,7 +187,7 @@ def get_data():
             pass
 
     analyzed = analyze_matches(matches, standings, predictions)
-    _apply_calibration_safe(analyzed)
+    _apply_post_analyze(analyzed)
 
     # 联赛排名增强：用 thesportsdb(备选 Bzzoiro) 填充每场 home_rank/away_rank
     try:
@@ -278,7 +288,7 @@ def get_realtime():
 
     def _analyzed_payload(matches, source):
         analyzed = analyze_matches(matches, None, {})
-        _apply_calibration_safe(analyzed)
+        _apply_post_analyze(analyzed)
         try:
             from rankings import enhance_matches
             enhance_matches(analyzed)
@@ -541,7 +551,7 @@ def analyze_data():
 
         source = '竞彩官方'
         analyzed = analyze_matches(matches, None, {})
-        _apply_calibration_safe(analyzed)
+        _apply_post_analyze(analyzed)
         recommendations = generate_parlay_recommendations(analyzed)
         total_goals_recs = generate_total_goals_recommendations(analyzed)
         try: save_predictions(analyzed)
@@ -625,7 +635,7 @@ def analyze_data():
             }
 
     analyzed = analyze_matches(matches, None, pred_map)
-    _apply_calibration_safe(analyzed)
+    _apply_post_analyze(analyzed)
     recommendations = generate_parlay_recommendations(analyzed)
     total_goals_recs = generate_total_goals_recommendations(analyzed)
     try:
@@ -809,6 +819,29 @@ def calibration_stats():
     except Exception as e:
         logging.warning('[API] calibration: %s', e)
         return jsonify({'buckets': {}, 'total': 0, 'min_n': 50})
+
+
+@app.route('/api/news')
+def news_summary():
+    """资讯抓取概要（RSS 信号数量/覆盖球队/来源）。"""
+    try:
+        from news_ingest import summary
+        return jsonify(summary())
+    except Exception as e:
+        logging.warning('[API] news: %s', e)
+        return jsonify({'updated': '', 'items': 0, 'teams': 0, 'sources': []})
+
+
+@app.route('/api/news/refresh', methods=['POST'])
+def news_refresh():
+    """手动刷新资讯（RSS 抓取+分类+匹配）。"""
+    try:
+        from news_ingest import refresh
+        n = refresh()
+        return jsonify({'success': True, 'items': n})
+    except Exception as e:
+        logging.warning('[API] news/refresh: %s', e)
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @app.route('/api/backtest/run', methods=['POST'])
