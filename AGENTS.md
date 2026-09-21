@@ -59,6 +59,12 @@ python tools/test_logic.py
   （近 7 天 `fetch_finished_events` + 数字ID并发补查），ID优先、队名兜底，
   竞彩编号场次也能闭环。`record_jingcai_plays` 无 `bz_event_id` 时用竞彩编号记录（靠队名结算）。
   `backtest.settle_bet` 已不再被调用，保留作 API 兼容。
+- **超期作废**：`data_pipeline.expire_stale(days=3)` 把超 3 天仍无赛果的待结算 bet/parlay
+  标记 `outcome='void'`（pnl=0），保持统计口径干净；在 `run_full` 中调用。
+- **队名别名学习**（`team_alias.py`，存储 `instance/team_aliases.json`）：结算命中同场时，
+  用 `learn(事件名, 记录名)` 自动登记「英文→中文」别名（含小写键，上限 5000）；
+  `canon()` = `TEAM_NAME_CN` + 学习别名。`backtest._cn`、`settle_finished`、`daily_settlement`、
+  `_filter_by_jingcai`、`parlay_tracker._key` 均已改用它，持续提升队名兜底结算率。
 - 战绩汇总 `compute_summary` 有 60s TTL 缓存，结算后调 `clear_summary_cache()`。
 - **历史预测结算**（`scheduler.daily_settlement`）：数字 `raw_event_id` 按 Bzzoiro 事件ID精确查；
   竞彩编号（如「周日001」）走 `bizzoiro_client.fetch_finished_events()` 拉近几日已完赛事件按队名
