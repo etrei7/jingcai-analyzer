@@ -586,6 +586,7 @@ button{font-family:inherit}
     <div class="rec-section" style="margin-top:20px">
       <div class="section-title">历史预测回测（竞彩官方） <button class="copy-all-btn" onclick="runBacktestNow(this)">&#128260; 立即结算</button></div>
       <div id="calibBox"></div>
+      <div id="abBox"></div>
       <div id="historyContainer"><div class="loading">加载战绩…</div></div>
     </div>
 
@@ -1450,6 +1451,31 @@ async function loadValueStats(){
   }catch(e){}
 }
 
+async function loadAbTest(){
+  var el = document.getElementById('abBox');
+  if(!el) return;
+  try{
+    var resp = await fetch('/api/ab-test');
+    if(!resp.ok){ el.innerHTML=''; return; }
+    var s = await resp.json();
+    if(!s || !s.total){ el.innerHTML=''; return; }
+    function row(name, d, hl){
+      d = d || {};
+      var c = d.roi>0 ? 'var(--high)' : d.roi<0 ? 'var(--low)' : 'var(--text)';
+      var pc = d.pnl>0 ? 'var(--high)' : d.pnl<0 ? 'var(--low)' : 'var(--text)';
+      return '<tr style="' + (hl?'background:var(--card-stripe)':'') + '"><td>' + name + '</td><td align="right">' + (d.n||0) + '</td><td align="right">' + (d.hit_rate||0) + '%</td><td align="right" style="color:' + c + '">' + (d.roi>0?'+':'') + (d.roi||0) + '%</td><td align="right" style="color:' + pc + '">' + (d.pnl||0) + '</td></tr>';
+    }
+    el.innerHTML = '<div class="backtest-card" style="margin-bottom:10px">'
+      + '<div class="bt-note">A/B 对比（有资讯 / 有首发 vs 无，竞彩 1X2 真实推荐）</div>'
+      + '<table style="width:100%;font-size:0.68rem;border-collapse:collapse;margin-top:6px">'
+      + '<tr style="color:var(--text-muted)"><th align="left">分组</th><th align="right">样本</th><th align="right">命中率</th><th align="right">ROI</th><th align="right">盈亏</th></tr>'
+      + row('有资讯', s.with_news, false) + row('有首发', s.with_lineup, false)
+      + row('有资讯或首发', s.with_any, true) + row('无（对照）', s.without, false)
+      + '</table>'
+      + '<div class="bt-note">样本足够后，若「有」组 ROI/命中率显著优于「无」组，说明资讯/首发确有增量</div></div>';
+  }catch(e){}
+}
+
 async function loadCalibration(){
   var el = document.getElementById('calibBox');
   if(!el) return;
@@ -1854,6 +1880,7 @@ function renderNoJingcai(msg){
   if(hc) hc.innerHTML = '<div class="bt-note">暂无竞彩官方场次。</div>';
   var vs = document.getElementById('valueStats'); if(vs) vs.innerHTML = '';
   var cb = document.getElementById('calibBox'); if(cb) cb.innerHTML = '';
+  var ab = document.getElementById('abBox'); if(ab) ab.innerHTML = '';
   var tgt = document.getElementById('totalMatches'); if(tgt) tgt.textContent = '0';
   var ds = document.getElementById('dataSource'); if(ds) ds.textContent = '竞彩官方（无场次）';
   var pt = document.getElementById('priorityTag'); if(pt) pt.style.display = 'none';
@@ -1885,6 +1912,7 @@ function showData(data){
   renderHistoryPanel(data.history_stats);
   loadBacktestPanel();
   loadCalibration();
+  loadAbTest();
   loadParlayPanel();
   renderParlay();
   setConnStatus(true, '已连接');
@@ -1942,6 +1970,7 @@ async function runBacktestNow(btn){
   try { await loadParlayPanel(); } catch(e) {}
   try { await loadValueStats(); } catch(e) {}
   try { await loadCalibration(); } catch(e) {}
+  try { await loadAbTest(); } catch(e) {}
   setTimeout(function(){ if(btn){ btn.disabled = false; btn.innerHTML = '&#128260; 立即结算'; } }, 1800);
 }
 
