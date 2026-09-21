@@ -182,7 +182,7 @@ def record_value_picks(matches):
                     round(pk['prob'] / 100.0, 4), pk['jc_odds'],
                     model_name='value-sharp', confidence=pk['prob'] / 100.0,
                     home_team=m.get('home_team'), away_team=m.get('away_team'),
-                    jingcai=True)
+                    jingcai=True, confidence_level=m.get('confidence_level'))
                 existing.add((eid, 'VAL'))
                 n += 1
             except Exception as e:
