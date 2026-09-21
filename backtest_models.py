@@ -99,6 +99,8 @@ class BtBet(db.Model):
     estimated = db.Column(db.Boolean, default=False)
     # 是否为竞彩官方开售场次。战绩面板只统计竞彩场次，过滤体彩不开的 Bzzoiro 场次。
     jingcai = db.Column(db.Boolean, default=False)
+    # 推荐时的信心等级（高/中/低），用于按等级做历史命中率校准
+    confidence_level = db.Column(db.String(10), nullable=True)
 
 
 class BtBacktestSummary(db.Model):
