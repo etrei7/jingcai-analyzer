@@ -56,6 +56,9 @@ python tools/test_logic.py
 - 表 `bt_*`（`odds_snapshots` / `bets` / `summary`），定时任务见 `scheduler.py`。
 - 结算按 Bzzoiro `match_id` 精确查；流水线 `data_pipeline.run_full()` 采集+结算。
 - 战绩汇总 `compute_summary` 有 60s TTL 缓存，结算后调 `clear_summary_cache()`。
+- **历史预测结算**（`scheduler.daily_settlement`）：数字 `raw_event_id` 按 Bzzoiro 事件ID精确查；
+  竞彩编号（如「周日001」）走 `bizzoiro_client.fetch_finished_events()` 拉近几日已完赛事件按队名
+  规约匹配。解决竞彩预测永远「待验证」的问题。`history._save_history` 有 3000 条容量上限。
 - **只统计竞彩官方场次**：`bt_bets.jingcai` 标记 + `_migrate_bt_bets` 自动加列。
   前端 `/api/analyze` 处理竞彩场次时经 `data_pipeline.record_jingcai_plays` 写入（用 `bz_event_id`
   赛后结算），并按 (match_id, play_type) 去重。`compute_summary(jingcai_only=True)` 只聚合竞彩记录；
@@ -75,9 +78,16 @@ python tools/test_logic.py
 - `backtest.py::persist_summary`
 - `history.py::verify_prediction`
 
+新增删除：
+- `models.py::Match` / `Recommendation` / `TeamStat`（旧表模型，全站无引用；仅保留 `db`）
+- `config.py::REFRESH_INTERVAL`（未使用）
+- `templates/index.html::fetchData`（未调用）
+
 保留（有意）：
 - `odds_tracker.py::track`（已被 `track_many` 取代，保留作 API 兼容）
 - `scheduler.py::warmup_cache`（手动预热入口）
+- HTTP 接口 `/api/realtime`、`/api/team-data`、`/api/jingcai`、`/api/jingcai-token`
+  （前端未调用，但属对外 API 面，保留以防外部集成依赖）
 
 > 注意：`data_generator.generate_matches` 经 `from data_generator import generate_matches as generate_mock_matches` **别名导入**使用，**不可删**（静态分析会误报为未引用）。
 
