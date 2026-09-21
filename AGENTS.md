@@ -15,6 +15,14 @@ python tools/selfcheck.py
 2. 所有 `*.py` 是否含损坏字符（U+FFFD / 私用区 U+E000–U+F8FF）
 3. `templates/index.html` 最后一个 `<script>` 的圆括号/花括号/反引号是否配平
 
+**改动分析/结算逻辑时，另跑回归测试**（无需数据库/网络）：
+
+```bash
+python tools/test_logic.py
+```
+
+覆盖：数学模型归一化（泊松/Dixon-Coles/去水/凯利）、各玩法结算（1X2/AH/CS/HTFT）、半全场赔率反推、串关组合、缺字段/None 不崩。必须 `RESULT: ALL OK`。
+
 > 这些检查源自真实事故：`api_football_client.py` 曾因"换行丢失 + 损坏字符"导致 `SyntaxError`，模块**始终无法导入**，API-Football 富化静默失效很久无人察觉。
 
 ## 部署
