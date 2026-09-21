@@ -99,9 +99,20 @@ def _rate_limited():
     return _time.time() < _RATE_LIMIT_UNTIL
 
 
-def _season_for(league_id):
-    """确定当前可用赛季：本站使用 2024 赛季（API-Football 免费版稳定提供）。"""
-    return 2024
+# 日历年赛季（非欧洲跨年）的联赛关键词
+_CALENDAR_YEAR_LEAGUES = ('日职', '日乙', '韩K', '中超', '中甲', '巴甲', '阿甲',
+                          '美职', 'MLS', '墨西超', '澳超', 'J联赛', 'K联赛')
+
+
+def _season_candidates(league_cn):
+    """推算当前可用赛季候选（欧洲跨年 vs 日历年），按可能优先。
+    免费版可能未提供最新赛季，故返回多个候选依次尝试，避免写死赛季导致积分榜过期/为空。"""
+    today = datetime.now()
+    y, m = today.year, today.month
+    if any(k in (league_cn or '') for k in _CALENDAR_YEAR_LEAGUES):
+        return [y, y - 1]
+    start = y if m >= 7 else y - 1
+    return [start, start - 1]
 
 
 def fetch_league_standings(league_cn):
@@ -113,15 +124,16 @@ def fetch_league_standings(league_cn):
     lid = LEAGUE_ID_MAP.get(league_cn)
     if not lid:
         return {}
-    season = _season_for(lid)
-    key = f'std_{lid}_{season}'
+    key = f'std_{lid}'
     cached = _CACHE.get(key)
     if cached is not None:
         return cached
 
-    rows = _fetch('/standings', {'league': lid, 'season': season})
     by_name = {}
-    if rows:
+    for season in _season_candidates(league_cn):
+        rows = _fetch('/standings', {'league': lid, 'season': season})
+        if not rows:
+            continue
         standings = rows[0].get('league', {}).get('standings', [])
         for group in standings:
             for row in group:
@@ -130,8 +142,11 @@ def fetch_league_standings(league_cn):
                 if tname:
                     by_name[tname] = row
                     by_name[tname.lower()] = row
+        if by_name:
+            logger.info('[apifb] standings league=%s(%s) season=%s -> %d队',
+                        league_cn, lid, season, len(by_name))
+            break
     _CACHE.set(key, by_name)
-    logger.info('[apifb] standings league=%s(%s) -> %d队', league_cn, lid, len(by_name))
     return by_name
 
 
