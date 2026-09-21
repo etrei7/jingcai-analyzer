@@ -31,7 +31,9 @@ def record_jingcai_plays(matches):
             existing = set()
         n = 0
         for m in matches:
-            eid = str(m.get('bz_event_id') or '')
+            # 优先 Bzzoiro 事件ID（可精确结算）；无匹配时用竞彩编号，结算走队名兜底，
+            # 保证每场竞彩推荐都能进入回测闭环（提高结算覆盖率）。
+            eid = str(m.get('bz_event_id') or '') or str(m.get('match_id') or '')
             if not eid:
                 continue
             try:
@@ -229,45 +231,72 @@ def _predict_htft(m, conf, max_goals=5):
 
 
 def settle_finished():
-    """赛后结算：按待结算 bt_bets 的 match_id（Bzzoiro 单场ID）逐个精确查询赛果回填。
-    这是最精准的方式——直接拿到预测那场比赛的比分，不受队名中英文/联赛淹没影响。
+    """赛后结算（高覆盖）：构建「事件ID + 队名」双索引的赛果表，按ID优先、队名兜底回填。
+    - 已完赛列表 fetch_finished_events（近7天）覆盖大多数场次；
+    - 待结算的数字事件ID再逐个补查（列表可能不含）；
+    - 竞彩编号场次（无 Bzzoiro ID）靠队名规约匹配，闭环样本。
     """
     try:
-        from bizzoiro_client import API_KEY, BASE_URL
+        from bizzoiro_client import API_KEY, BASE_URL, fetch_finished_events
         if not API_KEY:
             return 0
         import requests
+        import json as _json
         import backtest as bt
-        from backtest_models import BtBet, db
-        # 取所有未结算的 bet（按 match_id 精确查，去重）
+        from backtest_models import BtBet, BtParlay, db
+
+        def _norm(s):
+            return (s or '').replace(' ', '').replace('-', '').lower()
+
+        def _cn(s):
+            try:
+                from team_names import TEAM_NAME_CN
+                n = (s or '').strip()
+                return TEAM_NAME_CN.get(n, n)
+            except Exception:
+                return s or ''
+
+        results = {}
+        name_idx = {}
+
+        def _add_ev(ev):
+            if not isinstance(ev, dict):
+                return
+            hs, aw = ev.get('home_score'), ev.get('away_score')
+            if hs is None or aw is None:
+                return
+            eid = str(ev.get('id') or '')
+            if eid:
+                results[eid] = ev
+            h, a = _norm(_cn(ev.get('home_team'))), _norm(_cn(ev.get('away_team')))
+            if h and a:
+                name_idx.setdefault((h, a), ev)
+
+        # 1) 已完赛列表
+        for _ev in fetch_finished_events():
+            _add_ev(_ev)
+
         pending_q = BtBet.query.filter_by(settled_at=None).all()
         settled = 0
-        headers = {'Authorization': f'Token {API_KEY}'}
 
-        # 先对未结算场次去重，再并发抓取赛果
-        eids = []
-        seen_mid = set()
+        # 2) 数字事件ID逐个补查（并发）
+        eids, seen = [], set()
         for b in pending_q:
-            eid = str(b.match_id)
-            if eid and eid not in seen_mid:
-                seen_mid.add(eid)
-                eids.append(eid)
-        # 串关待结算场次也纳入抓取（否则无单场待结算时，串关永不结算）
+            e = str(b.match_id)
+            if e.isdigit() and e not in seen:
+                seen.add(e)
+                eids.append(e)
         try:
-            import json as _json
-            from backtest_models import BtParlay
             for _p in BtParlay.query.filter_by(settled_at=None).all():
-                try:
-                    for _l in _json.loads(_p.legs_json or '[]'):
-                        _eid = str(_l.get('match_id') or '')
-                        # 仅 Bzzoiro 数字事件ID可查；竞彩编号（如 周日001）跳过
-                        if _eid.isdigit() and _eid not in seen_mid:
-                            seen_mid.add(_eid)
-                            eids.append(_eid)
-                except Exception:
-                    continue
+                for _l in _json.loads(_p.legs_json or '[]'):
+                    e = str(_l.get('match_id') or '')
+                    if e.isdigit() and e not in seen:
+                        seen.add(e)
+                        eids.append(e)
         except Exception:
             pass
+
+        headers = {'Authorization': f'Token {API_KEY}'}
 
         def _fetch(eid):
             try:
@@ -278,37 +307,50 @@ def settle_finished():
                 pass
             return eid, None
 
-        data = {}
-        try:
-            from concurrent.futures import ThreadPoolExecutor
-            with ThreadPoolExecutor(max_workers=5) as ex:
-                for eid, ev in ex.map(_fetch, eids):
-                    if ev:
-                        data[eid] = ev
-        except Exception:
-            for eid in eids:
-                _, ev = _fetch(eid)
-                if ev:
-                    data[eid] = ev
+        todo = [e for e in eids if e not in results][:120]
+        if todo:
+            try:
+                from concurrent.futures import ThreadPoolExecutor
+                with ThreadPoolExecutor(max_workers=6) as ex:
+                    for _eid, _ev in ex.map(_fetch, todo):
+                        if _ev:
+                            _add_ev(_ev)
+            except Exception:
+                for _eid in todo:
+                    _, _ev = _fetch(_eid)
+                    if _ev:
+                        _add_ev(_ev)
 
-        for eid, ev in data.items():
-            hs = ev.get('home_score')
-            aw = ev.get('away_score')
+        # 3) 回填单场（ID优先，队名兜底）
+        for b in pending_q:
+            eid = str(b.match_id)
+            ev = results.get(eid)
+            if ev is None:
+                ev = name_idx.get((_norm(_cn(b.home_team)), _norm(_cn(b.away_team))))
+            if ev is None:
+                continue
+            hs, aw = ev.get('home_score'), ev.get('away_score')
             if hs is None or aw is None:
                 continue
+            actual = 'H' if hs > aw else 'A' if hs < aw else 'D'
             try:
-                settled += bt.settle_bet(
-                    match_id=eid, home_score=hs, away_score=aw,
-                    home_team=ev.get('home_team'), away_team=ev.get('away_team'),
-                    home_score_ht=ev.get('home_score_ht'), away_score_ht=ev.get('away_score_ht')
-                ) or 0
+                outcome, pnl = bt._eval_play(b, actual, hs, aw,
+                                             ev.get('home_score_ht'), ev.get('away_score_ht'),
+                                             b.stake or 1.0)
             except Exception:
                 continue
-        logger.info('[pipeline] settled %d (by match_id)', settled)
-        # 串关级结算：用同一批赛果结算串关方案（任一腿未中即整套未中）
+            b.outcome = outcome
+            b.pnl = pnl
+            b.settled_at = bt._now_str()
+            settled += 1
+        if settled:
+            db.session.commit()
+        logger.info('[pipeline] settled %d bets', settled)
+
+        # 4) 串关结算（同一批赛果）
         try:
             import parlay_tracker
-            n3 = parlay_tracker.settle_parlays(data)
+            n3 = parlay_tracker.settle_parlays(results)
             logger.info('[pipeline] settled %d parlays', n3)
         except Exception as e:
             logger.warning('[pipeline] parlay settle error: %s', e)
