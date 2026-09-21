@@ -1785,39 +1785,33 @@ async function refreshData(force){
       setConnStatus(false);
     }
 
-    // 数据源偏好（系统设置）：bzzoiro 时跳过竞彩直连，直接走缓存/Bzzoiro
-    var prefs={}; try{ prefs=JSON.parse(localStorage.getItem('app-settings')||'{}'); }catch(e){}
-    var preferBz = prefs.dataSource === 'bzzoiro';
-
-    // 竞彩官方（后端 /api/analyze 优先）：成功可获最真实赔率与场单
-    var jcResp = preferBz ? Promise.resolve(null) : fetchJingcaiList().then(async function(jc){
-      if(jc&&jc.length>=3){
-        var r=await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({jingcai_matches:jc,client_time:new Date().toISOString(),odds_time:JINGCAI_ODDS_TIME})});
-        return r.ok?r.json():null;
+    // 本网站只展示竞彩官方开售场次：优先竞彩官方直连（前端），
+    // 无竞彩场次时仅提示，绝不回退到第三方(Bzzoiro)/模拟场次。
+    var jcResp = fetchJingcaiList().then(async function(jc){
+      if(jc && jc.length >= 1){
+        var r = await fetch('/api/analyze', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({jingcai_matches: jc, client_time: new Date().toISOString(), odds_time: JINGCAI_ODDS_TIME})
+        });
+        return r.ok ? r.json() : null;
       }
       return null;
-    }).catch(function(){return null});
+    }).catch(function(){ return null; });
 
-    // 竞彩官方设置短超时；同时并行拉缓存兜底，避免竞彩慢时长时间白屏
-    var jcData = await Promise.race([jcResp,new Promise(function(r){setTimeout(function(){r(null)},6000)})]);
-    if(jcData&&jcData.matches&&jcData.matches.length>0){ showData(jcData); return; }
+    // 竞彩官方短超时（避免长时间白屏）
+    var jcData = await Promise.race([jcResp, new Promise(function(r){ setTimeout(function(){ r(null); }, 6000); })]);
+    if(jcData && jcData.matches && jcData.matches.length > 0){ showData(jcData); return; }
 
-    // 竞彩失败/超时 → 用缓存数据（快速首屏展示），并让竞彩请求在后台继续，成功后增量替换
-    var cacheUrl = force ? '/api/data?force=1' : '/api/data';
-    data = await Promise.race([fetch(cacheUrl).then(function(r){return r.ok?r.json():null}).catch(function(){return null}),new Promise(function(r){setTimeout(function(){r(null)},10000)})]);
-    if(data){
-      showData(data);
-      // 竞彩仍在后台：若成功则覆盖为更完整数据
-      jcResp.then(function(jd){
-        if(jd && jd.matches && jd.matches.length>0){
-          showData(jd);
-          setConnStatus(true, '已连接（官方源）');
-        }
-      }).catch(function(){});
-    } else {
-      setConnStatus(false, '数据暂不可用');
-      document.getElementById('matchesContainer').innerHTML='<div style="text-align:center;padding:60px;color:var(--text-muted)"><p>数据加载失败</p><button class="btn-refresh" onclick="refreshData()" style="margin-top:12px">重试</button></div>';
-    }
+    // 未拿到竞彩：显示提示并在后台继续等待，不展示任何非竞彩场次
+    renderNoJingcai('正在获取竞彩官方场次…');
+    jcResp.then(function(jd){
+      if(jd && jd.matches && jd.matches.length > 0){
+        showData(jd);
+        setConnStatus(true, '已连接（官方源）');
+      } else {
+        renderNoJingcai('当前暂无竞彩官方场次');
+      }
+    }).catch(function(){ renderNoJingcai('竞彩官方接口暂时不可用'); });
   }catch(err){
     setConnStatus(false, '数据暂不可用');
     document.getElementById('matchesContainer').innerHTML='<div style="text-align:center;padding:40px;color:var(--text-muted)">加载异常: '+err.message+'<br><button class="btn-refresh" onclick="refreshData()" style="margin-top:8px">重试</button></div>';
@@ -1831,6 +1825,28 @@ function setConnStatus(ok, text){
   var txt = document.getElementById('matchStatus');
   if(dotEl){ dotEl.className = ok ? 'dot' : 'dot dot-warn'; }
   if(txt){ txt.textContent = text || (ok ? '已连接' : '连接中...'); }
+}
+
+// 无竞彩官方场次时的空状态：明确提示，不展示第三方/模拟场次
+function renderNoJingcai(msg){
+  var mc = document.getElementById('matchesContainer');
+  var rc = document.getElementById('recContainer');
+  var vc = document.getElementById('valueContainer');
+  var hc = document.getElementById('historyContainer');
+  if(mc) mc.innerHTML = '<div style="text-align:center;padding:50px;color:var(--text-muted)">'
+    + '<div style="font-size:0.95rem;font-weight:700;margin-bottom:8px">' + msg + '</div>'
+    + '<div style="font-size:0.72rem;line-height:1.7">本网站只展示<b>竞彩官方</b>开售场次；<br>第三方 / 模拟数据不予展示，也不计入回测。</div>'
+    + '<button class="btn-refresh" onclick="refreshData(true)" style="margin-top:14px">重试</button></div>';
+  if(rc) rc.innerHTML = '<div class="bt-note">暂无竞彩官方场次，未生成推荐。</div>';
+  if(vc) vc.innerHTML = '';
+  if(hc) hc.innerHTML = '<div class="bt-note">暂无竞彩官方场次。</div>';
+  var vs = document.getElementById('valueStats'); if(vs) vs.innerHTML = '';
+  var cb = document.getElementById('calibBox'); if(cb) cb.innerHTML = '';
+  var tgt = document.getElementById('totalMatches'); if(tgt) tgt.textContent = '0';
+  var ds = document.getElementById('dataSource'); if(ds) ds.textContent = '竞彩官方（无场次）';
+  var pt = document.getElementById('priorityTag'); if(pt) pt.style.display = 'none';
+  var sb = document.getElementById('sourceBanner'); if(sb) sb.style.display = 'none';
+  setConnStatus(false, '无竞彩官方场次');
 }
 
 function showData(data){
