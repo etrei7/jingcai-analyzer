@@ -13,5 +13,4 @@ class Config:
         'sqlite:///' + os.path.join(BASE_DIR, 'instance', 'jingcai.db')
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    REFRESH_INTERVAL = 120
     BZZOIRO_API_KEY = os.environ.get('BZZOIRO_API_KEY', '')
