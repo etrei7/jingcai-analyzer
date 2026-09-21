@@ -158,6 +158,36 @@ def _htft_from_odds(match):
     }
 
 
+# 竞彩官方总进球（ttg）赔率字段 → 档位标签
+_TG_ODDS_KEYS = [
+    ('0球', 'ttg_s0'), ('1球', 'ttg_s1'), ('2球', 'ttg_s2'), ('3球', 'ttg_s3'),
+    ('4球', 'ttg_s4'), ('5球', 'ttg_s5'), ('6球', 'ttg_s6'), ('7+', 'ttg_s7'),
+]
+
+
+def _tg_from_official(match):
+    """用竞彩官方真实总进球赔率(ttg)计算主推档（赔率最低=市场最看好）。"""
+    items = []
+    for label, key in _TG_ODDS_KEYS:
+        try:
+            o = float(match.get(key) or 0)
+        except (TypeError, ValueError):
+            o = 0.0
+        if o > 0:
+            items.append((label, o))
+    if len(items) < 3:
+        return None
+    items.sort(key=lambda x: x[1])
+    tot = sum(1.0 / o for _, o in items)
+    pick = items[0]
+    return {
+        'label': pick[0], 'odds': pick[1],
+        'prob': round(1.0 / pick[1] / tot * 100, 1) if tot > 0 else 0,
+        'all': [{'label': lb, 'odds': o} for lb, o in items],
+        'source': '竞彩官方',
+    }
+
+
 def _compute_htft_probs(lam_h, lam_a, max_goals=5):
     """半全场（半场结果+全场结果，共9种组合）概率。
     全场期望进球按约 45%/55% 拆到上半场/下半场，用独立泊松计算。
@@ -1056,6 +1086,17 @@ def analyze_single_match(match, standings=None, prediction=None):
     # Total goals fields
     result['expected_total'] = expected
     result['top3_goals'] = top3_goals
+    # 总进球玩法主推：优先竞彩官方 ttg 真实赔率，其次模型 top3
+    try:
+        _tgp = _tg_from_official(match)
+        if not _tgp and top3_goals:
+            _t0 = top3_goals[0]
+            _tgp = {'label': _t0['label'], 'prob': _t0['prob'],
+                    'odds': round(100.0 / _t0['prob'], 2) if _t0.get('prob') else 0,
+                    'source': '模型估算'}
+        result['tg_pick'] = _tgp
+    except Exception:
+        result['tg_pick'] = None
 
     # Team value & H2H fields
     result['home_value'] = home_value
@@ -1306,6 +1347,12 @@ def generate_total_goals_recommendations(matches):
             'top3': top3,
             'goal_distribution': m.get('goal_distribution', {}),
         }
+        # 主推优先竞彩官方 ttg 真实赔率最低档；否则模型 top3
+        _tgp = m.get('tg_pick') or {}
+        rec['source'] = _tgp.get('source') or '模型估算'
+        if _tgp.get('source') == '竞彩官方' and _tgp.get('label'):
+            rec['main_pick'] = _tgp['label']
+            rec['main_prob'] = _tgp.get('prob', rec['main_prob'])
         tg_recs.append(rec)
     # 排序：确定性高（档位领先大）优先，其次超高概率；避免全是 2/3 球刷屏
     tg_recs.sort(key=lambda r: (r['margin'], r['main_prob']), reverse=True)
