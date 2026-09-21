@@ -12,6 +12,8 @@ logger = logging.getLogger(__name__)
 # 全局缓存
 _cache = {}
 _lock = threading.Lock()
+# 是否有线程正在重建缓存（防止并发重复构建）
+_building = False
 # 国际赔率缓存（后台线程拉取，避免阻塞主 payload 构建）
 _intl_cache = {}
 _intl_lock = threading.Lock()
@@ -196,16 +198,26 @@ def _is_fallback(payload):
 
 
 def get_data(force=False, ttl=None):
-    """读取缓存数据；缓存过期或 force 时重建。"""
+    """读取缓存数据；缓存过期或 force 时重建。
+    同一时刻只允许一个构建：已有构建进行时，其余请求复用旧缓存，避免单 worker 并发重建。"""
+    global _building
     ttl = ttl if ttl is not None else _CACHE_TTL
     with _lock:
         cached = _cache.get('data')
         if cached and (now() - cached['ts']) < ttl and not force:
             logger.info('[cache] 命中缓存 age=%.1fs', now() - cached['ts'])
             return cached['payload']
+        if _building and cached:
+            logger.info('[cache] 构建进行中，复用旧缓存')
+            return cached['payload']
+        _building = True
     # 锁释放重建（避免长时间占锁）；带超时保护，防止外部 API 慢导致请求卡死
     logger.info('[cache] 重建数据（冷启动/过期）')
-    payload = _build_payload_with_timeout()
+    try:
+        payload = _build_payload_with_timeout()
+    finally:
+        with _lock:
+            _building = False
     with _lock:
         cached = _cache.get('data')
         # 本次构建降级为模拟数据、但存在较新的真实缓存 → 沿用旧缓存，避免展示假数据
