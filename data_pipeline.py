@@ -36,9 +36,9 @@ def record_jingcai_plays(matches):
                 continue
             try:
                 _record_match_plays(bt, m, eid, jingcai=True,
-                                    include_estimated=False, existing_keys=existing)
-                existing.add((eid, '1X2'))
-                existing.add((eid, 'AH'))
+                                    include_estimated=True, existing_keys=existing)
+                for _pt in ('1X2', 'AH', 'TG', 'HTFT', 'CS'):
+                    existing.add((eid, _pt))
                 n += 1
             except Exception as e:
                 logger.warning('[pipeline] jingcai play record error: %s', e)
@@ -88,6 +88,8 @@ def _record_match_plays(bt, m, mid, jingcai=False, include_estimated=True, exist
         line = m.get('handicap_line', 0)
         hwin, hdraw, hloss = m.get('handicap_win_odds'), m.get('handicap_draw_odds'), m.get('handicap_lose_odds')
         hcp_pick = m.get('hcp_pick')
+        # 官方让球盘（hhad）为真实赔率；模型 Skellam 推算为估算，不计入 ROI
+        ah_est = not (isinstance(hcp_pick, dict) and hcp_pick.get('source') == '官方盘口')
         if isinstance(hcp_pick, dict) and (hcp_pick.get('odds') or hcp_pick.get('side')):
             hside = {'让胜': 'H', '让平': 'D', '让负': 'A'}.get(hcp_pick.get('side'), 'H')
             pt_odds = hcp_pick.get('odds')
@@ -108,6 +110,23 @@ def _record_match_plays(bt, m, mid, jingcai=False, include_estimated=True, exist
                                  round(bt.implied_prob(pt_odds) * conf, 4), pt_odds,
                                  model_name='jingcai-value', confidence=conf,
                                  home_team=home, away_team=away,
+                                 estimated=ah_est,
+                                 jingcai=jingcai, existing_keys=existing_keys,
+                                 confidence_level=conf_level)
+    except Exception:
+        pass
+
+    # TG 总进球：竞彩官方 ttg 真实赔率为真；模型 top3 为估算
+    try:
+        tgp = m.get('tg_pick') or {}
+        if tgp.get('label') and tgp.get('odds'):
+            _lab = str(tgp['label'])
+            pick_tg = '7+' if _lab == '7+' else _lab.replace('球', '')
+            bt.record_prediction(mid, 'TG', pick_tg,
+                                 round((tgp.get('prob') or 0) / 100.0, 4), float(tgp['odds']),
+                                 model_name='jingcai-value', confidence=conf,
+                                 home_team=home, away_team=away,
+                                 estimated=(tgp.get('source') != '竞彩官方'),
                                  jingcai=jingcai, existing_keys=existing_keys,
                                  confidence_level=conf_level)
     except Exception:
@@ -131,16 +150,31 @@ def _record_match_plays(bt, m, mid, jingcai=False, include_estimated=True, exist
     except Exception:
         pass
 
-    # HTFT 半全场：模型估算赔率（非真实市场赔率），标记 estimated，不计入 ROI
+    # HTFT 半全场：优先竞彩官方 hafu 真实赔率；否则模型估算（标记 estimated，不计入 ROI）
     try:
-        htft = _predict_htft(m, conf)
-        if htft:
-            pick_htft, prob_htft, odds_htft = htft
-            bt.record_prediction(mid, 'HTFT', pick_htft, prob_htft, odds_htft,
+        _htft_lab2code = {'胜胜': 'HH', '胜平': 'HD', '胜负': 'HA',
+                          '平胜': 'DH', '平平': 'DD', '平负': 'DA',
+                          '负胜': 'AH', '负平': 'AD', '负负': 'AA'}
+        htft = m.get('htft') or {}
+        if htft.get('pick') and (htft.get('odds') or 0) > 0:
+            pick_htft = _htft_lab2code.get(htft['pick'], htft['pick'])
+            bt.record_prediction(mid, 'HTFT', pick_htft,
+                                 round((htft.get('prob') or 0) / 100.0, 4),
+                                 float(htft.get('odds') or 0),
                                  model_name='jingcai-value', confidence=conf,
                                  home_team=home, away_team=away,
-                                 estimated=True, jingcai=jingcai,
-                                 existing_keys=existing_keys, confidence_level=conf_level)
+                                 estimated=(htft.get('source') != '竞彩官方'),
+                                 jingcai=jingcai, existing_keys=existing_keys,
+                                 confidence_level=conf_level)
+        else:
+            _ht = _predict_htft(m, conf)
+            if _ht:
+                pick_htft, prob_htft, odds_htft = _ht
+                bt.record_prediction(mid, 'HTFT', pick_htft, prob_htft, odds_htft,
+                                     model_name='jingcai-value', confidence=conf,
+                                     home_team=home, away_team=away,
+                                     estimated=True, jingcai=jingcai,
+                                     existing_keys=existing_keys, confidence_level=conf_level)
     except Exception:
         pass
 
