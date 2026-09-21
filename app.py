@@ -53,6 +53,11 @@ def _migrate_bt_bets():
                 conn.execute(text("ALTER TABLE bt_bets ADD COLUMN predicted_prob FLOAT"))
                 conn.commit()
             logging.info('[迁移] bt_bets 已补充 predicted_prob 列（价值盘校准评估）')
+        if 'confidence_level' not in cols:
+            with db.engine.connect() as conn:
+                conn.execute(text("ALTER TABLE bt_bets ADD COLUMN confidence_level VARCHAR(10)"))
+                conn.commit()
+            logging.info('[迁移] bt_bets 已补充 confidence_level 列（信心校准）')
         # 回填历史估算玩法（半全场 HTFT / 比分 CS）为 estimated=1，
         # 修复旧记录被误计入真实赔率 ROI 的问题
         with db.engine.connect() as conn:
@@ -82,6 +87,15 @@ def _record_parlays_safe(recs, source):
         parlay_tracker.record_parlays(recs, source=source)
     except Exception as e:
         logging.warning('[API] parlay record failed: %s', e)
+
+
+def _apply_calibration_safe(matches):
+    """按历史命中率保守校准信心等级（样本不足时不干预）。"""
+    try:
+        from calibration import apply_calibration
+        apply_calibration(matches)
+    except Exception as e:
+        logging.warning('[API] calibration failed: %s', e)
 
 
 @app.route('/')
@@ -158,6 +172,7 @@ def get_data():
             pass
 
     analyzed = analyze_matches(matches, standings, predictions)
+    _apply_calibration_safe(analyzed)
 
     # 联赛排名增强：用 thesportsdb(备选 Bzzoiro) 填充每场 home_rank/away_rank
     try:
@@ -258,6 +273,7 @@ def get_realtime():
 
     def _analyzed_payload(matches, source):
         analyzed = analyze_matches(matches, None, {})
+        _apply_calibration_safe(analyzed)
         try:
             from rankings import enhance_matches
             enhance_matches(analyzed)
@@ -520,6 +536,7 @@ def analyze_data():
 
         source = '竞彩官方'
         analyzed = analyze_matches(matches, None, {})
+        _apply_calibration_safe(analyzed)
         recommendations = generate_parlay_recommendations(analyzed)
         total_goals_recs = generate_total_goals_recommendations(analyzed)
         try: save_predictions(analyzed)
@@ -603,6 +620,7 @@ def analyze_data():
             }
 
     analyzed = analyze_matches(matches, None, pred_map)
+    _apply_calibration_safe(analyzed)
     recommendations = generate_parlay_recommendations(analyzed)
     total_goals_recs = generate_total_goals_recommendations(analyzed)
     try:
@@ -741,6 +759,17 @@ def value_stats():
         return jsonify({'total_bets': 0, 'wins': 0, 'losses': 0, 'pending': 0,
                         'hit_rate': 0, 'roi': 0, 'total_pnl': 0, 'brier': None,
                         'log_loss': None, 'scored': 0, 'records': []})
+
+
+@app.route('/api/calibration')
+def calibration_stats():
+    """信心分级校准表：各信心等级的历史命中率 vs 盈亏平衡命中率（供前端展示）。"""
+    try:
+        from calibration import get_calibration
+        return jsonify(get_calibration())
+    except Exception as e:
+        logging.warning('[API] calibration: %s', e)
+        return jsonify({'buckets': {}, 'total': 0, 'min_n': 50})
 
 
 @app.route('/api/backtest/run', methods=['POST'])
