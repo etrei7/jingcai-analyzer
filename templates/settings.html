@@ -66,10 +66,7 @@ select:hover{border-color:var(--primary)}
 .toggle-track.on .toggle-knob{left:22px}
 
 .num-input{background:var(--btn-bg);color:var(--text);border:1px solid var(--border);padding:8px 12px;border-radius:9px;font-size:0.85rem;width:90px}
-.radio-group{display:flex;gap:8px;flex-wrap:wrap}
-.radio-btn{background:var(--btn-bg);color:var(--text-muted);border:1px solid var(--border);padding:8px 14px;border-radius:9px;cursor:pointer;font-size:0.82rem;font-weight:600;transition:all .15s}
-.radio-btn:hover{border-color:var(--primary)}
-.radio-btn.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+
 
 .btn-save{background:var(--primary);color:#fff;border:none;padding:11px 24px;border-radius:9px;cursor:pointer;font-size:0.88rem;font-weight:700;margin-top:6px;transition:all .15s}
 .btn-save:hover{background:var(--primary-dark)}
@@ -112,13 +109,9 @@ select:hover{border-color:var(--primary)}
     <div class="card-head"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></svg>数据源</div>
     <div class="card-body">
       <div class="setting-row">
-        <div><div class="setting-label">数据来源</div><div class="setting-desc">首页优先使用的数据源（竞彩官方直连 或 Bzzoiro 第三方）</div></div>
-        <div class="radio-group" id="sourceGroup">
-          <button class="radio-btn active" data-src="sporttery">竞彩官方</button>
-          <button class="radio-btn" data-src="bzzoiro">Bzzoiro</button>
-        </div>
+        <div><div class="setting-label">数据来源</div><div class="setting-desc">仅展示中国体育彩票 · 竞彩官方开售场次（前端直连 webapi.sporttery.cn）</div></div>
       </div>
-      <div class="data-source-note">&#9432; 数据源保存在本地浏览器 (localStorage)，仅影响你的浏览设置。竞彩官方为中国体育彩票真实赔率，Bzzoiro 为第三方扩展数据源。</div>
+      <div class="data-source-note">&#9432; 本站只保留竞彩官方场次：第三方(Bzzoiro)仅用于后台伤停/排名/国际盘富化，不作为前台场次展示，也不计入回测。</div>
     </div>
   </div>
 
@@ -157,7 +150,7 @@ select:hover{border-color:var(--primary)}
 <div class="toast" id="toast">设置已保存</div>
 
 <script>
-let settings = { dataSource:'sporttery', autoRefresh:true, refreshSec:30 };
+let settings = { autoRefresh:true, refreshSec:30 };
 
 function toggleTheme(){
   const html = document.documentElement;
@@ -171,19 +164,11 @@ function toggleTheme(){
 
 function loadSettings(){
   try{ const raw = localStorage.getItem('app-settings'); if(raw) settings = Object.assign(settings, JSON.parse(raw)); }catch(e){}
-  const src = settings.dataSource || 'sporttery';
-  document.querySelectorAll('.radio-btn').forEach(b=>{ b.classList.toggle('active', b.dataset.src === src); });
   const auto = document.getElementById('autoToggle');
   if(auto.classList.contains('on') !== !!settings.autoRefresh) toggleAuto(auto, true);
   document.getElementById('intervalInput').value = settings.refreshSec || 30;
   document.getElementById('intervalVal').textContent = settings.refreshSec || 30;
 }
-
-function setSource(btn){
-  settings.dataSource = btn.dataset.src;
-  document.querySelectorAll('.radio-btn').forEach(b=>b.classList.toggle('active', b===btn));
-}
-document.querySelectorAll('.radio-btn').forEach(b=>b.addEventListener('click', ()=>setSource(b)));
 
 function toggleAuto(el, force){
   let on = el.classList.contains('on');
