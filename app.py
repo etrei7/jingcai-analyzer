@@ -43,6 +43,11 @@ def _migrate_bt_bets():
                 conn.commit()
             need_backfill = True
             logging.info('[迁移] bt_bets 已补充 estimated 列')
+        if 'jingcai' not in cols:
+            with db.engine.connect() as conn:
+                conn.execute(text("ALTER TABLE bt_bets ADD COLUMN jingcai BOOLEAN DEFAULT 0"))
+                conn.commit()
+            logging.info('[迁移] bt_bets 已补充 jingcai 列（旧记录默认非竞彩，不再计入战绩）')
         # 回填历史估算玩法（半全场 HTFT / 比分 CS）为 estimated=1，
         # 修复旧记录被误计入真实赔率 ROI 的问题
         with db.engine.connect() as conn:
@@ -165,7 +170,14 @@ def get_data():
             save_predictions(analyzed)
         except Exception:
             pass
+    # 回测/串关只统计竞彩官方开售场次（不记录体彩不开的 Bzzoiro 场次）
+    if source == '竞彩官方':
         _record_parlays_safe(recommendations, source)
+        try:
+            from data_pipeline import record_jingcai_plays
+            record_jingcai_plays(analyzed)
+        except Exception as e:
+            logging.warning('[API] jingcai backtest record failed: %s', e)
     history_stats = get_stats()
 
     return jsonify({
@@ -254,7 +266,8 @@ def get_realtime():
             save_predictions(analyzed)
         except Exception:
             pass
-        _record_parlays_safe(recommendations, 'realtime:' + str(source))
+        if source in ('sporttery', 'jingcai', ''):
+            _record_parlays_safe(recommendations, 'realtime:' + str(source))
         return analyses, recommendations, total_goals_recs
 
     try:
@@ -496,6 +509,11 @@ def analyze_data():
         try: save_predictions(analyzed)
         except Exception: pass
         _record_parlays_safe(recommendations, '竞彩官方')
+        try:
+            from data_pipeline import record_jingcai_plays
+            record_jingcai_plays(analyzed)
+        except Exception as e:
+            logging.warning('[API] jingcai backtest record failed: %s', e)
         return jsonify({
             'matches': analyzed, 'recommendations': recommendations,
             'total_goals_recs': total_goals_recs, 'history_stats': get_stats(),
@@ -565,12 +583,12 @@ def analyze_data():
     total_goals_recs = generate_total_goals_recommendations(analyzed)
 
     # 仅对真实数据源（Bzzoiro）写入历史，模拟数据不污染战绩
+    # 注意：回测/串关不记录 Bzzoiro 场次（可能体彩未开售），只统计竞彩官方场次
     if 'Bzzoiro' in source:
         try:
             save_predictions(analyzed)
         except Exception:
             pass
-        _record_parlays_safe(recommendations, source)
     history_stats = get_stats()
 
     return jsonify({
