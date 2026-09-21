@@ -103,6 +103,9 @@ class BtBet(db.Model):
     confidence_level = db.Column(db.String(10), nullable=True)
     # 联赛名（同类场次经验校准：按联赛分段的命中率）
     league = db.Column(db.String(50), nullable=True)
+    # 记录时是否已有资讯 / 官方首发（用于「有资讯 vs 无资讯」A/B 回测对比）
+    news_flag = db.Column(db.Boolean, default=False)
+    lineup_flag = db.Column(db.Boolean, default=False)
 
 
 class BtBacktestSummary(db.Model):
