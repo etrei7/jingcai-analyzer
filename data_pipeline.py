@@ -80,7 +80,8 @@ def _record_match_plays(bt, m, mid, jingcai=False, include_estimated=True, exist
                              round(bt.implied_prob(odds1x2) * conf, 4), odds1x2,
                              model_name='jingcai-value', confidence=conf,
                              home_team=home, away_team=away,
-                             jingcai=jingcai, existing_keys=existing_keys)
+                             jingcai=jingcai, existing_keys=existing_keys,
+                             confidence_level=conf_level)
 
     # AH 让胜平负（_compute_handicap 推算，始终有值）
     try:
@@ -107,7 +108,8 @@ def _record_match_plays(bt, m, mid, jingcai=False, include_estimated=True, exist
                                  round(bt.implied_prob(pt_odds) * conf, 4), pt_odds,
                                  model_name='jingcai-value', confidence=conf,
                                  home_team=home, away_team=away,
-                                 jingcai=jingcai, existing_keys=existing_keys)
+                                 jingcai=jingcai, existing_keys=existing_keys,
+                                 confidence_level=conf_level)
     except Exception:
         pass
 
@@ -125,7 +127,7 @@ def _record_match_plays(bt, m, mid, jingcai=False, include_estimated=True, exist
                                  model_name='jingcai-value', confidence=conf,
                                  home_team=home, away_team=away,
                                  estimated=True, jingcai=jingcai,
-                                 existing_keys=existing_keys)
+                                 existing_keys=existing_keys, confidence_level=conf_level)
     except Exception:
         pass
 
@@ -138,7 +140,7 @@ def _record_match_plays(bt, m, mid, jingcai=False, include_estimated=True, exist
                                  model_name='jingcai-value', confidence=conf,
                                  home_team=home, away_team=away,
                                  estimated=True, jingcai=jingcai,
-                                 existing_keys=existing_keys)
+                                 existing_keys=existing_keys, confidence_level=conf_level)
     except Exception:
         pass
 
