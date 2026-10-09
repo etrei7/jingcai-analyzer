@@ -585,12 +585,8 @@ def analyze_data():
         except Exception as e:
             logging.warning('[API] bzzoiro predictions merge failed: %s', e)
         analyzed = analyze_matches(matches, None, pred_map)
-        # 联赛排名增强（thesportsdb / Bzzoiro 备选）
-        try:
-            from rankings import enhance_matches
-            enhance_matches(analyzed)
-        except Exception:
-            pass
+        # 注：不在竞彩热路径调用 rankings.enhance_matches（thesportsdb 每联赛 12s 超时，
+        # 60 场×20 联赛会打满单 worker）。排名由 Bzzoiro enrich_jingcai_matches 提供。
         _apply_post_analyze(analyzed)
         recommendations = generate_parlay_recommendations(analyzed)
         total_goals_recs = generate_total_goals_recommendations(analyzed)
