@@ -468,7 +468,7 @@ def fetch_predictions():
         return _pred_cache['data']
     url = f'{BASE_URL}/predictions/'
     try:
-        resp = requests.get(url, headers=_headers(), params={'upcoming': 'true'}, timeout=20)
+        resp = requests.get(url, headers=_headers(), params={'upcoming': 'true'}, timeout=10)
         resp.raise_for_status()
         data = resp.json()
         results = data.get('results', [])
