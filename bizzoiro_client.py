@@ -257,17 +257,45 @@ _enrich_events_lock = threading.Lock()
 _ENRICH_TTL = 600  # 富化用赛事列表缓存 10 分钟（前端每 30s 轮询，避免重复拉取）
 
 
+_enrich_refreshing = False
+
+
+def _refresh_enrich_events_async(limit=40):
+    """后台刷新富化用赛事列表（不阻塞请求）。"""
+    global _enrich_refreshing
+    with _enrich_events_lock:
+        if _enrich_refreshing:
+            return
+        _enrich_refreshing = True
+
+    def work():
+        global _enrich_refreshing
+        try:
+            lst = fetch_events(date_from=None, date_to=None, limit=limit)
+            if lst:
+                with _enrich_events_lock:
+                    _enrich_events_cache['list'] = lst
+                    _enrich_events_cache['ts'] = time.time()
+        except Exception as e:
+            logger.warning('[Bzzoiro] enrich events refresh failed: %s', e)
+        finally:
+            with _enrich_events_lock:
+                _enrich_refreshing = False
+
+    threading.Thread(target=work, daemon=True).start()
+
+
 def _cached_bz_events(limit=40):
-    """带 TTL 的 Bzzoiro 赛事列表缓存（供竞彩富化使用）。"""
+    """Bzzoiro 赛事列表缓存（供竞彩富化使用）。
+    stale-while-revalidate：未过期直接返回；过期/为空时**立即返回旧值**并后台刷新，
+    不阻塞请求（首次可能为空，下一轮刷新即可用）。"""
     with _enrich_events_lock:
-        if _enrich_events_cache['list'] and (time.time() - _enrich_events_cache['ts']) < _ENRICH_TTL:
-            return _enrich_events_cache['list']
-    lst = fetch_events(date_from=None, date_to=None, limit=limit)
-    with _enrich_events_lock:
-        if lst:
-            _enrich_events_cache['list'] = lst
-            _enrich_events_cache['ts'] = time.time()
-        return _enrich_events_cache['list']
+        cached = _enrich_events_cache['list']
+        fresh = bool(cached) and (time.time() - _enrich_events_cache['ts']) < _ENRICH_TTL
+        if fresh:
+            return cached
+    _refresh_enrich_events_async(limit)
+    return cached or []
 
 
 def enrich_jingcai_matches(matches):
@@ -458,14 +486,13 @@ def fetch_standings(league_id):
 
 
 _pred_cache = {'ts': 0, 'data': {}}
+_pred_lock = threading.Lock()
+_pred_refreshing = False
 _PRED_TTL = 300
 
 
-def fetch_predictions():
-    if not API_KEY:
-        return {}
-    if _pred_cache['data'] and (time.time() - _pred_cache['ts']) < _PRED_TTL:
-        return _pred_cache['data']
+def _pred_fetch():
+    """实际拉取预测并写缓存（网络调用，供后台线程使用）。"""
     url = f'{BASE_URL}/predictions/'
     try:
         resp = requests.get(url, headers=_headers(), params={'upcoming': 'true'}, timeout=10)
@@ -493,12 +520,45 @@ def fetch_predictions():
                 }
         logger.info(f'[Bzzoiro] {len(pred_map)} 条预测')
         if pred_map:
-            _pred_cache['ts'] = time.time()
-            _pred_cache['data'] = pred_map
+            with _pred_lock:
+                _pred_cache['ts'] = time.time()
+                _pred_cache['data'] = pred_map
         return pred_map
     except Exception as e:
         logger.warning(f'[Bzzoiro] predictions: {e}')
-        return _pred_cache['data'] or {}
+        return {}
+
+
+def _refresh_predictions_async():
+    global _pred_refreshing
+    with _pred_lock:
+        if _pred_refreshing:
+            return
+        _pred_refreshing = True
+
+    def work():
+        global _pred_refreshing
+        try:
+            _pred_fetch()
+        finally:
+            with _pred_lock:
+                _pred_refreshing = False
+
+    threading.Thread(target=work, daemon=True).start()
+
+
+def fetch_predictions():
+    """预测映射（stale-while-revalidate）：未过期直接返回；过期先返回旧值并后台刷新，
+    不阻塞请求（首次可能为空，下一轮刷新即可用）。"""
+    if not API_KEY:
+        return {}
+    with _pred_lock:
+        data = _pred_cache['data']
+        fresh = bool(data) and (time.time() - _pred_cache['ts']) < _PRED_TTL
+    if fresh:
+        return data
+    _refresh_predictions_async()
+    return data or {}
 
 
 def fetch_standings_for_matches(matches):
