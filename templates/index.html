@@ -307,6 +307,8 @@ button{font-family:inherit}
 .rec-meta{font-size:0.64rem;color:var(--text-muted);margin-top:6px;display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
 .rec-cutoff{color:var(--amber-text,var(--amber))}
 .rec-warn{color:var(--amber-text,var(--amber));font-weight:600}
+.gloss{border-bottom:1px dashed var(--text-light);cursor:help}
+#glossTip{position:fixed;z-index:99999;max-width:280px;background:var(--card-bg);border:1px solid var(--border);border-radius:8px;padding:8px 11px;font-size:0.72rem;line-height:1.55;color:var(--text);box-shadow:var(--shadow-lg);pointer-events:none;display:none;white-space:normal}
 .rec-odds-display .combo{font-size:1.15rem;font-weight:900;color:var(--primary-dark)}
 .rec-odds-display .ret{font-size:0.74rem;color:var(--text-muted);margin-top:3px}
 
@@ -686,6 +688,43 @@ function getRefreshSec(){
   return 30;
 }
 
+// ===== 术语悬浮提示 =====
+var GLOSSARY = {
+  kelly: '凯利公式：按「估算胜率×赔率−1」算出最优下注比例，长期期望最高；分数凯利=凯利÷4，更保守、抗连黑。',
+  juice: '抽水（overround）：庄家从总投注额中抽取的手续费，体现在赔率里；返奖率≈1÷(1+抽水)，抽水越低越划算。',
+  value: '价值/溢价：竞彩赔率相对国际锐盘去水后隐含概率的正期望差；正值=该结果相对更划算。',
+  imp: '隐含概率：1÷赔率，是市场认为该结果发生的概率（未去水、含抽水）。',
+  edge: '正期望：估算概率×赔率−1；>0 才长期有利，≤0 长期必亏。',
+  fair: '公平赔率：按去水后的真实概率换算出的赔率；竞彩赔率高于公平赔率=有正期望。',
+  breakeven: '盈亏平衡命中率=1÷平均赔率；命中率低于它则长期亏损。',
+  hcp: '让球盘：负号=主队让球、正号=主队受让，把强弱拉平后再猜让球胜平负。',
+  xgd: '净胜球=进球−失球；xGD=预期净胜球，反映真实攻防实力。',
+  htft: '半全场：同时猜半场与全场结果，如「胜胜」=半场胜且全场胜。',
+  over25: '大2.5=全场总进球≥3；小2.5=总进球≤2。',
+  parlay: '串关：多场组合，赔率相乘；任一腿未中即整套未中。',
+  brier: 'Brier 分数：衡量预测概率是否校准，0=完美，越低越好。',
+  logloss: 'LogLoss（对数损失）：预测概率的损失函数，越低越准。'
+};
+function tip(key, label){
+  return '<span class="gloss" data-tip="' + GLOSSARY[key] + '">' + (label || key) + '</span>';
+}
+var _tipEl = null;
+function _showTip(el){
+  if(!_tipEl){ _tipEl = document.createElement('div'); _tipEl.id = 'glossTip'; document.body.appendChild(_tipEl); }
+  _tipEl.textContent = el.getAttribute('data-tip') || '';
+  _tipEl.style.display = 'block';
+  var r = el.getBoundingClientRect();
+  var tw = _tipEl.offsetWidth, th = _tipEl.offsetHeight;
+  var x = r.left + r.width/2 - tw/2, y = r.top - th - 6;
+  if(x < 8) x = 8; if(x + tw > window.innerWidth - 8) x = window.innerWidth - 8 - tw;
+  if(y < 8) y = r.bottom + 6;
+  _tipEl.style.left = x + 'px'; _tipEl.style.top = y + 'px';
+}
+function _hideTip(){ if(_tipEl) _tipEl.style.display = 'none'; }
+document.addEventListener('mouseover', function(e){ var el = e.target && e.target.closest ? e.target.closest('.gloss') : null; if(el) _showTip(el); });
+document.addEventListener('mouseout', function(e){ var el = e.target && e.target.closest ? e.target.closest('.gloss') : null; if(el) _hideTip(); });
+document.addEventListener('scroll', function(){ _hideTip(); });
+
 /* ===== 数据获取 ===== */
 // 带重试的 fetch：遇 403/429/5xx 或网络错误时指数退避重试。
 // 注意：浏览器禁止 JS 设置 User-Agent/Origin/Accept-Language（forbidden headers），
@@ -1061,7 +1100,7 @@ function renderDimGrid(m) {
       <div class="dim-sub score-top5">${top3.map((g,i)=>`<span class="score-chip">${g.label} ${g.prob}%</span>`).join('')}</div>
     </div>
     <div class="dim-card">
-      <div class="dim-head"><span class="dim-title">&#127919; 攻防数据</span></div>
+      <div class="dim-head"><span class="dim-title">&#127919; ${tip('xgd','攻防数据')}</span></div>
       <div class="dim-val">${m.home_xgd != null && m.home_xgd !== '' ? m.home_xgd : (m.away_xgd != null && m.away_xgd !== '' ? '净胜球对比' : '—')}</div>
       <div class="dim-sub">净胜球: ${m.home_team} ${m.home_xgd != null && m.home_xgd !== '' ? m.home_xgd : '—'} vs ${m.away_team} ${m.away_xgd != null && m.away_xgd !== '' ? m.away_xgd : '—'}</div>
     </div>
@@ -1076,12 +1115,12 @@ function renderDimGrid(m) {
       <div class="dim-sub">${hp} ${ap}</div>
     </div>
     <div class="dim-card">
-      <div class="dim-head"><span class="dim-title">&#128202; 市场预期胜率</span></div>
+      <div class="dim-head"><span class="dim-title">&#128202; ${tip('imp','市场预期胜率')}</span></div>
       <div class="dim-val">${t.favSide} <span style="color:var(--primary)">${Math.max(t.wp,t.dp,t.lp)}%</span></div>
       <div class="dim-sub">主${t.wp}%/平${t.dp}%/客${t.lp}%</div>
     </div>
     <div class="dim-card">
-      <div class="dim-head"><span class="dim-title">&#128737; 抽水分级</span></div>
+      <div class="dim-head"><span class="dim-title">&#128737; ${tip('juice','抽水分级')}</span></div>
       <div class="dim-val" style="color:${t.juiceCls==='red'?'var(--red)':t.juiceCls==='green'?'var(--high)':'var(--text)'}">${t.juice}</div>
       <div class="dim-sub">返奖率示例：1/(1+${m.overround||0}%)</div>
     </div>
@@ -1091,7 +1130,7 @@ function renderDimGrid(m) {
       <div class="dim-sub">${m.hotness_label||'—'}</div>
     </div>
     <div class="dim-card">
-      <div class="dim-head"><span class="dim-title">&#9654; 大小球</span></div>
+      <div class="dim-head"><span class="dim-title">&#9654; ${tip('over25','大小球')}</span></div>
       <div class="dim-val">${m.over_under_tendency||'—'}</div>
       <div class="dim-sub">大2.5 ${m.over25_prob||0}%</div>
     </div>
@@ -1248,12 +1287,12 @@ function renderMatchesInternal(matches) {
             '<span class="vr-item">平 <b>'+m.value_analysis.model_draw_pct+'%</b><i>('+(m.value_analysis.edge_draw>=0?'+':'')+m.value_analysis.edge_draw+')</i></span>'+
             '<span class="vr-item">客 <b>'+m.value_analysis.model_away_pct+'%</b><i>('+(m.value_analysis.edge_away>=0?'+':'')+m.value_analysis.edge_away+')</i></span>'+
             (m.value_analysis.best_edge>0?('<span class="vr-best">价值: '+m.value_analysis.best_value+' +'+m.value_analysis.best_edge+'%</span>'):'<span class="vr-none">无明显价值</span>')+
-            (m.value_analysis.kelly_best>0?('<span class="vr-kelly">凯利 '+Math.round(m.value_analysis.kelly_best*100)+'%</span>'):'')+
+            (m.value_analysis.kelly_best>0?('<span class="vr-kelly">'+tip('kelly','凯利')+' '+Math.round(m.value_analysis.kelly_best*100)+'%</span>'):'')+
             '</div>'
           ):''}
           <div class="match-extras">
             ${m.recommended_score?`<span class="extras-item" title="AI 最可能比分">&#128200; 比${m.recommended_score}</span>`:''}
-            <span class="extras-item" title="返奖率=1/(1+溢价)，越低返奖越少。正数=机构抽水，负数=赔率异常">&#9432; 溢价 ${m.overround}%</span>
+            <span class="extras-item">&#9432; ${tip('juice','抽水')} ${m.overround}%</span>
             ${renderOddsMove(m)}
             ${(m.odds_move&&m.odds_move.has_changed)?(
               '<span class="extras-item" title="初盘→即时赔率变动；赔率下降=资金流入该选项">&#128201; 初'+m.odds_move.opening_w+'→'+m.odds_move.current_w+'（'+(m.odds_move.move_w>=0?'+':'')+m.odds_move.move_w+'%）'+m.odds_move.pressure+'</span>'
@@ -1339,7 +1378,7 @@ function renderRecommendations(recs) {
         <div class="teams"><span class="h">${md.home_team}</span> vs <span class="a">${md.away_team}</span><span style="font-size:0.66rem;color:var(--text-muted);margin-left:5px">${md.league} #${md.match_id}</span></div>
         <div class="detail"><span>推荐: <strong style="color:var(--primary)">${md.option}</strong> @${md.odds}</span><span>${md.hotness_label} | ${md.bookmaker_intent}</span>${md.market_tendency?'<span>市场: '+md.market_tendency+'</span>':''}${(md.intl_edge!=null)?('<span title="国际盘价值差，正值=竞彩相对更划算" style="color:'+(md.intl_edge>0?'var(--high)':md.intl_edge<0?'var(--low)':'var(--text-muted)')+'">国际'+((md.intl_edge>0?'+':'')+md.intl_edge)+'%</span>'):''}</div>
       </div>`).join('')}
-      <div class="rec-odds-display"><div class="combo">组合赔率 ${r.combo_odds}</div><div class="ret">${r.expected_return} <span style="font-size:0.6rem;color:var(--text-muted)">${riskNote}</span></div>${r.stake_note?('<div class="ret" style="color:var(--amber);margin-top:2px">&#128176; '+r.stake_note+'</div>'):''}${r.has_estimated_legs?('<div class="ret" style="color:var(--amber);margin-top:2px">&#9888; 含模型估算赔率玩法，组合赔率非实盘，仅供参考</div>'):''}</div>
+      <div class="rec-odds-display"><div class="combo">${tip('parlay','组合赔率')} ${r.combo_odds}</div><div class="ret">${r.expected_return} <span style="font-size:0.6rem;color:var(--text-muted)">${riskNote}</span></div>${r.stake_note?('<div class="ret" style="color:var(--amber);margin-top:2px">&#128176; '+r.stake_note+'</div>'):''}${r.has_estimated_legs?('<div class="ret" style="color:var(--amber);margin-top:2px">&#9888; 含模型估算赔率玩法，组合赔率非实盘，仅供参考</div>'):''}</div>
       <div class="rec-meta">${cutoff?('<span class="rec-cutoff">&#9200; '+cutoff+'</span>'):(earliest?('&#9200; 最早 '+earliest+' 开赛'):'')} ${corr?('<span class="rec-warn">'+corr+'</span>'):''}</div>
       <button class="rec-copy" onclick="copyRec(${ri})">&#128203; 复制方案</button>
     </div>`;
@@ -1416,13 +1455,13 @@ function renderValueRecs(recs){
       '<div class="rec-match-item"><div class="detail">' +
         '<span>方向: <strong style="color:var(--primary)">' + r.option + '</strong></span>' +
         '<span>竞彩赔率 ' + r.jc_odds + '</span>' +
-        '<span>公平赔率 ' + r.fair_odds + '</span>' +
-        '<span>正期望 ' + r.edge_pct + '%</span>' +
-        '<span>估算概率 ' + r.prob + '%</span>' +
+        '<span>' + tip('fair','公平赔率') + ' ' + r.fair_odds + '</span>' +
+        '<span>' + tip('edge','正期望') + ' ' + r.edge_pct + '%</span>' +
+        '<span>' + tip('imp','估算概率') + ' ' + r.prob + '%</span>' +
       '</div></div>' +
       '<div class="rec-odds-display">' +
-        '<div class="ret">锐盘概率 主' + (sp.home||'-') + '/平' + (sp.draw||'-') + '/客' + (sp.away||'-') + '%</div>' +
-        '<div class="ret" style="color:var(--amber);margin-top:2px">&#128176; 建议仓位 ' + r.kelly_pct + '%（约 ' + r.amount + ' 元/千元 · 分数凯利）</div>' +
+        '<div class="ret">' + tip('imp','锐盘概率') + ' 主' + (sp.home||'-') + '/平' + (sp.draw||'-') + '/客' + (sp.away||'-') + '%</div>' +
+        '<div class="ret" style="color:var(--amber);margin-top:2px">&#128176; 建议仓位 ' + r.kelly_pct + '%（约 ' + r.amount + ' 元/千元 · ' + tip('kelly','分数凯利') + '）</div>' +
       '</div>' +
     '</div>';
   }).join('') + '</div>';
@@ -1441,12 +1480,12 @@ async function loadValueStats(){
     var brier = (s.brier!=null) ? s.brier : '—';
     var ll = (s.log_loss!=null) ? s.log_loss : '—';
     el.innerHTML = '<div class="backtest-card" style="margin-bottom:10px"><div class="bt-stats">' +
-      '<div class="bt-stat"><div class="num" style="color:'+roiColor+'">'+(roi>0?'+':'')+roi+'%</div><div class="lab">价值盘 ROI</div></div>' +
+      '<div class="bt-stat"><div class="num" style="color:'+roiColor+'">'+(roi>0?'+':'')+roi+'%</div><div class="lab">'+tip('value','价值盘 ROI')+'</div></div>' +
       '<div class="bt-stat"><div class="num">'+(s.total_bets||0)+'</div><div class="lab">样本(结算)</div></div>' +
       '<div class="bt-stat"><div class="num">'+rate+'%</div><div class="lab">命中率</div></div>' +
       '<div class="bt-stat"><div class="num">'+(s.wins||0)+'/'+(s.losses||0)+'</div><div class="lab">胜/负</div></div>' +
-      '<div class="bt-stat"><div class="num">'+brier+'</div><div class="lab">Brier(越低越好)</div></div>' +
-      '<div class="bt-stat"><div class="num">'+ll+'</div><div class="lab">LogLoss</div></div>' +
+      '<div class="bt-stat"><div class="num">'+brier+'</div><div class="lab">'+tip('brier','Brier')+'(越低越好)</div></div>' +
+      '<div class="bt-stat"><div class="num">'+ll+'</div><div class="lab">'+tip('logloss','LogLoss')+'</div></div>' +
       '</div><div class="bt-note">价值盘 = 正期望估算（锐盘基准+模型校准），命中率天然偏低，需看 ROI 与校准指标</div></div>';
   }catch(e){}
 }
@@ -1524,8 +1563,8 @@ function renderCardTotalGoals(m) {
   const certTxt = tg.cert==='高'?'高把握':tg.cert==='中'?'中等':'接近';
   const certDots = tg.cert==='高'?'◆◆◆':tg.cert==='中'?'◆◆':'◆';
   const alt = (tg.alt_picks||[]).join(' / ');
-  const over = tg.over25_prob!=null ? `<span class="tg-kv"><span class="tg-klab">大2.5</span><span class="tg-kval">${tg.over25_prob}%</span></span>` : '';
-  const under = tg.over25_prob!=null ? `<span class="tg-kv"><span class="tg-klab">小2.5</span><span class="tg-kval">${(100-parseFloat(tg.over25_prob)).toFixed(1)}%</span></span>` : '';
+  const over = tg.over25_prob!=null ? `<span class="tg-kv"><span class="tg-klab">${tip('over25','大2.5')}</span><span class="tg-kval">${tg.over25_prob}%</span></span>` : '';
+  const under = tg.over25_prob!=null ? `<span class="tg-kv"><span class="tg-klab">${tip('over25','小2.5')}</span><span class="tg-kval">${(100-parseFloat(tg.over25_prob)).toFixed(1)}%</span></span>` : '';
   const exp = tg.expected_goals ? `<span class="tg-kv"><span class="tg-klab">预期</span><span class="tg-kval">${tg.expected_goals}球</span></span>` : '';
   return `<div class="tg-inline">
     <div class="tg-inline-head">
