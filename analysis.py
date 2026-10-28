@@ -1236,7 +1236,9 @@ def generate_parlay_recommendations(matches):
         po = m.get('predicted_option')
         mt = m.get('market_tendency')
         cs = m.get('cross_signal', '') or ''
-        _fund_agree = ('一致' in cs) or (m.get('fund_strength') or 0) >= 0.4
+        # 只认"基本面与市场同向"：一致 / 上风→改判；
+        # 不能用 fund_strength 单独判断（强度高可能恰恰是"方向相反"）。
+        _fund_agree = ('一致' in cs) or ('上风→改判' in cs)
         if po and mt and _fund_agree and not m.get('overpriced') and not m.get('seg_bad'):
             mm = {'主胜': '胜', '平局': '平', '客胜': '负'}
             mo = mm.get(mt)
