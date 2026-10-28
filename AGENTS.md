@@ -69,6 +69,8 @@ python tools/test_logic.py
   `POST /api/news/refresh`。前端比赛卡「资讯」区展示。无网络/无信号时静默失效。
   分析请求时 `news_ingest.ensure_fresh_async` 会在缓存过期时**后台刷新**（不阻塞）；
   `daily_report` 把匹配到的资讯标题写入总结的「场外因素」段（`daily_report['news']`）。
+  匹配规则 `_fixture_ok`：新闻要么只提到 1 支已知球队，要么同时提到本场 2 支球队才采纳，
+  避免把"别的比赛"的新闻（如曼联输给伯恩茅斯）误挂到伯恩茅斯 vs 维拉。
 
 ## 回测闭环
 
@@ -114,6 +116,8 @@ python tools/test_logic.py
   随 `/api/analyze`、`/api/data` 返回。**独立页 `/daily`**（`templates/daily.html`，导航「每日分析」）：
   前端直连竞彩 → POST `/api/analyze` → 渲染 `daily_report`，每 60 秒自动刷新（页面隐藏暂停）。不落库。
   `daily_report['text']` 为**可直接阅读/复制的整段分析总结**（`_build_text` 生成；页面「复制总结文本」）。
+  `_ANOMALY_EDGE=50`：正期望 >50% 视为**数据异常**（多为国际盘错配），归入「回避」、
+  不计入「价值机会」（`value_valid_count`）。
   **05:30 浏览器通知**：/daily 页可开启，05:30~06:30 窗口内（每天一次）先 `refresh()` 再弹 Notification；
   需页面保持打开且授权通知（localStorage `dailyNotify`/`dailyNotifyLast`）。服务端无法定时推竞彩（拿不到场单）。
 - **资讯/首发 A/B 对比**：`bt_bets.news_flag` / `lineup_flag` 记录推荐时是否已有信号；
