@@ -176,4 +176,113 @@ def build_report(matches, recommendations=None, value_recs=None, stats=None):
         '稳健方案 %d 个，价值机会 %d 个，需回避 %d 场。' % (
             len(rep['steady']), len(rep['value']), len(rep['avoid'])),
     ]
+
+    try:
+        rep['text'] = _build_text(rep)
+    except Exception as e:
+        logger.warning('[report] text failed: %s', e)
+        rep['text'] = ''
     return rep
+
+
+def _build_text(rep):
+    """把结构化综述转成可直接阅读/复制的文本。"""
+    L = []
+    date = rep.get('date', '')
+    total = rep.get('total', 0)
+    src = rep.get('source') or '竞彩官方'
+    cnt = rep.get('counts') or {}
+    L.append('今日竞彩分析总结（%s，%d 场）' % (date, total))
+    L.append('')
+
+    # 一、口径与限制
+    L.append('一、数据口径与限制')
+    L.append('- 场次：%d 场，来源：%s（真实赔率）。' % (total, src))
+    enriched = len(rep.get('off_field') or [])
+    L.append('- Bzzoiro 场外富化成功 %d 场；其余 %d 场无伤停/排名/天气/裁判数据，'
+             '方向基本为"市场最低赔方"，不要当成完整多维分析。'
+             % (enriched, max(0, total - enriched)))
+    try:
+        from calibration import get_calibration
+        b = ((get_calibration() or {}).get('buckets') or {})
+        segs = []
+        for k in ('高', '中', '低'):
+            if b.get(k) and b[k].get('n', 0) >= 20:
+                segs.append('%s档命中%s%%/盈亏线%s%%(n=%s)' % (
+                    k, b[k].get('hit_rate'), b[k].get('required_rate'), b[k].get('n')))
+        if segs:
+            L.append('- 信心校准（历史）：' + '；'.join(segs) + '。命中率低于盈亏线即长期亏损。')
+    except Exception:
+        pass
+    L.append('')
+
+    # 二、整体判断
+    L.append('二、整体判断')
+    L.append('- 高信心 %d 场、中 %d、低 %d；极端热门(<1.4) %d 场。' % (
+        cnt.get('high', 0), cnt.get('mid', 0), cnt.get('low', 0), cnt.get('extreme_fav', 0)))
+    concl = []
+    if cnt.get('extreme_fav', 0) >= 5:
+        concl.append('极端热门偏多，"诱盘/爆冷"风险高，不适合重仓长串')
+    if cnt.get('high', 0) == 0:
+        concl.append('今日无高信心场次，模型把握不足，宜小注观望')
+    if not concl:
+        concl.append('整体把握一般，建议小注、分散')
+    L.append('- 结论：' + '；'.join(concl) + '。')
+    L.append('')
+
+    # 三、分级建议
+    L.append('三、分级建议（若参与，小注参考）')
+    steady = rep.get('steady') or []
+    L.append('A. 相对稳健（低赔、非估算）')
+    if steady:
+        for s in steady[:4]:
+            legs = ' / '.join(s.get('legs') or [])
+            extra = ('；' + s['stake_note']) if s.get('stake_note') else ''
+            L.append('- %s [%s] 组合 %s ｜ %s%s' % (
+                s.get('name', ''), s.get('plan_type', ''), s.get('combo_odds'), legs, extra))
+    else:
+        L.append('- 今日无满足条件的稳健方案。')
+
+    vals = [v for v in (rep.get('value') or []) if not v.get('anomaly')]
+    L.append('B. 价值小注（正期望、命中率低，只当彩票）')
+    if vals:
+        for v in vals[:6]:
+            L.append('- %s %s：%s @%s ｜ 公平 %s ｜ 正期望 +%s%% ｜ 建议仓位 %s%%' % (
+                v.get('teams', ''), v.get('match_time') or '', v.get('option'),
+                v.get('jc_odds'), v.get('fair_odds'), v.get('edge_pct'), v.get('kelly_pct')))
+    else:
+        L.append('- 今日无明显正期望标的。')
+
+    L.append('C. 明确回避')
+    avoid = rep.get('avoid') or []
+    if avoid:
+        for a in avoid[:8]:
+            L.append('- %s %s — %s' % (a.get('teams', ''), a.get('time') or '',
+                                       '；'.join(a.get('reasons') or [])))
+    for v in (rep.get('value') or []):
+        if v.get('anomaly'):
+            L.append('- %s：%s @%s 正期望 +%s%% 属异常量级（疑数据错配），不要追' % (
+                v.get('teams', ''), v.get('option'), v.get('jc_odds'), v.get('edge_pct')))
+    if not avoid and not any(v.get('anomaly') for v in (rep.get('value') or [])):
+        L.append('- 暂无。')
+    L.append('')
+
+    # 四、场外因素
+    L.append('四、场外因素（仅真实数据场次）')
+    off = rep.get('off_field') or []
+    if off:
+        for o in off[:8]:
+            L.append('- %s %s — %s' % (o.get('teams', ''), o.get('time') or '',
+                                       '；'.join(o.get('items') or [])))
+    else:
+        L.append('- 今日暂无场外数据，不要假设其余比赛"没问题"。')
+    L.append('')
+
+    # 五、纪律
+    L.append('五、纪律（比选哪场更重要）')
+    L.append('- 今日总投入建议 ≤ 本金的 3%~5%，单注小、别追高、别加注。')
+    L.append('- 优先 A 类；B 类当彩票，输光不心疼；坚决不碰 C 类（尤其异常量级）。')
+    L.append('- 只买能在开赛前看到首发的场次；首发与推荐冲突就放弃。')
+    L.append('')
+    L.append('免责声明：以上为数据整理与模型输出，不构成投注建议；彩票含抽水、长期负期望，请理性、小额。')
+    return '\n'.join(L)
