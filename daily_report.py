@@ -8,6 +8,9 @@ import time
 
 logger = logging.getLogger(__name__)
 
+# 正期望超过该值视为"数据异常"（多为国际盘错配），归入回避、不计入价值机会
+_ANOMALY_EDGE = 50.0
+
 
 def _odds_ok(v):
     try:
@@ -74,8 +77,9 @@ def build_report(matches, recommendations=None, value_recs=None, stats=None):
             'option': v.get('option', ''), 'jc_odds': v.get('jc_odds'),
             'fair_odds': v.get('fair_odds'), 'edge_pct': edge,
             'kelly_pct': v.get('kelly_pct'), 'prob': v.get('prob'),
-            'anomaly': edge > 30,
+            'anomaly': edge > _ANOMALY_EDGE,
         })
+    rep['value_valid_count'] = len([v for v in rep['value'] if not v.get('anomaly')])
 
     # ===== 回避：偏贵 / 同类不盈利 / 价值异常 =====
     seen = set()
@@ -86,11 +90,11 @@ def build_report(matches, recommendations=None, value_recs=None, stats=None):
         if m.get('seg_bad'):
             reasons.append('同类场次（赔率区间/联赛）历史不盈利')
         va = m.get('value_analysis') or {}
-        if (va.get('best_edge') or 0) >= 30:
-            reasons.append('模型价值异常(>30%)，疑数据错配')
+        if (va.get('best_edge') or 0) >= _ANOMALY_EDGE:
+            reasons.append('模型价值异常(>%d%%)，疑数据错配' % int(_ANOMALY_EDGE))
         sv = m.get('sharp_value') or {}
-        if sv.get('has_value') and sv.get('picks') and (sv['picks'][0].get('edge_pct') or 0) > 30:
-            reasons.append('锐盘价值异常(>30%)，疑数据错配')
+        if sv.get('has_value') and sv.get('picks') and (sv['picks'][0].get('edge_pct') or 0) > _ANOMALY_EDGE:
+            reasons.append('锐盘价值异常(>%d%%)，疑数据错配' % int(_ANOMALY_EDGE))
         if not reasons:
             continue
         key = m.get('match_id')
@@ -195,7 +199,7 @@ def build_report(matches, recommendations=None, value_recs=None, stats=None):
             len(matches), rep['counts']['high'], rep['counts']['mid'],
             rep['counts']['low'], extreme),
         '稳健方案 %d 个，价值机会 %d 个，需回避 %d 场。' % (
-            len(rep['steady']), len(rep['value']), len(rep['avoid'])),
+            len(rep['steady']), rep.get('value_valid_count', 0), len(rep['avoid'])),
     ]
 
     try:
