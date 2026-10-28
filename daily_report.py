@@ -139,6 +139,27 @@ def build_report(matches, recommendations=None, value_recs=None, stats=None):
             'time': m.get('match_time', ''), 'items': items,
         })
 
+    # ===== 实时资讯（RSS 抓取到的原文标题）=====
+    news_items = []
+    seen_news = set()
+    for m in matches:
+        nw = m.get('news') or {}
+        for side, slabel in (('home', '主'), ('away', '客')):
+            for it in (nw.get(side) or []):
+                title = (it.get('title') or '').strip()
+                if not title:
+                    continue
+                key = (title[:60], it.get('source'))
+                if key in seen_news:
+                    continue
+                seen_news.add(key)
+                news_items.append({
+                    'teams': '%s vs %s' % (m.get('home_team', ''), m.get('away_team', '')),
+                    'side': slabel, 'type_cn': it.get('type_cn', ''),
+                    'title': title, 'source': it.get('source', ''), 'time': it.get('time', ''),
+                })
+    rep['news'] = news_items[:20]
+
     # ===== 风险提示 =====
     notes = rep['risk_notes']
     if extreme >= 5:
@@ -276,6 +297,15 @@ def _build_text(rep):
                                        '；'.join(o.get('items') or [])))
     else:
         L.append('- 今日暂无场外数据，不要假设其余比赛"没问题"。')
+    news = rep.get('news') or []
+    if news:
+        L.append('  相关资讯（Sky/BBC/Goal/ESPN RSS，实时抓取）：')
+        for n in news[:10]:
+            L.append('  · [%s] %s（%s · %s）：%s' % (
+                n.get('type_cn') or '资讯', n.get('teams', ''),
+                n.get('source', ''), n.get('time') or '', n.get('title', '')))
+    else:
+        L.append('  - 暂无匹配到具体球队的资讯（RSS 约 15 分钟刷新）。')
     L.append('')
 
     # 五、纪律
