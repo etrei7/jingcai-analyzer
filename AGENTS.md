@@ -67,6 +67,8 @@ python tools/test_logic.py
   `instance/news_cache.json`。`apply_to_matches` 对分析**只做保守降级或提示**（预测方伤停/停赛
   不利才降级，不改方向）；`scheduler.refresh_news` 每 15 分钟刷新；接口 `/api/news`、
   `POST /api/news/refresh`。前端比赛卡「资讯」区展示。无网络/无信号时静默失效。
+  分析请求时 `news_ingest.ensure_fresh_async` 会在缓存过期时**后台刷新**（不阻塞）；
+  `daily_report` 把匹配到的资讯标题写入总结的「场外因素」段（`daily_report['news']`）。
 
 ## 回测闭环
 
