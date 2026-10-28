@@ -1246,7 +1246,7 @@ function renderMatchesInternal(matches) {
     <div class="match-card" id="mc_${hid}">
       <div class="match-top">
         <div class="match-meta">
-          <span class="match-id">${m.match_id}</span>
+          <span class="match-id">${m.match_id}</span>${m.started?'<span class="match-id" style="background:var(--low-bg);color:var(--low);margin-left:4px">已开赛</span>':''}
           <span class="match-league">${m.league}</span> ${lqt}
           ${m.is_derby?'<span class="derby-tag">德比</span>':''}
           ${renderPredictionBadge(m)}
