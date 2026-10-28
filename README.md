@@ -91,6 +91,7 @@ flowchart LR
 | `team_alias.py` | 队名别名学习（英文→中文），提升队名兜底结算率 |
 | `news_ingest.py` | 资讯（RSS）抓取→关键词分类→队名匹配，做保守降级/提示 |
 | `lineup_client.py` | 官方首发（API-Football，临场 120 分钟窗口，只读展示） |
+| `daily_report.py` | 今日分析综述聚合（稳健/价值/回避/场外/风险），随刷新实时生成 |
 | `backtest.py` | 回测业务：记录投注、按玩法结算、汇总命中率/ROI/Brier/LogLoss |
 | `backtest_models.py` | `bt_*` 表模型（赔率快照 / 预测 / 投注 / 串关 / 汇总） |
 | `data_pipeline.py` | 结算流水线：`run_full` = `settle_finished` + `expire_stale` |
