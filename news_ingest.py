@@ -154,7 +154,8 @@ def refresh():
         types = _classify(text)
         if not types:
             continue
-        teams = _match_teams(text, pat, idx)
+        # 队名只看"标题"：正文/摘要常提到对手队名，用它匹配会误判成"别的比赛"
+        teams = _match_teams(it['title'], pat, idx)
         if not teams:
             continue
         items.append({
