@@ -48,6 +48,13 @@ def build_report(matches, recommendations=None, value_recs=None, stats=None):
     rep['counts'] = {'high': lvl.get('高', 0), 'mid': lvl.get('中', 0),
                      'low': lvl.get('低', 0), 'extreme_fav': extreme}
 
+    # 队名 -> 推荐方向（用于识别"价值注是否与推荐方向相反"）
+    _PO_SIDE = {'胜': '主胜', '平': '平局', '负': '客胜'}
+    team_pred = {}
+    for m in matches:
+        team_pred[(m.get('home_team'), m.get('away_team'))] = _PO_SIDE.get(
+            m.get('predicted_option'), '')
+
     # ===== 稳健：非估算、组合赔率较低的方案 =====
     for r in recs:
         try:
@@ -74,6 +81,7 @@ def build_report(matches, recommendations=None, value_recs=None, stats=None):
             edge = float(v.get('edge_pct') or 0)
         except (TypeError, ValueError):
             edge = 0
+        _vpred = team_pred.get((v.get('home_team'), v.get('away_team')), '')
         rep['value'].append({
             'teams': '%s vs %s' % (v.get('home_team', ''), v.get('away_team', '')),
             'match_time': v.get('match_time', ''), 'league': v.get('league', ''),
@@ -81,6 +89,8 @@ def build_report(matches, recommendations=None, value_recs=None, stats=None):
             'fair_odds': v.get('fair_odds'), 'edge_pct': edge,
             'kelly_pct': v.get('kelly_pct'), 'prob': v.get('prob'),
             'anomaly': edge > _ANOMALY_EDGE,
+            'recommended_direction': _vpred,
+            'contra': bool(_vpred) and v.get('option') != _vpred,
         })
     rep['value_valid_count'] = len([v for v in rep['value'] if not v.get('anomaly')])
 
@@ -89,7 +99,8 @@ def build_report(matches, recommendations=None, value_recs=None, stats=None):
     for m in matches:
         reasons = []
         if m.get('overpriced'):
-            reasons.append('竞彩赔率相对国际锐盘偏贵')
+            reasons.append('推荐方向(%s)赔率相对国际锐盘偏贵'
+                           % (_PO_SIDE.get(m.get('predicted_option'), '推荐')))
         if m.get('seg_bad'):
             reasons.append('同类场次（赔率区间/联赛）历史不盈利')
         va = m.get('value_analysis') or {}
@@ -107,7 +118,9 @@ def build_report(matches, recommendations=None, value_recs=None, stats=None):
         rep['avoid'].append({
             'match_id': key,
             'teams': '%s vs %s' % (m.get('home_team', ''), m.get('away_team', '')),
-            'time': m.get('match_time', ''), 'reasons': reasons,
+            'time': m.get('match_time', ''),
+            'direction': _PO_SIDE.get(m.get('predicted_option'), ''),
+            'reasons': reasons,
         })
 
     # ===== 场外因素（仅有真实富化的场次）=====
@@ -279,18 +292,22 @@ def _build_text(rep):
     L.append('B. 价值小注（正期望、命中率低，只当彩票）')
     if vals:
         for v in vals[:6]:
-            L.append('- %s %s：%s @%s ｜ 公平 %s ｜ 正期望 +%s%% ｜ 建议仓位 %s%%' % (
+            note = '（与推荐方向相反的价值注，勿与本场推荐混买）' if v.get('contra') else ''
+            L.append('- %s %s：%s @%s ｜ 公平 %s ｜ 正期望 +%s%% ｜ 建议仓位 %s%%%s' % (
                 v.get('teams', ''), v.get('match_time') or '', v.get('option'),
-                v.get('jc_odds'), v.get('fair_odds'), v.get('edge_pct'), v.get('kelly_pct')))
+                v.get('jc_odds'), v.get('fair_odds'), v.get('edge_pct'),
+                v.get('kelly_pct'), note))
     else:
         L.append('- 今日无明显正期望标的。')
 
-    L.append('C. 明确回避')
+    L.append('C. 明确回避（默认指"推荐方向"，不代表整场不可看）')
     avoid = rep.get('avoid') or []
     if avoid:
         for a in avoid[:8]:
-            L.append('- %s %s — %s' % (a.get('teams', ''), a.get('time') or '',
-                                       '；'.join(a.get('reasons') or [])))
+            d = a.get('direction') or ''
+            dtxt = ('［推荐方向:%s］' % d) if d else ''
+            L.append('- %s %s%s — %s' % (a.get('teams', ''), a.get('time') or '', dtxt,
+                                        '；'.join(a.get('reasons') or [])))
     for v in (rep.get('value') or []):
         if v.get('anomaly'):
             L.append('- %s：%s @%s 正期望 +%s%% 属异常量级（疑数据错配），不要追' % (
