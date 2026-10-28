@@ -123,6 +123,7 @@ python tools/test_logic.py
   `daily_report['text']` 为**可直接阅读/复制的整段分析总结**（`_build_text` 生成；页面「复制总结文本」）。
   `_ANOMALY_EDGE=50`：正期望 >50% 视为**数据异常**（多为国际盘错配），归入「回避」、
   不计入「价值机会」（`value_valid_count`）。
+  首屏后 **8 秒自动补刷一次**（`coldRetryDone`），消除国际盘/价值盘的后台预热空窗。
   **05:30 浏览器通知**：/daily 页可开启，05:30~06:30 窗口内（每天一次）先 `refresh()` 再弹 Notification；
   需页面保持打开且授权通知（localStorage `dailyNotify`/`dailyNotifyLast`）。服务端无法定时推竞彩（拿不到场单）。
 - **资讯/首发 A/B 对比**：`bt_bets.news_flag` / `lineup_flag` 记录推荐时是否已有信号；
