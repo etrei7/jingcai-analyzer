@@ -184,11 +184,19 @@ def _build_payload():
         logger.warning('[cache] 保存预测/统计失败: %s', e)
         history_stats = {}
 
+    try:
+        from daily_report import build_report
+        daily_report = build_report(analyzed, recommendations, value_recs, {'source': source})
+    except Exception as e:
+        logger.warning('[cache] daily_report 失败: %s', e)
+        daily_report = None
+
     return {
         'matches': analyzed,
         'recommendations': recommendations,
         'total_goals_recs': total_goals_recs,
         'value_recs': value_recs,
+        'daily_report': daily_report,
         'history_stats': history_stats,
         'stats': {
             'total_matches': len(analyzed),
@@ -271,6 +279,7 @@ def _build_payload_with_timeout(timeout=15):
         'recommendations': generate_parlay_recommendations(analyzed),
         'total_goals_recs': generate_total_goals_recommendations(analyzed),
         'value_recs': [],
+        'daily_report': None,
         'history_stats': {},
         'stats': {
             'total_matches': len(analyzed),
