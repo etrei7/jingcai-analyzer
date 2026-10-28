@@ -237,7 +237,7 @@ function renderDailyReport(rep, stats){
    + '<div class="dr-stat"><div class="num">'+(cnt.high||0)+'/'+(cnt.mid||0)+'/'+(cnt.low||0)+'</div><div class="lab">高/中/低信心</div></div>'
    + '<div class="dr-stat"><div class="num" style="color:var(--amber)">'+(cnt.extreme_fav||0)+'</div><div class="lab">极端热门(&lt;1.4)</div></div>'
    + '<div class="dr-stat"><div class="num" style="color:var(--high)">'+((rep.steady||[]).length)+'</div><div class="lab">稳健方案</div></div>'
-   + '<div class="dr-stat"><div class="num" style="color:var(--high)">'+((rep.value||[]).length)+'</div><div class="lab">价值机会</div></div>'
+   + '<div class="dr-stat"><div class="num" style="color:var(--high)">'+(rep.value_valid_count!=null?rep.value_valid_count:(rep.value||[]).length)+'</div><div class="lab">价值机会</div></div>'
    + '<div class="dr-stat"><div class="num" style="color:var(--low)">'+((rep.avoid||[]).length)+'</div><div class="lab">需回避</div></div>'
    + '</div>';
   if(rep.headline && rep.headline.length) h+='<div class="dr-note">'+rep.headline.join('<br>')+'</div>';
