@@ -52,6 +52,7 @@ a{text-decoration:none;color:inherit}
 .dr-item{font-size:0.68rem;line-height:1.65;margin:4px 0;padding:7px 10px;background:var(--card-stripe);border-radius:8px;border-left:3px solid var(--border)}
 .dr-item.steady{border-left-color:var(--high)}
 .dr-item.warn{border-left-color:var(--low)}
+.dr-text{white-space:pre-wrap;font-family:inherit;font-size:0.74rem;line-height:1.75;color:var(--text);background:var(--card-stripe);border:1px solid var(--border-light);border-radius:10px;padding:12px 14px;margin-top:6px}
 .gloss{border-bottom:1px dashed var(--text-light);cursor:help}
 #glossTip{position:fixed;z-index:99999;max-width:280px;background:var(--card-bg);border:1px solid var(--border);border-radius:8px;padding:8px 11px;font-size:0.72rem;line-height:1.55;color:var(--text);box-shadow:var(--shadow-lg);pointer-events:none;display:none}
 .loading{text-align:center;padding:50px;color:var(--text-muted)}
@@ -221,6 +222,7 @@ function renderDailyReport(rep, stats){
   if(!rep||!rep.total){ renderEmpty('当前暂无竞彩官方场次'); return; }
   var cnt=rep.counts||{};
   document.getElementById('drMeta').textContent = (rep.date||'')+' 更新 '+(rep.updated||'')+' ｜ '+(rep.source||'')+' ｜ 共 '+rep.total+' 场';
+  window._dailyText = rep.text || '';
   var h='<div class="dr-card">';
   h+='<div class="dr-stats">'
    + '<div class="dr-stat"><div class="num">'+(cnt.high||0)+'/'+(cnt.mid||0)+'/'+(cnt.low||0)+'</div><div class="lab">高/中/低信心</div></div>'
@@ -230,45 +232,26 @@ function renderDailyReport(rep, stats){
    + '<div class="dr-stat"><div class="num" style="color:var(--low)">'+((rep.avoid||[]).length)+'</div><div class="lab">需回避</div></div>'
    + '</div>';
   if(rep.headline && rep.headline.length) h+='<div class="dr-note">'+rep.headline.join('<br>')+'</div>';
-
-  if((rep.steady||[]).length){
-    h+='<div class="dr-sec">稳健方案</div>';
-    rep.steady.forEach(function(s){
-      h+='<div class="dr-item steady"><b>'+s.name+'</b> ['+s.plan_type+'] 组合 '+s.combo_odds+' · '+(s.risk_level||'')
-       + ((s.legs&&s.legs.length)?'<div style="color:var(--text-muted)">'+s.legs.join('<br>')+'</div>':'')
-       + (s.stake_note?'<div style="color:var(--amber)">'+s.stake_note+'</div>':'')
-       + (s.cutoff_note?'<div style="color:var(--text-light)">'+s.cutoff_note+'</div>':'')
-       + (s.correlation_warning?'<div style="color:var(--amber)">'+s.correlation_warning+'</div>':'')
-       + '</div>';
-    });
-  }
-  if((rep.value||[]).length){
-    h+='<div class="dr-sec">价值机会（'+tip('edge','正期望')+'，命中率低）</div>';
-    rep.value.forEach(function(v){
-      h+='<div class="dr-item"><b>'+v.teams+'</b> '+(v.match_time||'')+' ｜ <b style="color:var(--primary)">'+v.option+'</b> @'+v.jc_odds
-       + ' ｜ '+tip('fair','公平赔率')+' '+v.fair_odds+' ｜ +'+v.edge_pct+'% ｜ '+tip('kelly','仓位')+' '+v.kelly_pct+'%'
-       + (v.anomaly?' <span style="color:var(--low)">[异常，疑数据错配，勿追]</span>':'')
-       + '</div>';
-    });
-  }
-  if((rep.avoid||[]).length){
-    h+='<div class="dr-sec">需回避</div>';
-    rep.avoid.forEach(function(a){
-      h+='<div class="dr-item warn"><b>'+a.teams+'</b> '+(a.time||'')+' — <span style="color:var(--low)">'+(a.reasons||[]).join('；')+'</span></div>';
-    });
-  }
-  if((rep.off_field||[]).length){
-    h+='<div class="dr-sec">场外因素（仅真实数据场次）</div>';
-    rep.off_field.forEach(function(o){
-      h+='<div class="dr-item"><b>'+o.teams+'</b> '+(o.time||'')+' — '+(o.items||[]).join('；')+'</div>';
-    });
-  }
-  if((rep.risk_notes||[]).length){
-    h+='<div class="dr-sec">风险提示</div>';
-    rep.risk_notes.forEach(function(n){ h+='<div class="dr-note">· '+n+'</div>'; });
+  if(rep.text){
+    h+='<div class="dr-sec">分析总结</div>';
+    h+='<pre class="dr-text" id="drText"></pre>';
+    h+='<div style="margin-top:8px"><button class="btn-refresh" onclick="copyReport()">&#128203; 复制总结文本</button></div>';
+  } else {
+    h+='<div class="dr-note">（暂无文本总结）</div>';
   }
   h+='</div>';
   c.innerHTML=h;
+  var pre=document.getElementById('drText'); if(pre) pre.textContent = rep.text || '';
+}
+
+function copyReport(){
+  var t = window._dailyText || '';
+  if(!t) return;
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(t).then(function(){ alert('已复制总结文本'); }, function(){ alert('复制失败，请手动选择'); });
+  } else {
+    alert('当前浏览器不支持自动复制，请手动选择文本复制');
+  }
 }
 
 /* ===== 刷新流程 ===== */
