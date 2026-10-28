@@ -856,11 +856,21 @@ def analyze_single_match(match, standings=None, prediction=None):
             confidence_score = min(0.95, confidence_score * (1 + 0.35 * fund['score']))
             cross_signal = '一致'
         else:
-            # 市场与基本面相悖：警惕爆冷，降低信心；基本面强信号时改用基本面倾向
-            if fund['score'] >= 0.5 and fund_pick != 'D':
+            # 市场与基本面相悖：警惕爆冷，降低信心；基本面强信号时改用基本面倾向。
+            # 但**不允许改判到高赔冷门**（回测显示改判到高赔是 1X2 命中率崩塌主因）。
+            _fund_odds = 0.0
+            if fund_pick == 'H':
+                _fund_odds = float(match.get('win_odds') or 0)
+            elif fund_pick == 'A':
+                _fund_odds = float(match.get('lose_odds') or 0)
+            if fund['score'] >= 0.5 and fund_pick != 'D' and 0 < _fund_odds <= 2.8:
                 predicted_option = '胜' if fund_pick == 'H' else '负'
                 cross_signal = f'基本面上风→改判'
                 confidence_score = min(0.9, confidence_score * 0.9)
+            elif fund['score'] >= 0.5 and fund_pick != 'D':
+                # 基本面强，但目标是高赔冷门 → 不改方向，只保守降信心
+                cross_signal = '基本面偏冷·不改判'
+                confidence_score = min(0.95, confidence_score * 0.75)
             else:
                 cross_signal = '背离·谨慎'
                 confidence_score = min(0.95, confidence_score * 0.72)
