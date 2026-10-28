@@ -145,6 +145,11 @@ def history_page():
     return render_template('history.html')
 
 
+@app.route('/daily')
+def daily_page():
+    return render_template('daily.html')
+
+
 @app.route('/settings')
 def settings_page():
     return render_template('settings.html')
