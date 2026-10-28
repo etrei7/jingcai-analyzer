@@ -219,10 +219,39 @@ def _downgrade(m):
         m['confidence_level'] = '低'
 
 
+_refreshing = False
+
+
+def ensure_fresh_async(max_age=600):
+    """资讯缓存过期时，后台刷新一次（不阻塞请求）。"""
+    global _refreshing
+    try:
+        ts = _load().get('ts') or 0
+    except Exception:
+        ts = 0
+    if ts and (time.time() - ts) < max_age:
+        return
+    with _lock:
+        if _refreshing:
+            return
+        _refreshing = True
+
+    def work():
+        global _refreshing
+        try:
+            refresh()
+        finally:
+            with _lock:
+                _refreshing = False
+
+    threading.Thread(target=work, daemon=True).start()
+
+
 def apply_to_matches(matches):
     """把资讯挂到每场比赛，并对「预测方伤停/停赛不利」保守降级。返回降级场次数。"""
     if not matches:
         return 0
+    ensure_fresh_async()
     ts, g = _grouped()
     if not g:
         for m in matches:
