@@ -921,6 +921,19 @@ def analyze_single_match(match, standings=None, prediction=None):
                 confidence_score = min(0.95, confidence_score * 0.94)
                 cross_signal = (cross_signal + '·国际盘不利%s%%' % _iv) if cross_signal else ('国际盘不利%s%%' % _iv)
 
+    # 语义一致性：最终推荐方向赔率越高，越不应标"高信心"（避免高信心=高赔冷门）
+    try:
+        _pk = {'胜': 'win_odds', '平': 'draw_odds', '负': 'lose_odds'}.get(predicted_option)
+        _po = float((match.get(_pk) if _pk else 0) or 0)
+        if _po >= 4.5 and conf_level != '低':
+            conf_level = '低'
+            cross_signal = (cross_signal + '·高赔降级') if cross_signal else '高赔降级'
+        elif _po >= 3.5 and conf_level == '高':
+            conf_level = '中'
+            cross_signal = (cross_signal + '·高赔降级') if cross_signal else '高赔降级'
+    except Exception:
+        pass
+
     confidence_level = conf_level
     result_extra = {'cross_signal': cross_signal, 'fund_signals': fund_sig, 'fund_strength': fund['score']}
 
