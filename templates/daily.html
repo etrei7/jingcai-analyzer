@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>每日分析 - 足彩智析</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root,[data-theme="light"]{
+  --bg:#f5f7fa;--card-bg:#fff;--border:#e2e8f0;--border-light:#eef2f7;
+  --text:#1a1a2e;--text-muted:#64748b;--text-light:#94a3b8;
+  --primary:#22c55e;--primary-dark:#16a34a;--primary-soft:#f0fdf4;--primary-border:#bbf7d0;
+  --amber:#f59e0b;--amber-soft:#fffbeb;--amber-border:#fde68a;--amber-text:#b45309;
+  --high:#16a34a;--high-bg:#dcfce7;--medium:#d97706;--medium-bg:#fef3c7;--low:#dc2626;--low-bg:#fee2e2;
+  --card-stripe:#f8fafc;--btn-bg:#f1f5f9;--btn-hover:#e2e8f0;--shadow:0 1px 2px rgba(26,26,46,.06);--shadow-lg:0 4px 16px rgba(26,26,46,.1);
+}
+[data-theme="dark"]{
+  --bg:#0b1220;--card-bg:#111a2e;--border:#233049;--border-light:#1e2940;
+  --text:#e2e8f0;--text-muted:#94a3b8;--text-light:#64748b;
+  --primary:#4ade80;--primary-dark:#22c55e;--primary-soft:#0f2618;--primary-border:#14532d;
+  --amber:#fbbf24;--amber-soft:#291b06;--amber-border:#6b4d12;--amber-text:#f59e0b;
+  --high:#22c55e;--high-bg:#064e3b;--medium:#f59e0b;--medium-bg:#451a03;--low:#ef4444;--low-bg:#450a0a;
+  --card-stripe:#0f1a2e;--btn-bg:#1e2940;--btn-hover:#233049;--shadow:0 1px 2px rgba(0,0,0,.4);--shadow-lg:0 6px 24px rgba(0,0,0,.5);
+}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Microsoft YaHei',sans-serif;min-height:100vh}
+a{text-decoration:none;color:inherit}
+.warn-bar{background:var(--amber-soft);border-bottom:1px solid var(--amber-border);padding:7px 16px;display:flex;align-items:center;justify-content:center;gap:8px;font-size:0.78rem;color:var(--amber-text);font-weight:500;text-align:center}
+.header{position:sticky;top:0;z-index:100;background:var(--card-bg);border-bottom:1px solid var(--border);padding:10px 24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;box-shadow:var(--shadow)}
+.header .brand{display:flex;align-items:center;gap:10px}
+.brand-icon{width:36px;height:36px;border-radius:9px;background:var(--primary-soft);display:flex;align-items:center;justify-content:center;color:var(--primary)}
+.brand-icon svg{width:20px;height:20px}
+.brand-text .t{font-size:1.05rem;font-weight:800}
+.brand-text .s{font-size:0.62rem;color:var(--text-muted);letter-spacing:1px;text-transform:uppercase}
+.nav-links{display:flex;gap:6px;align-items:center;flex-wrap:wrap;background:var(--btn-bg);border-radius:10px;padding:4px}
+.nav-link{color:var(--text-muted);padding:6px 14px;border-radius:8px;font-size:0.8rem;font-weight:600;white-space:nowrap}
+.nav-link:hover{color:var(--text)}
+.nav-link.active{background:var(--primary);color:#fff}
+.btn-ghost{background:var(--btn-bg);color:var(--text);border:1px solid var(--border);padding:5px 10px;border-radius:8px;cursor:pointer;font-size:0.78rem}
+.container{max-width:1000px;margin:0 auto;padding:24px}
+.page-title{font-size:1.4rem;font-weight:800;margin-bottom:6px;display:flex;align-items:center;gap:8px}
+.page-sub{font-size:0.74rem;color:var(--text-muted);margin-bottom:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.btn-refresh{background:var(--primary);color:#fff;border:none;padding:7px 14px;border-radius:8px;cursor:pointer;font-size:0.78rem;font-weight:700}
+.btn-refresh:hover{background:var(--primary-dark)}
+.dr-card{background:var(--card-bg);border:1px solid var(--border);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow)}
+.dr-top{font-size:0.72rem;color:var(--text-muted);margin-bottom:8px}
+.dr-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin-bottom:8px}
+.dr-stat{background:var(--card-stripe);border:1px solid var(--border-light);border-radius:10px;padding:10px;text-align:center}
+.dr-stat .num{font-size:1.15rem;font-weight:900}
+.dr-stat .lab{font-size:0.64rem;color:var(--text-muted);margin-top:2px}
+.dr-note{font-size:0.7rem;line-height:1.6;color:var(--text-muted)}
+.dr-sec{font-size:0.76rem;font-weight:800;margin:14px 0 6px;padding-left:9px;border-left:3px solid var(--primary)}
+.dr-item{font-size:0.68rem;line-height:1.65;margin:4px 0;padding:7px 10px;background:var(--card-stripe);border-radius:8px;border-left:3px solid var(--border)}
+.dr-item.steady{border-left-color:var(--high)}
+.dr-item.warn{border-left-color:var(--low)}
+.gloss{border-bottom:1px dashed var(--text-light);cursor:help}
+#glossTip{position:fixed;z-index:99999;max-width:280px;background:var(--card-bg);border:1px solid var(--border);border-radius:8px;padding:8px 11px;font-size:0.72rem;line-height:1.55;color:var(--text);box-shadow:var(--shadow-lg);pointer-events:none;display:none}
+.loading{text-align:center;padding:50px;color:var(--text-muted)}
+.footer{text-align:center;padding:20px 24px;color:var(--text-muted);font-size:0.72rem;border-top:1px solid var(--border);margin-top:30px;background:var(--card-bg)}
+.footer .disclaimer{color:var(--low);font-weight:600;margin-bottom:5px}
+@media(max-width:900px){.header{padding:8px 12px}.nav-links{width:100%;justify-content:center}.container{padding:16px}}
+</style>
+</head>
+<body>
+
+<div class="warn-bar">本系统仅供数据分析参考，不构成投注建议，请理性购彩 ｜ 未满18周岁禁止购彩</div>
+
+<div class="header">
+  <div class="brand">
+    <div class="brand-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg></div>
+    <div class="brand-text"><div class="t">足彩智析</div><div class="s">AI Football Analytics</div></div>
+  </div>
+  <div class="nav-links">
+    <a class="nav-link" href="/">今日赛事</a>
+    <a class="nav-link active" href="/daily">每日分析</a>
+    <a class="nav-link" href="/history">历史战绩</a>
+    <a class="nav-link" href="/settings">系统设置</a>
+  </div>
+  <button class="btn-ghost" onclick="toggleTheme()">🌓</button>
+</div>
+
+<div class="container">
+  <h2 class="page-title">&#128202; 每日分析 · 实时综述</h2>
+  <div class="page-sub">
+    <span id="drMeta">加载中…</span>
+    <span id="drCountdown"></span>
+    <button class="btn-refresh" id="refreshBtn" onclick="refresh()">立即刷新</button>
+    <span style="font-size:0.66rem;color:var(--text-light)">每 60 秒自动刷新（页面隐藏时暂停）</span>
+  </div>
+  <div id="dailyReport"><div class="loading">生成今日分析…</div></div>
+</div>
+
+<div class="footer">
+  <p class="disclaimer">免责声明：本网站所有数据及分析仅供娱乐参考，不构成任何投注建议。赛果与赔率实时变动，请以中国体育彩票官方发布为准。</p>
+  <p>&copy; <span class="copyYear">2026</span> 竞彩足球智能分析 ｜ 数据来源：中国体育彩票竞彩官方（前端直连）</p>
+</div>
+
+<script>
+var JINGCAI_ODDS_TIME = '';
+var autoTimer = null, countTimer = null, countSec = 60, refreshing = false;
+
+/* ===== 通用 ===== */
+function toggleTheme(){
+  var html=document.documentElement;
+  var next=html.getAttribute('data-theme')==='dark'?'light':'dark';
+  html.setAttribute('data-theme',next);
+  try{ localStorage.setItem('theme',next); }catch(e){}
+}
+(function(){ try{ var s=localStorage.getItem('theme'); if(s) document.documentElement.setAttribute('data-theme',s); }catch(e){} })();
+document.querySelectorAll('.copyYear').forEach(function(e){ e.textContent = new Date().getFullYear(); });
+
+var GLOSSARY = {
+  kelly:'凯利公式：按“估算胜率×赔率-1”算最优下注比例；分数凯利=凯利÷4，更保守。',
+  juice:'抽水（overround）：庄家抽的手续费；返奖率≈1÷(1+抽水)，越低越不划算。',
+  value:'价值/溢价：竞彩赔率相对国际锐盘去水概率的正期望差；正值=更划算。',
+  edge:'正期望：估算概率×赔率-1；>0 才长期有利。',
+  fair:'公平赔率：按去水真实概率换算的赔率；竞彩赔率高于它=有正期望。',
+  imp:'隐含概率：1÷赔率（含抽水）。',
+  breakeven:'盈亏平衡命中率=1÷平均赔率；低于它长期亏损。',
+  over25:'大2.5=总进球≥3；小2.5=≤2。',
+  parlay:'串关：多场组合、赔率相乘，任一腿未中即全中失败。'
+};
+function tip(key,label){ return '<span class="gloss" data-tip="'+GLOSSARY[key]+'">'+(label||key)+'</span>'; }
+var _tipEl=null;
+function _showTip(el){
+  if(!_tipEl){ _tipEl=document.createElement('div'); _tipEl.id='glossTip'; document.body.appendChild(_tipEl); }
+  _tipEl.textContent = el.getAttribute('data-tip')||'';
+  _tipEl.style.display='block';
+  var r=el.getBoundingClientRect(), tw=_tipEl.offsetWidth, th=_tipEl.offsetHeight;
+  var x=r.left+r.width/2-tw/2, y=r.top-th-6;
+  if(x<8)x=8; if(x+tw>window.innerWidth-8)x=window.innerWidth-8-tw; if(y<8)y=r.bottom+6;
+  _tipEl.style.left=x+'px'; _tipEl.style.top=y+'px';
+}
+function _hideTip(){ if(_tipEl) _tipEl.style.display='none'; }
+document.addEventListener('mouseover',function(e){ var el=e.target&&e.target.closest?e.target.closest('.gloss'):null; if(el)_showTip(el); });
+document.addEventListener('mouseout',function(e){ var el=e.target&&e.target.closest?e.target.closest('.gloss'):null; if(el)_hideTip(); });
+document.addEventListener('scroll',function(){ _hideTip(); });
+
+/* ===== 抓竞彩（前端直连）===== */
+async function fetchWithRetry(url, opts, retries){
+  retries = (retries==null)?2:retries;
+  var lastErr=null;
+  for(var i=0;i<=retries;i++){
+    try{
+      var resp=await fetch(url,opts);
+      if(resp.ok) return resp;
+      var s=resp.status;
+      if((s===403||s===429||s>=500)&&i<retries){ await new Promise(function(r){setTimeout(r,500*Math.pow(2,i));}); continue; }
+      return resp;
+    }catch(e){ lastErr=e; if(i<retries){ await new Promise(function(r){setTimeout(r,500*Math.pow(2,i));}); continue; } }
+  }
+  if(lastErr) throw lastErr;
+  return null;
+}
+async function fetchJingcaiList(){
+  var url='https://webapi.sporttery.cn/gateway/uniform/football/getMatchCalculatorV1.qry?channel=c&_t='+Date.now();
+  try{
+    var resp=await fetchWithRetry(url,{cache:'no-store',headers:{'Referer':'https://m.sporttery.cn/'}},2);
+    if(!resp||!resp.ok) return [];
+    var data=await resp.json();
+    if(!data.success) return [];
+    var matchList=(data.value||{}).matchInfoList||[];
+    var result=[]; JINGCAI_ODDS_TIME='';
+    for(var gi=0;gi<matchList.length;gi++){
+      var group=matchList[gi], subs=group.subMatchList||[];
+      for(var si=0;si<subs.length;si++){
+        var m=subs[si], had=m.had||{};
+        if(had.updateTime && had.updateTime>(JINGCAI_ODDS_TIME||'')) JINGCAI_ODDS_TIME=had.updateTime;
+        var ms=String(m.matchStatus||'');
+        var hO=parseFloat(had.h||0), dO=parseFloat(had.d||0), aO=parseFloat(had.a||0);
+        var hhad=m.hhad||{};
+        var hhadOdds=(parseFloat(hhad.h||0)||0)+(parseFloat(hhad.d||0)||0)+(parseFloat(hhad.a||0)||0);
+        var has1x2=(hO>0||dO>0||aO>0), hasHhad=hhadOdds>0;
+        if(ms && ms.toLowerCase()!=='selling') continue;
+        if(!has1x2 && !hasHhad) continue;
+        var numRaw=String(m.matchNum||'');
+        var num3=(numRaw.length>=4 && /^\d+$/.test(numRaw))?numRaw.slice(-3):numRaw;
+        result.push({
+          match_id:(group.weekday||'')+num3,
+          home_team:m.homeTeamAllName||m.homeTeamAbbName||'',
+          away_team:m.awayTeamAllName||m.awayTeamAbbName||'',
+          league:m.leagueName||m.leagueAbbName||'',
+          time:(m.matchTime||'').substring(0,5),
+          win_odds:hO, draw_odds:dO, lose_odds:aO, has_1x2:has1x2, has_hhad:hasHhad,
+          hhad_goal_line:(m.hhad&&m.hhad.goalLine)?parseFloat(m.hhad.goalLine):0,
+          hhad_win:(m.hhad&&m.hhad.h)?parseFloat(m.hhad.h):0,
+          hhad_draw:(m.hhad&&m.hhad.d)?parseFloat(m.hhad.d):0,
+          hhad_lose:(m.hhad&&m.hhad.a)?parseFloat(m.hhad.a):0,
+          hafu_hh:(m.hafu&&m.hafu.hh)?parseFloat(m.hafu.hh):0,
+          hafu_hd:(m.hafu&&m.hafu.hd)?parseFloat(m.hafu.hd):0,
+          hafu_ha:(m.hafu&&m.hafu.ha)?parseFloat(m.hafu.ha):0,
+          hafu_dh:(m.hafu&&m.hafu.dh)?parseFloat(m.hafu.dh):0,
+          hafu_dd:(m.hafu&&m.hafu.dd)?parseFloat(m.hafu.dd):0,
+          hafu_da:(m.hafu&&m.hafu.da)?parseFloat(m.hafu.da):0,
+          hafu_ah:(m.hafu&&m.hafu.ah)?parseFloat(m.hafu.ah):0,
+          hafu_ad:(m.hafu&&m.hafu.ad)?parseFloat(m.hafu.ad):0,
+          hafu_aa:(m.hafu&&m.hafu.aa)?parseFloat(m.hafu.aa):0,
+          ttg_s0:(m.ttg&&m.ttg.s0)?parseFloat(m.ttg.s0):0,
+          ttg_s1:(m.ttg&&m.ttg.s1)?parseFloat(m.ttg.s1):0,
+          ttg_s2:(m.ttg&&m.ttg.s2)?parseFloat(m.ttg.s2):0,
+          ttg_s3:(m.ttg&&m.ttg.s3)?parseFloat(m.ttg.s3):0,
+          ttg_s4:(m.ttg&&m.ttg.s4)?parseFloat(m.ttg.s4):0,
+          ttg_s5:(m.ttg&&m.ttg.s5)?parseFloat(m.ttg.s5):0,
+          ttg_s6:(m.ttg&&m.ttg.s6)?parseFloat(m.ttg.s6):0,
+          ttg_s7:(m.ttg&&m.ttg.s7)?parseFloat(m.ttg.s7):0,
+          raw_event_id:(group.weekday||'')+num3,
+          date:group.businessDate||'', source:'竞彩官方'
+        });
+      }
+    }
+    return result;
+  }catch(e){ return []; }
+}
+
+/* ===== 渲染 ===== */
+function renderEmpty(msg){
+  document.getElementById('dailyReport').innerHTML='<div class="dr-card"><div class="dr-note">'+msg+'<br>本页只展示竞彩官方开售场次；第三方/模拟数据不展示、也不计入回测。</div></div>';
+  document.getElementById('drMeta').textContent = msg;
+}
+function renderDailyReport(rep, stats){
+  var c=document.getElementById('dailyReport');
+  if(!rep||!rep.total){ renderEmpty('当前暂无竞彩官方场次'); return; }
+  var cnt=rep.counts||{};
+  document.getElementById('drMeta').textContent = (rep.date||'')+' 更新 '+(rep.updated||'')+' ｜ '+(rep.source||'')+' ｜ 共 '+rep.total+' 场';
+  var h='<div class="dr-card">';
+  h+='<div class="dr-stats">'
+   + '<div class="dr-stat"><div class="num">'+(cnt.high||0)+'/'+(cnt.mid||0)+'/'+(cnt.low||0)+'</div><div class="lab">高/中/低信心</div></div>'
+   + '<div class="dr-stat"><div class="num" style="color:var(--amber)">'+(cnt.extreme_fav||0)+'</div><div class="lab">极端热门(&lt;1.4)</div></div>'
+   + '<div class="dr-stat"><div class="num" style="color:var(--high)">'+((rep.steady||[]).length)+'</div><div class="lab">稳健方案</div></div>'
+   + '<div class="dr-stat"><div class="num" style="color:var(--high)">'+((rep.value||[]).length)+'</div><div class="lab">价值机会</div></div>'
+   + '<div class="dr-stat"><div class="num" style="color:var(--low)">'+((rep.avoid||[]).length)+'</div><div class="lab">需回避</div></div>'
+   + '</div>';
+  if(rep.headline && rep.headline.length) h+='<div class="dr-note">'+rep.headline.join('<br>')+'</div>';
+
+  if((rep.steady||[]).length){
+    h+='<div class="dr-sec">稳健方案</div>';
+    rep.steady.forEach(function(s){
+      h+='<div class="dr-item steady"><b>'+s.name+'</b> ['+s.plan_type+'] 组合 '+s.combo_odds+' · '+(s.risk_level||'')
+       + ((s.legs&&s.legs.length)?'<div style="color:var(--text-muted)">'+s.legs.join('<br>')+'</div>':'')
+       + (s.stake_note?'<div style="color:var(--amber)">'+s.stake_note+'</div>':'')
+       + (s.cutoff_note?'<div style="color:var(--text-light)">'+s.cutoff_note+'</div>':'')
+       + (s.correlation_warning?'<div style="color:var(--amber)">'+s.correlation_warning+'</div>':'')
+       + '</div>';
+    });
+  }
+  if((rep.value||[]).length){
+    h+='<div class="dr-sec">价值机会（'+tip('edge','正期望')+'，命中率低）</div>';
+    rep.value.forEach(function(v){
+      h+='<div class="dr-item"><b>'+v.teams+'</b> '+(v.match_time||'')+' ｜ <b style="color:var(--primary)">'+v.option+'</b> @'+v.jc_odds
+       + ' ｜ '+tip('fair','公平赔率')+' '+v.fair_odds+' ｜ +'+v.edge_pct+'% ｜ '+tip('kelly','仓位')+' '+v.kelly_pct+'%'
+       + (v.anomaly?' <span style="color:var(--low)">[异常，疑数据错配，勿追]</span>':'')
+       + '</div>';
+    });
+  }
+  if((rep.avoid||[]).length){
+    h+='<div class="dr-sec">需回避</div>';
+    rep.avoid.forEach(function(a){
+      h+='<div class="dr-item warn"><b>'+a.teams+'</b> '+(a.time||'')+' — <span style="color:var(--low)">'+(a.reasons||[]).join('；')+'</span></div>';
+    });
+  }
+  if((rep.off_field||[]).length){
+    h+='<div class="dr-sec">场外因素（仅真实数据场次）</div>';
+    rep.off_field.forEach(function(o){
+      h+='<div class="dr-item"><b>'+o.teams+'</b> '+(o.time||'')+' — '+(o.items||[]).join('；')+'</div>';
+    });
+  }
+  if((rep.risk_notes||[]).length){
+    h+='<div class="dr-sec">风险提示</div>';
+    rep.risk_notes.forEach(function(n){ h+='<div class="dr-note">· '+n+'</div>'; });
+  }
+  h+='</div>';
+  c.innerHTML=h;
+}
+
+/* ===== 刷新流程 ===== */
+async function refresh(){
+  if(refreshing) return;
+  refreshing=true;
+  var btn=document.getElementById('refreshBtn'); if(btn) btn.disabled=true;
+  var box=document.getElementById('dailyReport');
+  if(!box || box.innerHTML.indexOf('dr-card')<0){ if(box) box.innerHTML='<div class="loading">生成今日分析…</div>'; }
+  try{
+    var jc=await fetchJingcaiList();
+    if(!jc || jc.length<1){ renderEmpty('当前暂无竞彩官方场次'); return; }
+    document.getElementById('drMeta').textContent='分析中…（'+jc.length+' 场）';
+    var r=await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({jingcai_matches:jc,client_time:new Date().toISOString(),odds_time:JINGCAI_ODDS_TIME})});
+    if(!r.ok){ renderEmpty('分析接口异常（'+r.status+'）'); return; }
+    var d=await r.json();
+    renderDailyReport(d.daily_report, d.stats);
+  }catch(e){
+    renderEmpty('加载失败：'+e.message);
+  }finally{
+    refreshing=false; if(btn) btn.disabled=false;
+  }
+}
+
+/* ===== 自动刷新 ===== */
+function startCountdown(){
+  if(countTimer) clearInterval(countTimer);
+  var el=document.getElementById('drCountdown');
+  countSec=60;
+  countTimer=setInterval(function(){
+    countSec--;
+    if(countSec<=0){ if(el) el.textContent=''; return; }
+    if(el) el.textContent=countSec+'秒后刷新';
+  },1000);
+}
+function startAuto(){
+  if(autoTimer) clearInterval(autoTimer);
+  startCountdown();
+  autoTimer=setInterval(function(){ refresh(); startCountdown(); },60000);
+}
+document.addEventListener('visibilitychange',function(){
+  if(document.hidden){ if(autoTimer){clearInterval(autoTimer);autoTimer=null;} if(countTimer){clearInterval(countTimer);countTimer=null;} var el=document.getElementById('drCountdown'); if(el) el.textContent=''; }
+  else { startAuto(); refresh(); }
+});
+document.addEventListener('DOMContentLoaded',function(){ refresh(); startAuto(); });
+</script>
+</body>
+</html>
