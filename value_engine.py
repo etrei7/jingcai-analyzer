@@ -160,6 +160,12 @@ def sharp_value(win_odds, draw_odds, lose_odds, intl_odds, lam_h, lam_a):
     if not sharp:
         return {'value_available': False, 'reason': '无国际锐盘赔率基准'}
 
+    # 合理性校验：锐盘与竞彩隐含概率差异过大 → 多为事件错配（会算出 +100% 假价值），直接放弃
+    jc_dev = _devig3(jc['home'], jc['draw'], jc['away'])
+    if jc_dev and max(abs(sharp[i] - jc_dev[i]) for i in range(3)) > 0.25:
+        return {'value_available': False,
+                'reason': '锐盘与竞彩隐含概率差异过大，疑数据错配'}
+
     # 模型概率（Dixon-Coles）；失败则退化为纯锐盘基准
     model = None
     try:
@@ -230,6 +236,8 @@ def generate_value_recommendations(matches, top_n=12):
     """从已分析比赛里抽取价值盘推荐（按 edge 降序）。"""
     recs = []
     for m in matches or []:
+        if m.get('started'):
+            continue
         sv = m.get('sharp_value') or {}
         if not sv.get('value_available') or not sv.get('has_value'):
             continue
