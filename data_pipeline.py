@@ -368,7 +368,7 @@ def settle_finished():
         return 0
 
 
-_STALE_DAYS = 3
+_STALE_DAYS = 7
 
 
 def expire_stale(days=_STALE_DAYS):
