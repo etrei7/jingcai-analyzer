@@ -304,7 +304,7 @@ def enrich_jingcai_matches(matches):
     if not API_KEY or not matches:
         return matches, 0
     try:
-        bz_list = _cached_bz_events(40)
+        bz_list = _cached_bz_events(120)
         if not bz_list:
             return matches, 0
 
