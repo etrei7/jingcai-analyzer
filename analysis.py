@@ -707,6 +707,11 @@ def _generate_ai_preview(r):
 
 
 def analyze_single_match(match, standings=None, prediction=None):
+    try:
+        from match_time_util import started as _started
+        _is_started = _started(match)
+    except Exception:
+        _is_started = False
     # 归一化可能缺失或为 None 的字段，避免后续比较/运算崩溃（如未开盘场次）
     for _k in ('win_odds', 'draw_odds', 'lose_odds', 'handicap_line',
                'handicap_win_odds', 'handicap_draw_odds', 'handicap_lose_odds'):
@@ -1110,6 +1115,8 @@ def analyze_single_match(match, standings=None, prediction=None):
         except Exception:
             pass
 
+    result['started'] = _is_started
+
     # Cleanup internal fields
     for k in ('home_strength', 'league_id', 'home_team_id', 'away_team_id', 'funfacts',
               'home_coach_style', 'away_coach_style', '_raw_date', 'event_date_raw'):
@@ -1126,6 +1133,8 @@ def analyze_matches(matches, standings=None, predictions=None):
 
 
 def generate_parlay_recommendations(matches):
+    # 已开赛的场次不能再投注，直接从推荐中剔除
+    matches = [m for m in (matches or []) if not m.get('started')]
     recommendations = []
 
     # 方案一：稳胆2串1 (胜平负)
@@ -1315,7 +1324,9 @@ def generate_parlay_recommendations(matches):
 
 def generate_total_goals_recommendations(matches):
     tg_recs = []
-    for m in matches:
+    for m in (matches or []):
+        if m.get('started'):
+            continue
         top3 = m.get('top3_goals', [])
         if not top3 or top3[0]['prob'] <= 0:
             continue
