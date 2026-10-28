@@ -69,8 +69,8 @@ python tools/test_logic.py
   `POST /api/news/refresh`。前端比赛卡「资讯」区展示。无网络/无信号时静默失效。
   分析请求时 `news_ingest.ensure_fresh_async` 会在缓存过期时**后台刷新**（不阻塞）；
   `daily_report` 把匹配到的资讯标题写入总结的「场外因素」段（`daily_report['news']`）。
-  匹配规则 `_fixture_ok`：新闻要么只提到 1 支已知球队，要么同时提到本场 2 支球队才采纳，
-  避免把"别的比赛"的新闻（如曼联输给伯恩茅斯）误挂到伯恩茅斯 vs 维拉。
+  匹配规则 `_fixture_ok`：新闻要么只提到 1 支已知球队，要么同时提到本场 2 支球队才采纳；
+  且**队名只从标题识别**（正文/摘要常提对手，会误判），避免误挂。
 
 ## 回测闭环
 
@@ -80,7 +80,7 @@ python tools/test_logic.py
   （近 7 天 `fetch_finished_events` + 数字ID并发补查），ID优先、队名兜底，
   竞彩编号场次也能闭环。`record_jingcai_plays` 无 `bz_event_id` 时用竞彩编号记录（靠队名结算）。
   `backtest.settle_bet` 已不再被调用，保留作 API 兼容。
-- **超期作废**：`data_pipeline.expire_stale(days=3)` 把超 3 天仍无赛果的待结算 bet/parlay
+- **超期作废**：`data_pipeline.expire_stale(days=7)` 把超 7 天仍无赛果的待结算 bet/parlay
   标记 `outcome='void'`（pnl=0），保持统计口径干净；在 `run_full` 中调用。
 - **队名别名学习**（`team_alias.py`，存储 `instance/team_aliases.json`）：结算命中同场时，
   用 `learn(事件名, 记录名)` 自动登记「英文→中文」别名（含小写键，上限 5000）；
@@ -112,6 +112,8 @@ python tools/test_logic.py
   官方盘口来源：`hhad`→AH、`ttg`→TG(`analysis._tg_from_official`/`result.tg_pick`)、
   `hafu`→HTFT；非官方(模型)推算的一律 `estimated=True`，不计入 ROI 但计命中率。
   `backtest._eval_play` 支持 TG 精确进球结算（`'7+'`=≥7）。
+- **基本面改判约束**：仅当基本面强信号且目标方向赔率 ≤2.8 时才允许改判；目标为高赔冷门时
+  只降信心、不改方向（回测显示"改判到高赔"是 1X2 命中率崩塌的主因）。
 - **已开赛场次剔除**：`match_time_util.started()`（`hour<12` 视为次日凌晨）——串关、价值盘、
   单项总进球、每日总结都会跳过已开赛场次；比赛卡显示「已开赛」。`/api/backtest/diag` 供数据体检。
 - **今日分析综述**：`daily_report.py::build_report(analyzed, recs, value_recs, stats)` 把当前结果聚合成
