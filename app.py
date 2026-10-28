@@ -574,6 +574,9 @@ def analyze_data():
                     continue
                 edges = {k: round(((1.0 / best[k]) / s_mkt - (1.0 / jc[k]) / s_jc) * 100, 1)
                          for k in ('home', 'draw', 'away')}
+                # 合理性校验：与竞彩差异过大（>25pp）多为事件错配，不采用国际盘
+                if max(abs(edges['home']), abs(edges['draw']), abs(edges['away'])) > 25:
+                    continue
                 m['intl_value'] = {
                     'edges': edges,
                     'edge_home': edges['home'], 'edge_draw': edges['draw'], 'edge_away': edges['away'],
@@ -845,6 +848,48 @@ def backtest_stats():
     except Exception as e:
         logging.warning('[API] backtest: %s', e)
         return jsonify({'total_bets': 0, 'total_pnl': 0, 'roi': 0, 'hit_rate': 0, 'pending': 0})
+
+
+@app.route('/api/backtest/diag')
+def backtest_diag():
+    """回测数据体检：按玩法/结果计数、按信心等级平均赔率与命中率、最近 10 条 1X2 样本。"""
+    try:
+        from backtest_models import BtBet
+        bets = BtBet.query.filter_by(jingcai=True).all()
+        by_play = {}
+        for b in bets:
+            p = b.play_type or '?'
+            d = by_play.setdefault(p, {'total': 0, 'win': 0, 'lose': 0, 'void': 0, 'pending': 0})
+            d['total'] += 1
+            if b.outcome in ('win', 'lose', 'void'):
+                d[b.outcome] += 1
+            else:
+                d['pending'] += 1
+        lv = {}
+        for b in bets:
+            if b.play_type != '1X2' or b.outcome not in ('win', 'lose'):
+                continue
+            k = b.confidence_level or '未分级'
+            d = lv.setdefault(k, {'n': 0, 'odds': 0.0, 'wins': 0})
+            d['n'] += 1
+            d['odds'] += (b.odds or 0)
+            if b.outcome == 'win':
+                d['wins'] += 1
+        for k, d in lv.items():
+            d['avg_odds'] = round(d['odds'] / d['n'], 2) if d['n'] else 0
+            d['hit_rate'] = round(d['wins'] / d['n'] * 100, 1) if d['n'] else 0
+            d.pop('odds', None)
+        samples = []
+        for b in BtBet.query.filter_by(jingcai=True, play_type='1X2') \
+                .order_by(BtBet.id.desc()).limit(10).all():
+            samples.append({'match_id': b.match_id, 'home': b.home_team, 'away': b.away_team,
+                            'pick': b.pick, 'odds': b.odds, 'outcome': b.outcome,
+                            'confidence_level': b.confidence_level, 'league': b.league})
+        return jsonify({'total': len(bets), 'by_play': by_play,
+                        'by_confidence_1x2': lv, 'samples_1x2': samples})
+    except Exception as e:
+        logging.warning('[API] backtest diag: %s', e)
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/api/parlay-stats')
