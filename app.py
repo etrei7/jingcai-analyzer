@@ -246,12 +246,19 @@ def get_data():
         except Exception as e:
             logging.warning('[API] value record failed: %s', e)
     history_stats = get_stats()
+    try:
+        from daily_report import build_report
+        daily_report = build_report(analyzed, recommendations, value_recs, {'source': source})
+    except Exception as e:
+        logging.warning('[API] daily_report failed: %s', e)
+        daily_report = None
 
     return jsonify({
         'matches': analyzed,
         'recommendations': recommendations,
         'total_goals_recs': total_goals_recs,
         'value_recs': value_recs,
+        'daily_report': daily_report,
         'history_stats': history_stats,
         'stats': {
             'total_matches': len(analyzed),
@@ -605,9 +612,16 @@ def analyze_data():
         except Exception as e:
             logging.warning('[API] value record failed: %s', e)
             value_recs = []
+        try:
+            from daily_report import build_report
+            daily_report = build_report(analyzed, recommendations, value_recs, {'source': source})
+        except Exception as e:
+            logging.warning('[API] daily_report failed: %s', e)
+            daily_report = None
         return jsonify({
             'matches': analyzed, 'recommendations': recommendations,
             'total_goals_recs': total_goals_recs, 'value_recs': value_recs,
+            'daily_report': daily_report,
             'history_stats': get_stats(),
             'stats': {'total_matches': len(analyzed),
                        'update_time': fetch_ts, 'source': source,
@@ -688,12 +702,19 @@ def analyze_data():
         except Exception:
             pass
     history_stats = get_stats()
+    try:
+        from daily_report import build_report
+        daily_report = build_report(analyzed, recommendations, value_recs, {'source': source})
+    except Exception as e:
+        logging.warning('[API] daily_report failed: %s', e)
+        daily_report = None
 
     return jsonify({
         'matches': analyzed,
         'recommendations': recommendations,
         'total_goals_recs': total_goals_recs,
         'value_recs': value_recs,
+        'daily_report': daily_report,
         'history_stats': history_stats,
         'stats': {
             'total_matches': len(analyzed),
