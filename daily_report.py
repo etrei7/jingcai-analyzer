@@ -21,13 +21,16 @@ def _odds_ok(v):
 
 def build_report(matches, recommendations=None, value_recs=None, stats=None):
     stats = stats or {}
-    matches = matches or []
+    all_matches = matches or []
+    matches = [m for m in all_matches if not m.get('started')]
+    started_count = len(all_matches) - len(matches)
     recs = recommendations or []
     vrecs = value_recs or []
     rep = {
         'date': time.strftime('%Y-%m-%d'),
         'updated': time.strftime('%H:%M:%S'),
         'total': len(matches),
+        'started_count': started_count,
         'source': stats.get('source', ''),
         'counts': {}, 'steady': [], 'value': [], 'avoid': [],
         'off_field': [], 'risk_notes': [], 'headline': [],
@@ -172,6 +175,8 @@ def build_report(matches, recommendations=None, value_recs=None, stats=None):
         notes.append('今日无"高信心"场次，说明模型普遍把握不足，宜小注或观望。')
     if rep['avoid']:
         notes.append('有 %d 场被标记需回避（赔率偏贵/同类不盈利/价值异常），见下。' % len(rep['avoid']))
+    if started_count:
+        notes.append('已剔除 %d 场已开赛（不可投注）的场次。' % started_count)
     enriched = len(rep['off_field'])
     if matches and enriched < len(matches):
         notes.append('仅 %d/%d 场有场外数据（伤停/排名/天气/首发），其余以赔率为主，勿臆测。' % (enriched, len(matches)))
@@ -223,6 +228,8 @@ def _build_text(rep):
     # 一、口径与限制
     L.append('一、数据口径与限制')
     L.append('- 场次：%d 场，来源：%s（真实赔率）。' % (total, src))
+    if rep.get('started_count'):
+        L.append('- 已剔除 %d 场已开赛（不可投注）的场次。' % rep['started_count'])
     enriched = len(rep.get('off_field') or [])
     L.append('- Bzzoiro 场外富化成功 %d 场；其余 %d 场无伤停/排名/天气/裁判数据，'
              '方向基本为"市场最低赔方"，不要当成完整多维分析。'
