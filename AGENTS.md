@@ -98,6 +98,7 @@ python tools/test_logic.py
   校准，`edge = p×竞彩赔率−1 ≥ 2%` 才推荐，分数凯利(1/4, 上限5%)定注。
   权重**自适应**：`get_weights()` 按已结算竞彩样本量把锐盘权重在 0.9→0.6 间调整（缓存 300s）；
   概率**等渗校准**：`get_isotonic()` 用已结算 VAL 样本(≥200)做 PAVA，否则恒等（缓存 300s）。
+  **错配防护**：锐盘与竞彩隐含概率差异 >25pp 时视为事件错配、放弃该场价值盘（避免 +100% 假价值）。
   记录为 `bt_bets.play_type='VAL'`（判定同 1X2），`/api/value-stats` 出 ROI + Brier/log-loss + 权重。
   参数（阈值/凯利/边界）为保守默认，样本足够后可用最大似然拟合。前端「价值盘·锐盘基准」区。
 - **信心分级 + 同类场次校准**（`calibration.py`）：按已结算竞彩场次统计
@@ -111,6 +112,8 @@ python tools/test_logic.py
   官方盘口来源：`hhad`→AH、`ttg`→TG(`analysis._tg_from_official`/`result.tg_pick`)、
   `hafu`→HTFT；非官方(模型)推算的一律 `estimated=True`，不计入 ROI 但计命中率。
   `backtest._eval_play` 支持 TG 精确进球结算（`'7+'`=≥7）。
+- **已开赛场次剔除**：`match_time_util.started()`（`hour<12` 视为次日凌晨）——串关、价值盘、
+  单项总进球、每日总结都会跳过已开赛场次；比赛卡显示「已开赛」。`/api/backtest/diag` 供数据体检。
 - **今日分析综述**：`daily_report.py::build_report(analyzed, recs, value_recs, stats)` 把当前结果聚合成
   `daily_report`（计数 / 稳健方案 / 价值机会 / 需回避 / 场外因素 / 风险提示 / 一句话结论），
   随 `/api/analyze`、`/api/data` 返回。**独立页 `/daily`**（`templates/daily.html`，导航「每日分析」）：
