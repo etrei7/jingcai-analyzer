@@ -111,6 +111,7 @@ python tools/test_logic.py
   `daily_report`（计数 / 稳健方案 / 价值机会 / 需回避 / 场外因素 / 风险提示 / 一句话结论），
   随 `/api/analyze`、`/api/data` 返回。**独立页 `/daily`**（`templates/daily.html`，导航「每日分析」）：
   前端直连竞彩 → POST `/api/analyze` → 渲染 `daily_report`，每 60 秒自动刷新（页面隐藏暂停）。不落库。
+  `daily_report['text']` 为**可直接阅读/复制的整段分析总结**（`_build_text` 生成；页面「复制总结文本」）。
 - **资讯/首发 A/B 对比**：`bt_bets.news_flag` / `lineup_flag` 记录推荐时是否已有信号；
   同一 (match_id, play_type) 重复记录时会把更完整信号**补写到已有行**（仍保持去重）。
   `backtest.ab_summary()` + `/api/ab-test` 对比「有资讯 / 有首发 / 有任一 vs 无」的命中率、
