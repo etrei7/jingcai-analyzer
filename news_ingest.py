@@ -247,6 +247,20 @@ def ensure_fresh_async(max_age=600):
     threading.Thread(target=work, daemon=True).start()
 
 
+def _fixture_ok(item, h, a):
+    """资讯是否真与该对阵相关：
+    - 必须提到本场至少一支球队；
+    - 若只提到 1 支已知球队（单一球队伤停/停赛）→ 接受；
+    - 若提到多支 → 必须同时提到本场两支队（否则视为"别的比赛"的新闻，如曼联vs伯恩茅斯
+      误挂到 伯恩茅斯vs维拉）。"""
+    T = set(item.get('teams') or [])
+    if h not in T and a not in T:
+        return False
+    if len(T) == 1:
+        return True
+    return (h in T and a in T)
+
+
 def apply_to_matches(matches):
     """把资讯挂到每场比赛，并对「预测方伤停/停赛不利」保守降级。返回降级场次数。"""
     if not matches:
@@ -267,8 +281,8 @@ def apply_to_matches(matches):
     for m in matches:
         h = canon(m.get('home_team'))
         a = canon(m.get('away_team'))
-        hs = g.get(h, []) if h else []
-        as_ = g.get(a, []) if a else []
+        hs = [i for i in (g.get(h, []) if h else []) if _fixture_ok(i, h, a)]
+        as_ = [i for i in (g.get(a, []) if a else []) if _fixture_ok(i, h, a)]
         if not hs and not as_:
             m['news'] = None
             continue
