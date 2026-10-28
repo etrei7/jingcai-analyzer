@@ -506,6 +506,7 @@ button{font-family:inherit}
   </div>
   <div class="nav-links">
     <a class="nav-link active" href="/"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>今日赛事</a>
+    <a class="nav-link" href="/daily">每日分析</a>
     <a class="nav-link" href="/history"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>历史战绩</a>
     <a class="nav-link" href="/settings"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>系统设置</a>
   </div>
@@ -569,12 +570,6 @@ button{font-family:inherit}
     <!-- 赛事看板 -->
     <div class="section-title">今日赛事 <span class="st-tag">实时</span><span class="st-count" id="matchCountLabel"></span></div>
     <div id="matchesContainer"><div class="loading"><div class="spinner"></div><p style="margin-top:10px">加载赛事数据…</p></div></div>
-
-    <!-- 今日分析 · 实时综述 -->
-    <div class="rec-section" style="margin-top:20px">
-      <div class="section-title">今日分析 · 实时综述 <span class="st-tag">随刷新自动更新</span></div>
-      <div id="dailyReport"><div class="bt-note">生成今日分析…</div></div>
-    </div>
 
     <!-- AI 串关 -->
     <div class="rec-section">
@@ -1443,66 +1438,6 @@ function notifyCopied() {
   setTimeout(function(){ t.classList.remove('show'); }, 1600);
 }
 
-/* ===== 今日分析 · 实时综述 ===== */
-function renderDailyReport(rep){
-  var c = document.getElementById('dailyReport');
-  if(!c) return;
-  if(!rep || !rep.total){ c.innerHTML = '<div class="bt-note">暂无今日分析（等待竞彩场次）。</div>'; return; }
-  var cnt = rep.counts || {};
-  var html = '<div class="backtest-card">';
-  html += '<div class="bt-note">' + (rep.date||'') + ' 更新 ' + (rep.updated||'') + ' ｜ ' + (rep.source||'') + ' ｜ 共 ' + rep.total + ' 场</div>';
-  html += '<div class="bt-stats" style="margin-top:6px">'
-    + '<div class="bt-stat"><div class="num" style="color:var(--text)">' + (cnt.high||0) + '/' + (cnt.mid||0) + '/' + (cnt.low||0) + '</div><div class="lab">高/中/低信心</div></div>'
-    + '<div class="bt-stat"><div class="num" style="color:var(--amber)">' + (cnt.extreme_fav||0) + '</div><div class="lab">极端热门(&lt;1.4)</div></div>'
-    + '<div class="bt-stat"><div class="num">' + (rep.steady||[]).length + '</div><div class="lab">稳健方案</div></div>'
-    + '<div class="bt-stat"><div class="num">' + (rep.value||[]).length + '</div><div class="lab">价值机会</div></div>'
-    + '<div class="bt-stat"><div class="num" style="color:var(--low)">' + (rep.avoid||[]).length + '</div><div class="lab">需回避</div></div>'
-    + '</div>';
-  if(rep.headline && rep.headline.length){
-    html += '<div class="bt-note" style="margin-top:8px">' + rep.headline.join('<br>') + '</div>';
-  }
-  if((rep.steady||[]).length){
-    html += '<div class="bt-note" style="margin-top:10px;font-weight:700;color:var(--high)">稳健方案</div>';
-    rep.steady.forEach(function(s){
-      html += '<div style="font-size:0.68rem;line-height:1.6;margin:4px 0;padding:6px 8px;background:var(--card-stripe);border-radius:8px;border-left:3px solid var(--high)">'
-        + '<b>' + s.name + '</b> [' + s.plan_type + '] 组合 ' + s.combo_odds + ' · ' + s.risk_level
-        + ((s.legs&&s.legs.length) ? '<div style="color:var(--text-muted)">' + s.legs.join('<br>') + '</div>' : '')
-        + (s.stake_note ? '<div style="color:var(--amber)">' + s.stake_note + '</div>' : '')
-        + (s.cutoff_note ? '<div style="color:var(--text-light)">' + s.cutoff_note + '</div>' : '')
-        + (s.correlation_warning ? '<div style="color:var(--amber)">' + s.correlation_warning + '</div>' : '')
-        + '</div>';
-    });
-  }
-  if((rep.value||[]).length){
-    html += '<div class="bt-note" style="margin-top:10px;font-weight:700;color:var(--high)">价值机会（正期望，命中率低）</div>';
-    rep.value.forEach(function(v){
-      html += '<div style="font-size:0.68rem;line-height:1.6;margin:3px 0">'
-        + v.teams + ' ' + (v.match_time||'') + ' | <b style="color:var(--primary)">' + v.option + '</b> @' + v.jc_odds
-        + ' | 公平 ' + v.fair_odds + ' | 正期望 +' + v.edge_pct + '% | 仓位 ' + v.kelly_pct + '%'
-        + (v.anomaly ? ' <span style="color:var(--low)">[异常，疑数据错配，勿追]</span>' : '')
-        + '</div>';
-    });
-  }
-  if((rep.avoid||[]).length){
-    html += '<div class="bt-note" style="margin-top:10px;font-weight:700;color:var(--low)">需回避</div>';
-    rep.avoid.forEach(function(a){
-      html += '<div style="font-size:0.68rem;line-height:1.6;margin:3px 0">' + a.teams + ' ' + (a.time||'') + ' — <span style="color:var(--low)">' + (a.reasons||[]).join('；') + '</span></div>';
-    });
-  }
-  if((rep.off_field||[]).length){
-    html += '<div class="bt-note" style="margin-top:10px;font-weight:700">场外因素（仅真实数据场次）</div>';
-    rep.off_field.forEach(function(o){
-      html += '<div style="font-size:0.68rem;line-height:1.6;margin:3px 0">' + o.teams + ' ' + (o.time||'') + ' — ' + (o.items||[]).join('；') + '</div>';
-    });
-  }
-  if((rep.risk_notes||[]).length){
-    html += '<div class="bt-note" style="margin-top:10px;font-weight:700">风险提示</div>';
-    rep.risk_notes.forEach(function(n){ html += '<div style="font-size:0.66rem;line-height:1.6;color:var(--text-muted)">· ' + n + '</div>'; });
-  }
-  html += '</div>';
-  c.innerHTML = html;
-}
-
 /* ===== 价值盘（锐盘基准） ===== */
 function renderValueRecs(recs){
   var c = document.getElementById('valueContainer');
@@ -1981,7 +1916,6 @@ function renderNoJingcai(msg){
     + '<div style="font-size:0.72rem;line-height:1.7">本网站只展示<b>竞彩官方</b>开售场次；<br>第三方 / 模拟数据不予展示，也不计入回测。</div>'
     + '<button class="btn-refresh" onclick="refreshData(true)" style="margin-top:14px">重试</button></div>';
   if(rc) rc.innerHTML = '<div class="bt-note">暂无竞彩官方场次，未生成推荐。</div>';
-  var dr = document.getElementById('dailyReport'); if(dr) dr.innerHTML = '<div class="bt-note">暂无今日分析（等待竞彩场次）。</div>';
   if(vc) vc.innerHTML = '';
   if(hc) hc.innerHTML = '<div class="bt-note">暂无竞彩官方场次。</div>';
   var vs = document.getElementById('valueStats'); if(vs) vs.innerHTML = '';
@@ -2008,7 +1942,6 @@ function showData(data){
   document.getElementById('dataSource').title=data.stats.data_note||'';
   updateTimeNote(data.stats);
   renderMatches(data.matches);
-  renderDailyReport(data.daily_report);
   fillAnalystMatches(data.matches);
   renderIntlValueBoard(data.matches);
   renderRecommendations(data.recommendations);
