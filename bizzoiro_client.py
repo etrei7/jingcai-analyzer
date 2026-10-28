@@ -304,7 +304,8 @@ def enrich_jingcai_matches(matches):
     if not API_KEY or not matches:
         return matches, 0
     try:
-        bz_list = _cached_bz_events(120)
+        # 注：曾试过 120 提升覆盖，但服务端拉取会超时/失败导致富化全空，回退 40
+        bz_list = _cached_bz_events(40)
         if not bz_list:
             return matches, 0
 
