@@ -107,6 +107,7 @@ a{text-decoration:none;color:inherit}
 <script>
 var JINGCAI_ODDS_TIME = '';
 var autoTimer = null, countTimer = null, countSec = 60, refreshing = false;
+var coldRetryDone = false;   // 首屏后补刷一次，消除国际盘/价值盘的冷启动空窗
 
 /* ===== 通用 ===== */
 function toggleTheme(){
@@ -355,6 +356,11 @@ async function refresh(){
     renderEmpty('加载失败：'+e.message);
   }finally{
     refreshing=false; if(btn) btn.disabled=false;
+    // 首次加载后 8 秒补刷一次（此时 Bzzoiro 国际盘/预测通常已预热，价值盘不再是空）
+    if(!coldRetryDone){
+      coldRetryDone = true;
+      setTimeout(function(){ if(!document.hidden) refresh(); }, 8000);
+    }
   }
 }
 
