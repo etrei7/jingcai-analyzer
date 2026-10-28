@@ -87,6 +87,15 @@ a{text-decoration:none;color:inherit}
     <button class="btn-refresh" id="refreshBtn" onclick="refresh()">立即刷新</button>
     <span style="font-size:0.66rem;color:var(--text-light)">每 60 秒自动刷新（页面隐藏时暂停）</span>
   </div>
+  <div class="dr-card" style="margin-bottom:14px;padding:12px 14px">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:0.76rem">
+      <span style="font-weight:800">每日 05:30 提醒</span>
+      <button class="btn-refresh" id="notifyToggle" onclick="toggleNotify()">开启</button>
+      <button class="btn-ghost" onclick="testNotify()">测试通知</button>
+      <span id="notifyStatus" style="color:var(--text-muted);font-size:0.7rem"></span>
+    </div>
+    <div class="dr-note" style="margin-top:6px">需在 05:30 时保持本页面打开（可放后台，勿关标签页）。通知需浏览器授权；部分手机浏览器不支持网页通知。</div>
+  </div>
   <div id="dailyReport"><div class="loading">生成今日分析…</div></div>
 </div>
 
@@ -254,6 +263,78 @@ function copyReport(){
   }
 }
 
+/* ===== 每日 05:30 浏览器通知 ===== */
+var NOTIFY_HOUR = 5, NOTIFY_MIN = 30, notifyTimer = null, LAST_KEY = 'dailyNotifyLast';
+function _notifyOn(){ try{ return localStorage.getItem('dailyNotify') === '1'; }catch(e){ return false; } }
+function _pad(n){ return (n < 10 ? '0' : '') + n; }
+function _fmtDT(d){ return (d.getMonth()+1) + '-' + _pad(d.getDate()) + ' ' + _pad(d.getHours()) + ':' + _pad(d.getMinutes()); }
+function nextNotifyTime(){
+  var now = new Date();
+  var t = new Date(now.getFullYear(), now.getMonth(), now.getDate(), NOTIFY_HOUR, NOTIFY_MIN, 0, 0);
+  if(now >= t) t = new Date(t.getTime() + 86400000);
+  return t;
+}
+function updateNotifyUI(){
+  var btn = document.getElementById('notifyToggle');
+  var st = document.getElementById('notifyStatus');
+  var on = _notifyOn();
+  if(btn) btn.textContent = on ? '已开启（点击关闭）' : '开启';
+  if(!st) return;
+  if(!('Notification' in window)){ st.textContent = '当前浏览器不支持网页通知'; return; }
+  var perm = Notification.permission;
+  var permTxt = (perm === 'granted') ? '' : '（需授权通知）';
+  st.textContent = (on ? '已开启 · 上次 ' + (localStorage.getItem(LAST_KEY) || '—') : '未开启')
+    + ' · 下次 ' + _fmtDT(nextNotifyTime()) + permTxt;
+}
+async function toggleNotify(){
+  if(_notifyOn()){ try{ localStorage.setItem('dailyNotify','0'); }catch(e){} updateNotifyUI(); return; }
+  if(!('Notification' in window)){ alert('当前浏览器不支持网页通知'); return; }
+  var perm = Notification.permission;
+  if(perm !== 'granted'){ try{ perm = await Notification.requestPermission(); }catch(e){ perm = 'denied'; } }
+  if(perm !== 'granted'){ alert('通知权限被拒绝：请在浏览器地址栏左侧/设置里允许本站通知'); return; }
+  try{ localStorage.setItem('dailyNotify','1'); }catch(e){}
+  updateNotifyUI();
+  startNotifyTimer();
+}
+function doNotify(){
+  if(!('Notification' in window) || Notification.permission !== 'granted') return;
+  var t = window._dailyText || '';
+  var body = t ? t.replace(/\s+/g, ' ').slice(0, 160) : ((document.getElementById('drMeta') || {}).textContent || '今日分析已更新');
+  try{
+    var n = new Notification('足彩智析 · 今日分析（05:30）', { body: body, tag: 'daily530' });
+    n.onclick = function(){ try{ window.focus(); }catch(e){} n.close(); };
+  }catch(e){}
+}
+async function fireDaily(){
+  try{ await refresh(); }catch(e){}
+  doNotify();
+  updateNotifyUI();
+}
+function checkNotify(){
+  if(!_notifyOn()) return;
+  if(!('Notification' in window) || Notification.permission !== 'granted') return;
+  var now = new Date();
+  var today = now.getFullYear() + '-' + (now.getMonth()+1) + '-' + now.getDate();
+  if(localStorage.getItem(LAST_KEY) === today) return;
+  var target = new Date(now.getFullYear(), now.getMonth(), now.getDate(), NOTIFY_HOUR, NOTIFY_MIN, 0, 0);
+  var diff = (now - target) / 60000;   // 分钟
+  if(diff >= 0 && diff <= 60){         // 05:30~06:30 窗口内触发一次
+    try{ localStorage.setItem(LAST_KEY, today); }catch(e){}
+    fireDaily();
+  }
+}
+function startNotifyTimer(){
+  if(notifyTimer) clearInterval(notifyTimer);
+  notifyTimer = setInterval(function(){ checkNotify(); updateNotifyUI(); }, 20000);
+}
+function testNotify(){
+  if(!('Notification' in window) || Notification.permission !== 'granted'){
+    alert('请先点「开启」并允许通知，再测试');
+    return;
+  }
+  doNotify();
+}
+
 /* ===== 刷新流程 ===== */
 async function refresh(){
   if(refreshing) return;
@@ -297,7 +378,12 @@ document.addEventListener('visibilitychange',function(){
   if(document.hidden){ if(autoTimer){clearInterval(autoTimer);autoTimer=null;} if(countTimer){clearInterval(countTimer);countTimer=null;} var el=document.getElementById('drCountdown'); if(el) el.textContent=''; }
   else { startAuto(); refresh(); }
 });
-document.addEventListener('DOMContentLoaded',function(){ refresh(); startAuto(); });
+document.addEventListener('DOMContentLoaded',function(){
+  refresh();
+  startAuto();
+  updateNotifyUI();
+  if(_notifyOn()){ startNotifyTimer(); setTimeout(checkNotify, 4000); }
+});
 </script>
 </body>
 </html>
