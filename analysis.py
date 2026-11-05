@@ -383,14 +383,16 @@ def _fundamental_pick(home_rank, away_rank, home_form, away_form,
 
 
 def _estimate_team_value(league_quality, rank, odds_ratio, confidence, team_name=''):
-    """估算球队身价（百万欧元）。优先使用真实数据集，缺失时基于联赛+排名推算"""
+    """估算球队身价（百万欧元）。优先使用真实数据集，缺失时基于联赛+排名推算。
+    返回中带 estimated 标记，前端据此区分真实/估算，避免把估算值当事实。"""
     # Real data from team_values.json (Transfermarkt-based)
     if team_name and team_name in TEAM_VALUES:
         val = TEAM_VALUES[team_name]
         display = f'{val/100:.1f}亿' if val >= 100 else f'{val}M'
         source = 'Transfermarkt'
-        return {'value_m': val, 'display': display, 'tier': '千万欧' if val >= 30 else '百万欧', 'source': source}
-    
+        return {'value_m': val, 'display': display, 'tier': '千万欧' if val >= 30 else '百万欧',
+                'source': source, 'estimated': False}
+
     # Estimate from league + rank + odds
     base = 150 if league_quality >= 1.0 else 80 if league_quality >= 0.85 else 30
     rank_adj = max(0, 1 - (rank or 10) / 30) * base
@@ -399,24 +401,79 @@ def _estimate_team_value(league_quality, rank, odds_ratio, confidence, team_name
     val = round(base + rank_adj + odds_bonus + conf_bonus)
     display = f'{val/100:.1f}亿' if val >= 100 else f'{val}M'
     source = '估算'
-    return {'value_m': val, 'display': display, 'tier': '千万欧' if val >= 50 else '百万欧', 'source': source}
+    return {'value_m': val, 'display': display, 'tier': '千万欧' if val >= 50 else '百万欧',
+            'source': source, 'estimated': True}
 
 
-def _simulate_h2h(home_exp, away_exp, num=5):
-    """确定性模拟两队近5场历史交手比分"""
-    results = []
-    seed = f'{home_exp:.2f}_{away_exp:.2f}'
-    for i in range(num):
-        hg = _stable_gauss(f'{seed}_h{i}', home_exp, 1.2)
-        ag = _stable_gauss(f'{seed}_a{i}', away_exp, 1.0)
-        results.append({'home': hg, 'away': ag})
-    home_wins = sum(1 for r in results if r['home'] > r['away'])
-    draws = sum(1 for r in results if r['home'] == r['away'])
-    away_wins = num - home_wins - draws
+# 杯赛（无联赛积分榜）集合：这些赛事没有"排名/积分"，前端应明确显示"杯赛无排名"
+CUP_LEAGUES = {
+    '欧冠', '欧联', '欧协联', '欧会杯', '亚冠', '亚冠精英', '解放者杯', '欧超杯',
+    '世俱杯', '足总杯', '英联杯', '国王杯', '意杯', '德国杯', '巴西杯', '法联杯',
+}
+
+
+def _is_cup_league(league):
+    return (league or '') in CUP_LEAGUES
+
+
+def _model_1x2_probs(home_exp, away_exp, max_goal=12):
+    """基于泊松/斯凯勒姆分布计算模型的三项概率（胜/平/负），0-100。"""
+    try:
+        he = float(home_exp)
+        ae = float(away_exp)
+    except (TypeError, ValueError):
+        return None
+    if he <= 0 or ae <= 0:
+        return None
+    p_draw = 0.0
+    p_home = 0.0
+    p_away = 0.0
+    # 直接双重求和更稳健
+    import math
+    ph = [math.exp(-he) * he ** k / math.factorial(k) for k in range(max_goal + 1)]
+    pa = [math.exp(-ae) * ae ** k / math.factorial(k) for k in range(max_goal + 1)]
+    for i in range(max_goal + 1):
+        for j in range(max_goal + 1):
+            p = ph[i] * pa[j]
+            if i > j:
+                p_home += p
+            elif i == j:
+                p_draw += p
+            else:
+                p_away += p
+    total = p_home + p_draw + p_away
+    if total <= 0:
+        return None
     return {
-        'results': [f'{r["home"]}-{r["away"]}' for r in results],
-        'summary': f'近{num}场: {home_wins}胜{draws}平{away_wins}负'
+        'win': round(p_home / total * 100, 1),
+        'draw': round(p_draw / total * 100, 1),
+        'lose': round(p_away / total * 100, 1),
     }
+
+
+def _kelly(p, odds):
+    """凯利指数：f = (p*b - (1-p)) / b，b=赔率-1。返回小数（可为负=无价值）。"""
+    try:
+        p = float(p)
+        odds = float(odds)
+    except (TypeError, ValueError):
+        return None
+    if odds <= 1.0:
+        return None
+    b = odds - 1.0
+    f = (p * b - (1.0 - p)) / b
+    return round(f, 4)
+
+
+def _build_h2h(match):
+    """真实历史交锋：由数据层注入 match['h2h']（来自完赛事件）。
+    没有真实数据时返回 available=False，绝不再用模型模拟。"""
+    h2h = match.get('h2h')
+    if isinstance(h2h, dict) and h2h.get('results'):
+        out = dict(h2h)
+        out['available'] = True
+        return out
+    return {'results': [], 'summary': '暂无交锋数据', 'available': False}
 
 
 def _compute_handicap(match, prediction=None, home_state=0.5, away_state=0.5, h_inj=0, a_inj=0, h_rank=None, a_rank=None):
@@ -539,12 +596,14 @@ def _compute_handicap(match, prediction=None, home_state=0.5, away_state=0.5, h_
 def _compute_total_goals(match, prediction, home_state=0.5, away_state=0.5, h_inj=0, a_inj=0):
     expected = 2.4
     pred = prediction or {}
+    used_prediction = False
 
     home_exp = float(pred.get('expected_home_goals', 0) or 0)
     away_exp = float(pred.get('expected_away_goals', 0) or 0)
 
     if home_exp > 0 and away_exp > 0:
         expected = home_exp + away_exp
+        used_prediction = True
     else:
         # 盘口驱动：基于赔率隐含概率 + 球队状态/伤病实时修正
         imp_w = 1.0 / match['win_odds'] if match['win_odds'] > 0 else 0.33
@@ -564,6 +623,7 @@ def _compute_total_goals(match, prediction, home_state=0.5, away_state=0.5, h_in
             away_exp += 0.12
         expected = home_exp + away_exp
 
+    was_rounded = expected > 2.8
     expected = round(expected * 2) / 2 if expected > 2.8 else round(expected, 2)
     dist = {}
     for k in range(7):  # 0-6 球
@@ -611,7 +671,9 @@ def _compute_total_goals(match, prediction, home_state=0.5, away_state=0.5, h_in
             'lambda_total': round(expected, 2),
             'home_attack': round(home_exp if home_exp > 0 else expected * 0.55, 2),
             'away_attack': round(away_exp if away_exp > 0 else expected * 0.45, 2),
-            'source': 'Bzzoiro预测' if home_exp > 0 else '赔率推算'
+            'source': 'Bzzoiro预测' if used_prediction else '赔率推算',
+            'used_prediction': used_prediction,
+            'rounded': was_rounded,
         }
     }
 
@@ -1001,8 +1063,8 @@ def analyze_single_match(match, standings=None, prediction=None):
     home_value = _estimate_team_value(league_quality_ord, home_rank, home_odds_ratio, home_confidence, match['home_team'])
     away_value = _estimate_team_value(league_quality_ord, away_rank, away_odds_ratio, away_confidence, match['away_team'])
 
-    # 7.6 历史交手模拟（近5场）
-    h2h = _simulate_h2h(tg['expected_home_goals'], tg['expected_away_goals'], 5)
+    # 7.6 历史交锋（真实数据；无数据时明确"暂无"，不再模拟）
+    h2h = _build_h2h(match)
 
     # 8. 推荐比分（基于盘口隐含概率 + 球队状态，每次实时推算）
     # 泊松分布取最可能比分组合
@@ -1139,6 +1201,64 @@ def analyze_single_match(match, standings=None, prediction=None):
             pass
 
     result['started'] = _is_started
+    # ===== 模型概率 / Edge / 凯利指数 =====
+    model_probs = _model_1x2_probs(tg.get('expected_home_goals'), tg.get('expected_away_goals'))
+    result['model_prob'] = model_probs
+    if model_probs:
+        # 市场概率用归一化隐含概率（与模型同为100%口径，可比）
+        mw, md, ml = market_win, market_draw, market_lose
+        result['market_prob'] = {'win': mw, 'draw': md, 'lose': ml}
+        result['edge'] = {
+            'win': round(model_probs['win'] - mw, 1),
+            'draw': round(model_probs['draw'] - md, 1),
+            'lose': round(model_probs['lose'] - ml, 1),
+        }
+        result['kelly'] = {
+            'win': _kelly(model_probs['win'] / 100.0, match['win_odds']),
+            'draw': _kelly(model_probs['draw'] / 100.0, match['draw_odds']),
+            'lose': _kelly(model_probs['lose'] / 100.0, match['lose_odds']),
+        }
+        # 让球盘一致性校验：平手盘时，让胜概率应与模型主胜概率接近
+        hcp_warn = None
+        try:
+            if handicap.get('handicap_line') == 0:
+                hwo = float(handicap.get('handicap_win_odds') or 0)
+                if hwo > 1:
+                    hcp_win_imp = 100.0 / hwo
+                    diff = abs(model_probs['win'] - hcp_win_imp)
+                    if diff > 15:
+                        hcp_warn = '让球(平手)与胜平负模型概率偏差约%d%%，模型内部可能不一致' % round(diff)
+        except Exception:
+            pass
+        result['model_warning'] = hcp_warn
+
+    # ===== 数据完整性标记（前端据此显示"数据不足"，而不是把默认值当结论） =====
+    pparams = tg.get('poisson_params') or {}
+    is_cup = _is_cup_league(league)
+    rank_ok = home_rank is not None and away_rank is not None
+    form_ok = bool(home_form) and bool(away_form)
+    h2h_ok = bool(h2h.get('available'))
+    injured = match.get('injuries') or {}
+    inj_ok = ('home' in injured) or ('away' in injured) or (injured.get('home_count') or 0) > 0 or (injured.get('away_count') or 0) > 0
+    value_real = (not home_value.get('estimated')) and (not away_value.get('estimated'))
+    goals_ok = bool(pparams.get('used_prediction'))
+    applicable = []
+    if not is_cup:
+        applicable.append(rank_ok)
+    applicable.extend([form_ok, inj_ok, h2h_ok, goals_ok])
+    score = round(sum(1 for x in applicable if x) / len(applicable) * 100) if applicable else 0
+    result['data_quality'] = {
+        'is_cup': is_cup,
+        'rank_available': rank_ok,
+        'form_available': form_ok,
+        'h2h_available': h2h_ok,
+        'injury_available': inj_ok,
+        'value_real': value_real,
+        'goals_from_prediction': goals_ok,
+        'goals_rounded': bool(pparams.get('rounded')),
+        'score': score,
+        'note': '杯赛无联赛排名' if is_cup else ('' if rank_ok else '联赛排名缺失'),
+    }
 
     # Cleanup internal fields
     for k in ('home_strength', 'league_id', 'home_team_id', 'away_team_id', 'funfacts',

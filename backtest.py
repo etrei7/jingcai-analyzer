@@ -309,6 +309,30 @@ def compute_summary(period='all', model_name=None, play_type=None, jingcai_only=
         est_total = len(est_settled)
         est_wins = sum(1 for b in est_settled if b.outcome == 'win')
 
+        # 按玩法拆分：各玩法的样本/命中/盈亏/ROI（区分真实/估算赔率）
+        _play_cn = {'1X2': '胜平负', 'AH': '让胜平负', 'CS': '比分', 'HTFT': '半全场', 'OU': '大小球'}
+        _pb = {}
+        for b in settled:
+            pt = _play_cn.get(b.play_type, b.play_type or '其他')
+            row = _pb.setdefault(pt, {'play_type': pt, 'estimated': bool(getattr(b, 'estimated', False)),
+                                      'total': 0, 'wins': 0, 'losses': 0, 'pnl': 0.0, 'stake': 0.0})
+            row['total'] += 1
+            if b.outcome == 'win':
+                row['wins'] += 1
+            elif b.outcome == 'lose':
+                row['losses'] += 1
+            if b.outcome in ('win', 'lose'):
+                row['stake'] += (b.stake or 1.0)
+                row['pnl'] += (b.pnl or 0.0)
+        play_breakdown = []
+        for pt, row in _pb.items():
+            n = row['wins'] + row['losses']
+            row['hit_rate'] = round(row['wins'] / n * 100, 1) if n else 0.0
+            row['roi'] = round(row['pnl'] / row['stake'] * 100, 1) if row['stake'] else 0.0
+            row['pnl'] = round(row['pnl'], 2)
+            play_breakdown.append(row)
+        play_breakdown.sort(key=lambda x: (x['estimated'], -x['total']))
+
         # 预测明细：供面板展示历史战绩（按玩法解释 pick）
         def describe(play_type, pick):
             pt = play_type or '1X2'
@@ -384,6 +408,7 @@ def compute_summary(period='all', model_name=None, play_type=None, jingcai_only=
             # 估算赔率玩法（比分/半全场）不计入 ROI，仅作参考
             'estimated_total': est_total,
             'estimated_wins': est_wins,
+            'play_breakdown': play_breakdown,
             'records': records,
         }
     except Exception as e:

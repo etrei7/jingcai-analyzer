@@ -150,6 +150,12 @@ def _build_payload():
         _refresh_intl_async(matches)
     except Exception as e:
         logger.warning('[cache] 国际赔率注入失败: %s', e)
+    # 真实历史交锋 + 近况（从 Bzzoiro 已完赛事件计算，带缓存）
+    try:
+        from bizzoiro_client import fetch_h2h_and_form
+        fetch_h2h_and_form(matches)
+    except Exception as e:
+        logger.warning('[cache] 交锋/近况注入失败: %s', e)
 
     # 模拟数据最终兜底
     if not matches or len(matches) < 3:

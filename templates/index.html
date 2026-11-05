@@ -247,6 +247,29 @@ button{font-family:inherit}
 .score-chip:first-child{background:var(--primary);color:#fff;font-weight:800}
 .h2h-row{font-size:0.6rem;color:var(--text-light);display:flex;gap:4px;flex-wrap:wrap}
 .h2h-row span{background:var(--card-bg);border:1px solid var(--border-light);padding:1px 5px;border-radius:4px}
+/* ===== 模型概率 vs 赔率隐含 / 凯利 ===== */
+.model-panel{margin-top:10px;padding:10px 12px;border:1px solid var(--border-light);border-radius:10px;background:var(--card-stripe)}
+.mp-head{font-size:0.68rem;font-weight:800;color:var(--text);display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.mp-note{font-size:0.58rem;font-weight:400;color:var(--text-light)}
+.mp-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
+.mp-col{background:var(--card-bg);border:1px solid var(--border-light);border-radius:8px;padding:6px 8px}
+.mp-name{font-size:0.62rem;font-weight:800;color:var(--primary-dark);margin-bottom:3px}
+.mp-row{display:flex;justify-content:space-between;font-size:0.6rem;line-height:1.5}
+.mp-lab{color:var(--text-muted)}
+.mp-val{font-weight:700;color:var(--text)}
+.mp-edge.pos,.mp-kelly.pos{color:var(--high);font-weight:800}
+.mp-edge.neg,.mp-kelly.neg{color:var(--low);font-weight:800}
+.mp-warn{margin-top:6px;font-size:0.6rem;color:var(--amber-text);background:var(--amber-soft);border-radius:6px;padding:4px 8px}
+/* ===== 数据完整性徽章 ===== */
+.dq-row{margin-top:8px;display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+.dq-score{font-size:0.58rem;font-weight:800;padding:2px 8px;border-radius:10px}
+.dq-score.ok{background:var(--high-bg);color:#166534}
+.dq-score.warn{background:var(--medium-bg);color:#92400e}
+.dq-score.na{background:var(--low-bg);color:#b91c1c}
+.dq-badge{font-size:0.56rem;padding:1px 7px;border-radius:10px;font-weight:600;border:1px solid transparent}
+.dq-badge.ok{background:var(--high-bg);color:#166534}
+.dq-badge.warn{background:var(--medium-bg);color:#92400e}
+.dq-badge.na{background:var(--btn-bg);color:var(--text-muted);border-color:var(--border)}
 .form-str{letter-spacing:1px;font-size:0.66rem;font-family:monospace;font-weight:700}
 .form-str .w{color:var(--high)}.form-str .l{color:var(--low)}.form-str .d{color:var(--amber)}
 
@@ -383,6 +406,7 @@ button{font-family:inherit}
 /* ===== 高信心串关选场 ===== */
 .hi-pick-list{margin:10px 0}
 .hi-list{max-height:320px;overflow-y:auto;border:1px solid var(--border-light);border-radius:10px;padding:4px}
+.hi-hint{font-size:0.62rem;color:var(--text-muted);margin-bottom:6px;padding:4px 8px;background:var(--card-stripe);border-radius:6px}
 .hi-item{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;cursor:pointer;transition:background .15s}
 .hi-item:hover{background:var(--card-stripe)}
 .hi-item input{width:15px;height:15px;cursor:pointer;accent-color:var(--primary)}
@@ -835,12 +859,59 @@ function zoneLabel(r) { if(!r) return ''; if(r<=4) return '欧冠区'; if(r<=6) 
 function formStrHTML(f) { if(!f) return ''; return '<span class="form-str">'+f.split('').map(c=>`<span class="${c.toLowerCase()}">${c}</span>`).join('')+'</span>'; }
 function confBar(s) { const p=s/10*100; const c=s>=6?'green':s>=4?'yellow':'red'; return `<span class="bar ${c}" style="width:${Math.max(3,p*0.6)}px"></span>`; }
 function teamMetaHTML(v) {
-  // v = { rank, value } ；生成 "排名 身价" 小标签，无数据则隐藏
+  // v = { rank, value } ；生成 "排名 身价" 小标签，无数据则隐藏；估算身价用 ≈ 标注
   var parts = [];
   if(v.rank != null && v.rank !== '') parts.push('#'+v.rank);
-  if(v.value && v.value.display) parts.push('身价 '+v.value.display);
+  if(v.value && v.value.display) {
+    var est = v.value.estimated;
+    parts.push((est ? '≈' : '') + '身价 ' + v.value.display);
+  }
   if(!parts.length) return '';
-  return '<span class="team-meta">'+parts.join(' · ')+'</span>';
+  var title = (v.value && v.value.estimated) ? ' title="身价为估算值，非真实转会数据"' : '';
+  return '<span class="team-meta"'+title+'>'+parts.join(' · ')+'</span>';
+}
+
+/* ===== 模型概率 vs 赔率隐含 / 凯利 ===== */
+function renderModelPanel(m){
+  var mp = m.model_prob, mk = m.market_prob;
+  if(!mp || !mk) return '';
+  var ed = m.edge || {}, kl = m.kelly || {};
+  function col(name, market, key){
+    var e = ed[key], k = kl[key];
+    var eCls = (e > 0) ? 'pos' : (e < 0) ? 'neg' : '';
+    var kCls = (k > 0) ? 'pos' : (k < 0) ? 'neg' : '';
+    return '<div class="mp-col">'+
+      '<div class="mp-name">'+name+'</div>'+
+      '<div class="mp-row"><span class="mp-lab">模型</span><span class="mp-val">'+mp[key]+'%</span></div>'+
+      '<div class="mp-row"><span class="mp-lab">赔率隐含</span><span class="mp-val">'+market+'%</span></div>'+
+      '<div class="mp-row"><span class="mp-lab">Edge</span><span class="mp-edge '+eCls+'">'+((e>0?'+':'')+(e==null?'—':e))+'</span></div>'+
+      '<div class="mp-row"><span class="mp-lab">凯利</span><span class="mp-kelly '+kCls+'">'+(k==null?'—':k)+'</span></div>'+
+    '</div>';
+  }
+  var warn = m.model_warning ? '<div class="mp-warn">&#9888; '+m.model_warning+'</div>' : '';
+  return '<div class="model-panel">'+
+    '<div class="mp-head">模型概率 vs 赔率隐含 <span class="mp-note">Edge=模型-市场；凯利&gt;0 才有正期望</span></div>'+
+    '<div class="mp-grid">'+col('主胜', mk.win, 'win')+col('平局', mk.draw, 'draw')+col('客胜', mk.lose, 'lose')+'</div>'+
+    warn+'</div>';
+}
+
+/* ===== 数据完整性徽章 ===== */
+function renderDataBadges(m){
+  var d = m.data_quality;
+  if(!d) return '';
+  var items = [];
+  function add(txt, cls, title){ items.push('<span class="dq-badge '+cls+'"'+(title?' title="'+title+'"':'')+'>'+txt+'</span>'); }
+  if(d.is_cup){ add('杯赛无联赛排名','na','杯赛没有联赛积分榜，属正常'); }
+  else if(d.rank_available){ add('排名 ✔','ok'); }
+  else { add('排名缺失','na'); }
+  if(d.form_available) add('近况 ✔','ok'); else add('近况缺失','na');
+  if(d.h2h_available) add('交锋 ✔','ok'); else add('交锋缺失','na');
+  if(d.injury_available) add('伤停 ✔','ok'); else add('伤停缺失','na');
+  if(d.value_real) add('身价真实','ok'); else add('身价估算','warn','估算值，非真实转会数据');
+  if(d.goals_from_prediction) add('进球预测 ✔','ok'); else add('进球为赔率推算','warn');
+  if(d.goals_rounded) add('进球取整','warn','期望进球>2.8时取整到0.5，分布会趋同');
+  var scoreCls = d.score >= 70 ? 'ok' : d.score >= 40 ? 'warn' : 'na';
+  return '<div class="dq-row"><span class="dq-score '+scoreCls+'">数据完整度 '+d.score+'%</span>'+items.join('')+'</div>';
 }
 function refStrictClass(s) { if(s.includes('严格')) return 'strict-strict'; if(s.includes('适中')) return 'strict-moderate'; return 'strict-lenient'; }
 function leagueQualityTag(league) {
@@ -863,7 +934,7 @@ function calcThreshold(m){
   let depth = '普通', depthCls = 'text-muted';
   if(m.handicap_line === undefined || m.handicap_line === null){ depth='—'; }
   else { const line = m.handicap_line; if(line < 0){ depth='深盘'; depthCls='red'; } else if(line <= 0){ depth='浅盘'; depthCls='green'; } }
-  // 市场预期胜率
+  // 赔率隐含概率
   const wp = m.market_win_pct||0, dp = m.market_draw_pct||0, lp = m.market_lose_pct||0;
   const fav = Math.max(wp, dp, lp);
   let favSide = wp===fav?'主胜':lp===fav?'客胜':'平局';
@@ -959,7 +1030,7 @@ function renderDetailPanel(m) {
     </div>
     <div class="detail-section">
       <h4><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 21a8 8 0 0 0-16 0"/><circle cx="10" cy="8" r="5"/><path d="M22 20c0-3.37-2-6.5-4-8a5 5 0 0 0-.45-8.3"/></svg>历史交锋</h4>
-      ${h2hList.length ? `<div class="h2h-row">${h2hList.map(s=>`<span>${s}</span>`).join('')}</div><div style="font-size:0.68rem;margin-top:5px;color:var(--text-muted)">${h2h.summary||'近N场交锋'}</div>` : '<span class="na-text">暂无交锋数据</span>'}
+      ${h2hList.length ? `<div class="h2h-row">${h2hList.map(s=>`<span>${s}</span>`).join('')}</div><div style="font-size:0.68rem;margin-top:5px;color:var(--text-muted)">${h2h.summary||'近N场交锋'}</div>` : '<span class="na-text">暂无交锋数据（数据源未覆盖，已不再使用模拟数据）</span>'}
     </div>
     <div class="detail-section">
       <h4><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2 15.5 8 12 14 8.5 8Z"/><path d="M12 14v8"/></svg>球队信心详情 (10分制)</h4>
@@ -1026,7 +1097,28 @@ function renderOddsMove(m) {
   if (Math.abs(homeMove) === dominant) dir = homeMove>0?'主跌':'主升';
   else if (Math.abs(drawMove) === dominant) dir = drawMove>0?'平跌':'平升';
   else dir = awayMove>0?'客跌':'客升';
-  return `<span class="extras-item" title="初赔→即赔变动趋势：${t.home>0?'主降'+t.home+'家 ':'主升'+(-t.home)+'家 '} ${t.draw>0?'平降'+t.draw+'家 ':'平升'+(-t.draw)+'家 '} ${t.away>0?'客降'+t.away+'家 ':'客升'+(-t.away)+'家 '}">赔率→${dir}</span>`;
+  return `<span class="extras-item" title="共${om.total||'?'}家公司 初赔→即赔变动趋势：${t.home>0?'主降'+t.home+'家 ':'主升'+(-t.home)+'家 '} ${t.draw>0?'平降'+t.draw+'家 ':'平升'+(-t.draw)+'家 '} ${t.away>0?'客降'+t.away+'家 ':'客升'+(-t.away)+'家 '}${om.pressure_side?'；资金压力：'+om.pressure_side:''}">赔率→${dir}（${om.total||'?'}家）</span>`;
+}
+
+/* ===== 赔率变动懒加载（初赔→即赔，多家公司） ===== */
+var oddsMovementLoaded = false;
+async function loadOddsMovement(matches){
+  if(oddsMovementLoaded) return;
+  var ids = (matches||[]).map(function(m){ return m.raw_event_id; }).filter(Boolean).slice(0,12);
+  if(!ids.length) return;
+  oddsMovementLoaded = true;
+  try{
+    var r = await fetch('/api/odds-movement?ids=' + encodeURIComponent(ids.join(',')));
+    if(!r.ok) return;
+    var j = await r.json();
+    if(!j || !j.success || !j.data) return;
+    var map = j.data, changed = false;
+    (allMatches||[]).forEach(function(m){
+      var v = map[String(m.raw_event_id)];
+      if(v){ m.odds_movement = v; changed = true; }
+    });
+    if(changed) applyFilters();
+  }catch(e){}
 }
 
 function renderIntlOdds(m) {
@@ -1116,7 +1208,7 @@ function renderDimGrid(m) {
       <div class="dim-sub">${hp} ${ap}</div>
     </div>
     <div class="dim-card">
-      <div class="dim-head"><span class="dim-title">&#128202; ${tip('imp','市场预期胜率')}</span></div>
+      <div class="dim-head"><span class="dim-title">&#128202; ${tip('imp','赔率隐含概率')}</span></div>
       <div class="dim-val">${t.favSide} <span style="color:var(--primary)">${Math.max(t.wp,t.dp,t.lp)}%</span></div>
       <div class="dim-sub">主${t.wp}%/平${t.dp}%/客${t.lp}%</div>
     </div>
@@ -1306,6 +1398,8 @@ function renderMatchesInternal(matches) {
         </div>
       </div>
       ${dims}
+      ${renderModelPanel(m)}
+      ${renderDataBadges(m)}
       ${renderCardTotalGoals(m)}
       <div class="detail-toggle" onclick="toggleDetail(this,'detail_${hid}')"><span class="arrow">&#9654;</span> 展开详情（伤停·裁判·天气·泊松·信心·交锋）</div>
       <div class="detail-panel" id="detail_${hid}">${renderDetailPanel(m)}</div>
@@ -1672,42 +1766,67 @@ function fillAnalystMatches(matches){
   renderHiPickList();
 }
 var hlPicked = {};
+function _hiBestOpt(m){
+  var opts = [['胜', m.win_odds], ['平', m.draw_odds], ['负', m.lose_odds]].filter(function(o){ return o[1] > 0; });
+  return opts.sort(function(a,b){ return a[1] - b[1]; })[0] || ['胜', m.win_odds];
+}
+function _hiValueOpt(m){
+  // 价值选项：赔率 1.5~2.5 区间内，优先 Edge 最大；无 Edge 时取最接近 2.0
+  var opts = [['胜', m.win_odds, 'win'], ['平', m.draw_odds, 'draw'], ['负', m.lose_odds, 'lose']]
+    .filter(function(o){ return o[1] >= 1.5 && o[1] <= 2.5; });
+  if(!opts.length) return null;
+  var ed = m.edge || {};
+  opts.sort(function(a,b){
+    var ea = (ed[a[2]] == null ? -99 : ed[a[2]]);
+    var eb = (ed[b[2]] == null ? -99 : ed[b[2]]);
+    if(eb !== ea) return eb - ea;
+    return Math.abs(a[1]-2.0) - Math.abs(b[1]-2.0);
+  });
+  return opts[0];
+}
+function _hiReason(m){
+  if(m.confidence_level !== '高') return '信心不足';
+  if(m.hotness_label === '极端热门') return '极端热门·诱盘';
+  if(!_hiValueOpt(m)) return '赔率不在1.5-2.5价值区';
+  return '';
+}
 function renderHiPickList(){
   var box = document.getElementById('hlPickList');
   if(!box) return;
   if(!currentMatches.length){ box.innerHTML = '<div class="an-empty">请先加载赛事数据</div>'; return; }
-  var bestOpt = function(m){
-    var opts = [['胜', m.win_odds], ['平', m.draw_odds], ['负', m.lose_odds]].filter(function(o){ return o[1] > 0; });
-    return opts.sort(function(a,b){ return a[1] - b[1]; })[0] || ['胜', m.win_odds];
-  };
-  box.innerHTML = '<div class="hi-list">' + currentMatches.map(function(m){
+  var qualify = 0;
+  var rows = currentMatches.map(function(m){
     var checked = hlPicked[m.match_id] ? ' checked' : '';
     var lv = m.confidence_level || '';
     var lvCls = lv === '高' ? 'hi' : (lv === '中' ? 'mid' : 'low');
-    var opt = bestOpt(m), odds = (opt[1] || 0);
+    var reason = _hiReason(m);
+    var opt = _hiValueOpt(m) || _hiBestOpt(m);
+    var odds = (opt[1] || 0);
+    if(!reason) qualify++;
+    var tag = reason ? '<span class="hi-lv low" title="'+reason+'">不达标</span>' : '<span class="hi-lv hi">价值✔</span>';
     return '<label class="hi-item"><input type="checkbox" data-mid="' + m.match_id + '"' + checked + ' onchange="hlToggle(\'' + m.match_id + '\')">' +
       '<span class="hi-teams">' + m.home_team + ' vs ' + m.away_team + '</span>' +
       '<span class="hi-opt">' + opt[0] + ' @' + (odds > 0 ? (parseFloat(odds)||0).toFixed(2) : '—') + '</span>' +
-      '<span class="hi-lv ' + lvCls + '">' + (lv || '低') + '</span>' +
+      '<span class="hi-lv ' + lvCls + '">' + (lv || '低') + '</span>' + tag +
     '</label>';
-  }).join('') + '</div>';
+  }).join('');
+  box.innerHTML = '<div class="hi-hint">筛选口径：高信心 + 非极端热门 + 赔率1.5~2.5（今日达标 '+qualify+' 场）</div><div class="hi-list">' + rows + '</div>';
 }
 function hlToggle(mid){
   if(hlPicked[mid]){ delete hlPicked[mid]; } else { hlPicked[mid] = true; }
 }
 function fillHighConf(){
   if(!currentMatches.length){ return; }
-  currentMatches.forEach(function(m){ if(m.confidence_level === '高') hlPicked[m.match_id] = true; });
+  var n = 0;
+  currentMatches.forEach(function(m){ if(!_hiReason(m)){ hlPicked[m.match_id] = true; n++; } });
   renderHiPickList();
+  if(n === 0){ var out = document.getElementById('analystOutput'); if(out) out.innerHTML = '<div class="an-warn">按当前口径（高信心+非极端热门+赔率1.5~2.5）没有达标场次，可手动勾选放宽</div>'; }
 }
 function generateHiParlay(){
   var out = document.getElementById('analystOutput');
   if(!currentMatches.length){ out.innerHTML = '<div class="an-warn">请先加载赛事数据</div>'; return; }
   var picked = currentMatches.filter(function(m){ return hlPicked[m.match_id]; });
-  var bestOpt = function(m){
-    var opts = [['胜', m.win_odds], ['平', m.draw_odds], ['负', m.lose_odds]].filter(function(o){ return o[1] > 0; });
-    return opts.sort(function(a,b){ return a[1] - b[1]; })[0] || ['胜', m.win_odds];
-  };
+  var bestOpt = function(m){ return _hiValueOpt(m) || _hiBestOpt(m); };
   if(picked.length < 2){ out.innerHTML = '<div class="an-warn">至少勾选2场比赛才能生成串关（当前' + picked.length + '场）</div>'; return; }
   // 高信心优先排序
   var order = { '高': 0, '中': 1, '低': 2 };
@@ -1941,6 +2060,7 @@ function showData(data){
   updateSourceBanner(pri, data.stats);
   document.getElementById('dataSource').title=data.stats.data_note||'';
   updateTimeNote(data.stats);
+  oddsMovementLoaded = false;
   renderMatches(data.matches);
   fillAnalystMatches(data.matches);
   renderIntlValueBoard(data.matches);
@@ -1956,6 +2076,7 @@ function showData(data){
   loadParlayPanel();
   renderParlay();
   setConnStatus(true, '已连接');
+  loadOddsMovement(data.matches);
 }
 
 function updateSourceBanner(pri, stats){

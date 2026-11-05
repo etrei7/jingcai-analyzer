@@ -212,6 +212,11 @@ def get_data():
             predictions = fetch_predictions()
         except Exception:
             pass
+        try:
+            from bizzoiro_client import fetch_h2h_and_form
+            fetch_h2h_and_form(matches)
+        except Exception:
+            pass
 
     analyzed = analyze_matches(matches, standings, predictions)
     _apply_post_analyze(analyzed)
@@ -321,6 +326,11 @@ def get_realtime():
     source_name = ''
 
     def _analyzed_payload(matches, source):
+        try:
+            from bizzoiro_client import fetch_h2h_and_form
+            fetch_h2h_and_form(matches)
+        except Exception:
+            pass
         analyzed = analyze_matches(matches, None, {})
         _apply_post_analyze(analyzed)
         try:
@@ -530,6 +540,12 @@ def analyze_data():
         try:
             from bizzoiro_client import enrich_jingcai_matches
             matches, _ = enrich_jingcai_matches(matches)
+        except Exception:
+            pass
+        # 真实历史交锋 + 近况
+        try:
+            from bizzoiro_client import fetch_h2h_and_form
+            fetch_h2h_and_form(matches)
         except Exception:
             pass
 
@@ -813,6 +829,35 @@ Allow: /
 @app.route('/health')
 def health():
     return jsonify({'status': 'ok', 'time': datetime.now().strftime('%Y-%m-%d %H:%M:%S')})
+
+
+@app.route('/api/odds-movement')
+def odds_movement():
+    """赔率变动（初赔→即赔，多家公司）：懒加载接口，避免拖慢首屏。
+    参数 ids：逗号分隔的 raw_event_id（最多 12 场）。"""
+    ids = request.args.get('ids', '')
+    if not ids:
+        return jsonify({'success': True, 'data': {}})
+    id_list = [x.strip() for x in ids.split(',') if x.strip()][:12]
+    try:
+        from bizzoiro_client import fetch_odds_movement_for_matches
+        from concurrent.futures import ThreadPoolExecutor
+        data = {}
+
+        def _one(mid):
+            try:
+                return fetch_odds_movement_for_matches([{'raw_event_id': mid}])
+            except Exception:
+                return {}
+
+        with ThreadPoolExecutor(max_workers=6) as ex:
+            for part in ex.map(_one, id_list):
+                if part:
+                    data.update(part)
+        return jsonify({'success': True, 'data': data or {}})
+    except Exception as e:
+        logging.warning('[API] odds-movement: %s', e)
+        return jsonify({'success': False, 'data': {}, 'error': str(e)})
 
 
 @app.route('/api/db-check')

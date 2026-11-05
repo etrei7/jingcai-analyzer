@@ -455,6 +455,171 @@ def fetch_finished_events(date_from=None, date_to=None, limit=400):
         return []
 
 
+# ===== 真实历史交锋 + 近况（从已完赛事件计算，带缓存） =====
+import threading as _threading
+
+_CN_ALIASES = {}
+for _en, _cn in TEAM_NAME_CN.items():
+    _CN_ALIASES.setdefault(_cn, set()).add(_en)
+
+_finished_cache = {'ts': 0.0, 'events': None, 'form': None, 'pairs': None}
+_finished_lock = _threading.Lock()
+_FINISHED_TTL = 6 * 3600  # 6 小时
+
+
+def _fnorm(s):
+    return (s or '').replace(' ', '').replace('-', '').replace('.', '').lower()
+
+
+def _load_finished_events():
+    """拉取近 240 天已完赛事件（带 6h 缓存）。返回原始 events 列表。"""
+    import time as _time
+    with _finished_lock:
+        if _finished_cache['events'] is not None and (_time.time() - _finished_cache['ts']) < _FINISHED_TTL:
+            return _finished_cache['events']
+    if not API_KEY:
+        return []
+    try:
+        today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+        date_from = (datetime.now(timezone.utc) - timedelta(days=240)).strftime('%Y-%m-%d')
+        url = f'{BASE_URL}/events/'
+        resp = requests.get(url, headers=_headers(), params={
+            'date_from': date_from, 'date_to': today, 'status': 'finished', 'limit': 500
+        }, timeout=6)
+        resp.raise_for_status()
+        results = resp.json().get('results', [])
+        if not isinstance(results, list):
+            results = []
+        with _finished_lock:
+            _finished_cache['events'] = results
+            _finished_cache['ts'] = _time.time()
+            _finished_cache['form'] = None
+            _finished_cache['pairs'] = None
+        logger.info(f'[Bzzoiro] 完赛事件缓存 {len(results)} 条')
+        return results
+    except Exception as e:
+        logger.warning(f'[Bzzoiro] 完赛事件拉取失败: {e}')
+        return []
+
+
+def _build_finished_index():
+    """构建 队名->近况 与 对阵->交锋 索引（缓存）。"""
+    if _finished_cache['form'] is not None:
+        return _finished_cache['form'], _finished_cache['pairs']
+    events = _load_finished_events()
+    team_form = {}
+    pairs = {}
+    for e in events:
+        h = e.get('home_team')
+        a = e.get('away_team')
+        hs = e.get('home_score')
+        as_ = e.get('away_score')
+        if hs is None or as_ is None:
+            continue
+        hn, an = _fnorm(h), _fnorm(a)
+        if not hn or not an:
+            continue
+        d = e.get('event_date') or ''
+        rh = 'W' if hs > as_ else 'D' if hs == as_ else 'L'
+        ra = 'W' if as_ > hs else 'D' if as_ == hs else 'L'
+        team_form.setdefault(hn, []).append((d, rh))
+        team_form.setdefault(an, []).append((d, ra))
+        key = frozenset((hn, an))
+        pairs.setdefault(key, []).append((d, hn, hs, as_))
+    for k in team_form:
+        team_form[k].sort(key=lambda x: x[0])
+    for k in pairs:
+        pairs[k].sort(key=lambda x: x[0])
+    with _finished_lock:
+        _finished_cache['form'] = team_form
+        _finished_cache['pairs'] = pairs
+    return team_form, pairs
+
+
+def _alias_set(cn_name, en_name):
+    s = set()
+    if en_name:
+        s.add(_fnorm(en_name))
+    if cn_name:
+        s.add(_fnorm(cn_name))
+        for en in _CN_ALIASES.get(cn_name, ()):
+            s.add(_fnorm(en))
+    s.discard('')
+    return s
+
+
+def _find_key(alias_set, index):
+    for k in alias_set:
+        if k in index:
+            return k
+    return None
+
+
+def fetch_h2h_and_form(matches):
+    """为比赛列表注入真实 h2h 与近5场近况（home_form/away_form）。
+    数据来自已完赛事件，缺失则保持为空（上层显示"暂无"）。返回注入成功的场次数。"""
+    if not API_KEY or not matches:
+        return 0
+    try:
+        team_form, pairs = _build_finished_index()
+        if not team_form and not pairs:
+            return 0
+        injected = 0
+        for m in matches:
+            h_alias = _alias_set(m.get('home_team'), m.get('home_team_en'))
+            a_alias = _alias_set(m.get('away_team'), m.get('away_team_en'))
+            # 近况：取近5场，转成 从旧到新 的 W/D/L 字符串（不覆盖已有的真实状态）
+            hk = _find_key(h_alias, team_form)
+            ak = _find_key(a_alias, team_form)
+            if hk and not m.get('home_form'):
+                seq = [r for _d, r in team_form[hk][-5:]]
+                m['home_form'] = ''.join(seq)
+            if ak and not m.get('away_form'):
+                seq = [r for _d, r in team_form[ak][-5:]]
+                m['away_form'] = ''.join(seq)
+            # 交锋：找两队共同的对阵记录
+            pair_list = None
+            for hh in h_alias:
+                for aa in a_alias:
+                    k = frozenset((hh, aa))
+                    if k in pairs:
+                        pair_list = pairs[k]
+                        break
+                if pair_list:
+                    break
+            if pair_list:
+                recent = pair_list[-5:]
+                results = []
+                hw = dr = al = 0
+                for _d, ev_home, hs, as_ in recent:
+                    # 以当前主队视角归一化比分
+                    if ev_home in h_alias:
+                        sh, sa = hs, as_
+                    else:
+                        sh, sa = as_, hs
+                    results.append(f'{sh}-{sa}')
+                    if sh > sa:
+                        hw += 1
+                    elif sh == sa:
+                        dr += 1
+                    else:
+                        al += 1
+                if results:
+                    m['h2h'] = {
+                        'results': results,
+                        'summary': f'近{len(results)}场: {hw}胜{dr}平{al}负',
+                        'available': True,
+                        'source': 'Bzzoiro完赛数据',
+                    }
+            if m.get('home_form') or m.get('away_form') or m.get('h2h'):
+                injected += 1
+        logger.info(f'[Bzzoiro] 真实交锋/近况注入 {injected}/{len(matches)} 场')
+        return injected
+    except Exception as e:
+        logger.warning(f'[Bzzoiro] fetch_h2h_and_form: {e}')
+        return 0
+
+
 def fetch_standings(league_id):
     if not API_KEY or not league_id:
         return {}
