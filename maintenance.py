@@ -33,6 +33,17 @@ def status():
 _FLAG_NAME = 'RESETTLE'
 
 
+def _log(msg):
+    """维护日志：写 instance/maint.log，方便在 PA 上排查（不依赖 webapp 日志）。"""
+    try:
+        base = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'instance')
+        os.makedirs(base, exist_ok=True)
+        with open(os.path.join(base, 'maint.log'), 'a', encoding='utf-8') as fh:
+            fh.write(time.strftime('%Y-%m-%d %H:%M:%S ') + str(msg) + '\n')
+    except Exception:
+        pass
+
+
 def _flag_path(app):
     return os.path.join(app.instance_path, _FLAG_NAME)
 
@@ -45,6 +56,7 @@ def _consume_resettle(app):
     也避免为一次性维护开一个公网可写的接口。
     """
     path = _flag_path(app)
+    _log('maint: instance_path=%s flag=%s exists=%s' % (app.instance_path, path, os.path.exists(path)))
     if not os.path.exists(path):
         return None
     try:
