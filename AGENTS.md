@@ -70,6 +70,12 @@ python tools/test_logic.py
    没有比分的事后无法区分"模型错"还是"结算错"。
 4. **统计口径**：`compute_summary` 的 `total` 只算市场口径（非 estimated）、`period` 真正过滤 `settled_at`、
    void 单独计数不进 loss；`calibration` 的盈亏平衡率用 `mean(1/odds)` 而非 `1/mean(odds)`。
+5. **没有状态就不许结算**：`bizzoiro_client` 的 `GET /events/{id}/` 对**未开赛**赛事也返回 200，
+   且 `home_score/away_score` 默认 0-0。任何"按 ID 补查赛果"的路径必须先过
+   `data_pipeline.is_finished_event(ev)`（无 `status` 字段一律不放行），否则会把没踢的比赛按 0-0 平局入账。
+   2026-11-23 前线上 90 天内有 5759 条注单因此被判错（占 47%），用 `resettle_recent()` 重算修复；
+   重算入口是 `instance/RESETTLE` 文件标记（PA console 的 env 没有 `BZZOIRO_API_KEY`，
+   只能在 webapp 进程里跑），报告写 `instance/resettle_report.json`。
 
 去重键用 `data_pipeline._dedupe_key()`：竞彩编号（`周一001`）带**周日期戳**，避免每周 001 重排后
 把新一周场次静默吞掉；`backtest.record_prediction` 对编号类 ID 只与近 3 天记录比对。
