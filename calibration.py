@@ -98,9 +98,12 @@ def get_calibration(force=False):
 def _compute():
     try:
         from backtest_models import BtBet
-        bets = [b for b in BtBet.query.filter_by(jingcai=True).all()
-                if b.settled_at and b.outcome in ('win', 'lose')
-                and not getattr(b, 'estimated', False)]
+        # 过滤尽量下推给 SQL：线上 bt_bets 已到 3 万+ 行，全表 ORM 水合既慢又浪费内存
+        q = (BtBet.query
+             .filter(BtBet.jingcai.is_(True))
+             .filter(BtBet.settled_at.isnot(None))
+             .filter(BtBet.outcome.in_(('win', 'lose'))))
+        bets = [b for b in q.all() if not getattr(b, 'estimated', False)]
         lv_b, seg_b, lg_b = {}, {}, {}
         for b in bets:
             _add(lv_b, b.confidence_level or '未分级', b)
@@ -119,7 +122,7 @@ def _compute():
     except Exception as e:
         logger.warning('[calib] compute failed: %s', e)
         return {'buckets': {}, 'segments': {}, 'leagues': {}, 'total': 0,
-                'min_n': _MIN_N, 'min_seg': _MIN_SEG}
+                'min_n': _MIN_N, 'min_seg': _MIN_SEG, 'error': str(e)[:200]}
 
 
 def clear_cache():
