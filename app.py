@@ -95,6 +95,29 @@ with app.app_context():
 init_scheduler(app)
 
 
+def _warm_caches_worker(delay=1.0):
+    """启动预热：worker 重启（Web → Reload）后内存缓存为空，此时首个 /api/analyze
+    会因富化赛事列表为空而返回「富化 0 场」。这里在后台先把 Bzzoiro 赛事列表 /
+    预测 / 完赛索引拉一遍，让用户打开页面时场外数据已经就绪。
+    纯网络预热，不碰数据库；任何失败都静默（下一轮请求会自行重试）。"""
+    import time as _time
+    _time.sleep(delay)
+    try:
+        from bizzoiro_client import _cached_bz_events, fetch_predictions, _load_finished_events
+        _cached_bz_events(40)      # 触发富化赛事列表后台刷新（stale-while-revalidate）
+        fetch_predictions()        # 预测（300s 缓存）
+        _load_finished_events()    # 近况/交锋索引（6h 缓存）
+    except Exception as e:
+        logging.warning('[warmup] 预热失败: %s', e)
+
+
+try:
+    import threading as _threading
+    _threading.Thread(target=_warm_caches_worker, daemon=True).start()
+except Exception as e:  # pragma: no cover - 线程启动失败不影响主流程
+    logging.warning('[warmup] 线程启动失败: %s', e)
+
+
 def _record_parlays_safe(recs, source):
     """记录串关方案用于串关级命中率追踪（失败不影响主流程）。"""
     try:
