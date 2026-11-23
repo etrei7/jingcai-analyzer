@@ -134,6 +134,17 @@ def main():
     heavy_vig = an._value_analysis(1.05, 1.05, 1.05, 1.5, 1.0)
     check('高抽水不判为有价值', heavy_vig.get('value_available') is False)
 
+    print('[8] 仓位闸门：低信心日不得出现"稳健可多投"')
+    low = an._stake_plan(2.16, 0.30)
+    check('低信心封顶 2%', low['pct'] == 2.0, low['pct'])
+    check('低信心措辞为小注试探', '低信心' in low['note'], low['note'])
+    mid = an._stake_plan(2.67, 0.50)
+    check('中信心封顶 3.5%', mid['pct'] == 3.5, mid['pct'])
+    high = an._stake_plan(2.16, 0.70)
+    check('高信心才允许稳健可多投', '稳健可多投' in high['note'] and high['pct'] <= 6.0, high['note'])
+    risky = an._stake_plan(12.0, 0.70)
+    check('高赔仍是高风险小额', '高风险' in risky['note'], risky['note'])
+
     print('RESULT:', 'FAIL' if FAIL else 'ALL OK')
     return 1 if FAIL else 0
 
