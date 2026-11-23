@@ -54,6 +54,10 @@ python tools/test_logic.py
 - 数值展示防呆：赔率/赔率类字段做 `toFixed`/运算前先判空或转数值（`(odds||0)`），避免 `undefined.toFixed()` 报错。
 - `analyze_single_match` 末尾的 cleanup 会 **pop 字段**；前端用到的字段（如 `travel_distance_km`、`ai_preview`）**不要**加入该删除列表。
 - 后台任务/定时任务耗时操作要并发或加缓存，避免阻塞 PythonAnywhere 单 worker。
+- **启动预热**（`app.py::_warm_caches_worker`）：Web Reload 后 worker 内存缓存为空，首个 `/api/analyze`
+  会「富化 0 场」；该后台线程在启动时预热 Bzzoiro 赛事列表/预测/完赛索引。不要删。
+- **仓位闸门**（`analysis._stake_plan`）：`avg_conf<0.45` 仓位封顶 2%（低信心·小注试探），
+  `<0.6` 封顶 3.5%，≥0.6 才走「稳健可多投」；防止全低信心日给出 5%+ 仓位。
 
 ## 数据源
 
