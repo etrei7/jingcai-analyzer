@@ -27,8 +27,8 @@ def _save_history(hist):
             lst = hist.get(key)
             if isinstance(lst, list) and len(lst) > _MAX_RECORDS:
                 hist[key] = lst[-_MAX_RECORDS:]
-        with open(HISTORY_FILE, 'w', encoding='utf-8') as f:
-            json.dump(hist, f, ensure_ascii=False, indent=2)
+        from atomic_json import dump as _atomic_dump
+        _atomic_dump(HISTORY_FILE, hist, indent=2)
     except Exception as e:
         logger.warning(f'Failed to save history: {e}')
 
