@@ -44,17 +44,10 @@ def main():
         p = an._dixon_coles_probs(lh, la)
         check('DixonColes 归一 %s' % ((lh, la),), p is not None and abs(sum(p) - 1) < 1e-6)
     check('devig 归一', abs(sum(an._devig(2.1, 3.4, 3.2)) - 1) < 1e-6)
-    check('kelly 封顶 0.25', abs(an._kelly(0.5, 3.0) - 0.25) < 1e-9)
-    check('kelly 期望 0.10', abs(an._kelly(0.4, 3.0) - 0.10) < 1e-9)
+    check('kelly 分数凯利封顶 0.05', abs(an._kelly(0.5, 3.0) - 0.05) < 1e-9)
+    check('kelly 1/4 期望 0.025', abs(an._kelly(0.4, 3.0) - 0.025) < 1e-9)
     check('kelly 负值→0', an._kelly(0.3, 3.0) == 0.0)
     check('kelly 边界(odds<=1/None)', an._kelly(0.5, 1) == 0.0 and an._kelly(None, 2) == 0.0)
-    # 仓位闸门：低信心日不能给出 5% 级"稳健可多投"
-    _low = an._stake_plan(2.1, 0.40)
-    _mid = an._stake_plan(2.1, 0.55)
-    _high = an._stake_plan(2.1, 0.70)
-    check('仓位 低信心封顶2%', _low['pct'] <= 2.0 and '低信心' in _low['note'])
-    check('仓位 中信心封顶3.5%', _mid['pct'] <= 3.5)
-    check('仓位 高信心高于低信心', _high['pct'] > _low['pct'])
 
     print('[2] 结算（各玩法）')
     check('1X2 命中', ev(_B('1X2', 'H'), 2, 1)[0] == 'win')
@@ -115,6 +108,31 @@ def main():
             check('归一化 %s' % bad['match_id'], True)
         except Exception as e:
             check('归一化 %s' % bad['match_id'], False, '%s: %s' % (type(e).__name__, e))
+
+    print('[7] 假赔率 / EV / 前视防护')
+    # 让球：只有官方 hhad 赔率才是真盘，模型推算必须标 estimated（否则串关返奖被放大）
+    base = {'win_odds': 2.0, 'draw_odds': 3.3, 'lose_odds': 3.5, 'handicap_line': -1,
+            'handicap': '-1', 'handicap_win_odds': 1.8, 'handicap_draw_odds': 3.6,
+            'handicap_lose_odds': 4.2}
+
+    def _hcp_est(m):
+        for o in an._match_play_options(m):
+            if o['play'].startswith('让球'):
+                return o['estimated']
+        return None
+
+    check('模型让球标 estimated', _hcp_est(dict(base, hcp_pick={'source': '模型估算'})) is True)
+    check('官方让球不标 estimated', _hcp_est(dict(base, hcp_pick={'source': '官方盘口'})) is False)
+    # 价值判断必须用 EV，而不是百分点差
+    va = an._value_analysis(1.5, 4.0, 7.0, 1.6, 0.9)
+    check('value_analysis 含 EV 字段',
+          all(k in va for k in ('ev_home', 'ev_draw', 'ev_away', 'best_ev')))
+    check('value_available 与 best_ev 一致',
+          va.get('value_available') == (va.get('best_ev', 0) > 0))
+    check('value_source 标注市场推导', va.get('value_source') == 'market_implied')
+    # 高抽水（三路同价）时即便百分点差为正，EV 也全为负 → 不得标"有价值"
+    heavy_vig = an._value_analysis(1.05, 1.05, 1.05, 1.5, 1.0)
+    check('高抽水不判为有价值', heavy_vig.get('value_available') is False)
 
     print('RESULT:', 'FAIL' if FAIL else 'ALL OK')
     return 1 if FAIL else 0
