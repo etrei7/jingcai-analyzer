@@ -65,9 +65,13 @@ function applyTheme(theme){
   --modal-bg:#111a2e;--modal-overlay:rgba(0,0,0,.7);
   --bar-track:#233049;
 }
-body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Microsoft YaHei',sans-serif;min-height:100vh;transition:background .2s}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Microsoft YaHei',sans-serif;font-size:16px;line-height:1.5;min-height:100vh;min-height:100dvh;-webkit-text-size-adjust:100%;overflow-wrap:break-word;word-break:normal;transition:background .2s;padding-bottom:env(safe-area-inset-bottom)}
 a{text-decoration:none;color:inherit}
 button{font-family:inherit}
+/* 触屏：去掉点击高亮与 300ms 延迟（配合 touch-action:manipulation） */
+html{-webkit-tap-highlight-color:transparent}
+button,a,select,label,.odds-btn,.filter-btn,.nav-link,.detail-toggle,.ods-chip,.hi-item,.db-item,.bt-collapsible,.copy-all-btn,.rec-copy{touch-action:manipulation}
+img,svg,table{max-width:100%}
 
 /* ===== 顶部警告栏 ===== */
 .warn-bar{background:linear-gradient(90deg,var(--amber-soft),var(--amber-color2,var(--amber-soft)));border-bottom:1px solid var(--amber-border);padding:7px 16px;display:flex;align-items:center;justify-content:center;gap:8px;font-size:0.78rem;color:var(--amber-text);font-weight:500;text-align:center;letter-spacing:.3px}
@@ -102,8 +106,8 @@ button{font-family:inherit}
 .nav-link.active{background:var(--primary);color:#fff;box-shadow:0 1px 3px rgba(34,197,94,.3)}
 
 /* ===== 主体 ===== */
-.main-container{display:flex;gap:20px;padding:18px 24px;max-width:1400px;margin:0 auto}
-.content-area{flex:1;min-width:0;margin-right:330px}
+.main-container{display:flex;gap:20px;padding:18px 24px;max-width:1260px;margin:0 auto;box-sizing:border-box}
+.content-area{flex:1;min-width:0;min-height:0;margin-right:330px}
 
 /* ===== 页面标题区 ===== */
 .page-head{display:flex;flex-direction:column;gap:12px;margin-bottom:18px}
@@ -201,7 +205,7 @@ button{font-family:inherit}
 .intl-table td:first-child{text-align:left;color:var(--text-muted)}
 .rec-copy{margin-top:8px;width:100%;background:var(--card-stripe);border:1px solid var(--border-light);border-radius:8px;padding:6px;font-size:0.68rem;color:var(--text-muted);cursor:pointer;transition:all 0.15s}
 .rec-copy:hover{background:var(--primary-soft);border-color:var(--primary-border);color:var(--primary)}
-.copy-toast{position:fixed;left:50%;bottom:40px;transform:translateX(-50%) translateY(20px);background:var(--text);color:var(--bg);padding:9px 18px;border-radius:20px;font-size:0.75rem;opacity:0;pointer-events:none;transition:all 0.3s;z-index:9999}
+.copy-toast{position:fixed;left:50%;bottom:calc(40px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);background:var(--text);color:var(--bg);padding:9px 18px;border-radius:20px;font-size:0.75rem;opacity:0;pointer-events:none;transition:all 0.3s;z-index:9999}
 .copy-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 .copy-all-btn{margin-left:8px;background:var(--card-stripe);border:1px solid var(--border-light);border-radius:6px;padding:2px 10px;font-size:0.64rem;color:var(--text-muted);cursor:pointer;font-weight:400}
 .copy-all-btn:hover{background:var(--primary-soft);border-color:var(--primary-border);color:var(--primary)}
@@ -209,7 +213,7 @@ button{font-family:inherit}
 
 /* 市场走势条 */
 .market-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.value-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:0.66rem;font-family:var(--mono);background:var(--primary-soft);border:1px dashed var(--primary-border);border-radius:8px;padding:4px 9px;margin-top:4px;color:var(--text-muted)}
+.value-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:0.68rem;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-variant-numeric:tabular-nums;background:var(--primary-soft);border:1px dashed var(--primary-border);border-radius:8px;padding:4px 9px;margin-top:4px;color:var(--text-muted);min-width:0}
 .value-row .vr-title{font-weight:800;color:var(--primary);font-size:0.66rem}
 .value-row .vr-item b{color:var(--text);font-weight:700}
 .value-row .vr-item i{font-style:normal;color:var(--text-light);margin-left:2px}
@@ -315,7 +319,7 @@ button{font-family:inherit}
 
 /* ===== AI 串关 ===== */
 .rec-section{margin-top:30px}
-.rec-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(400px,1fr));gap:14px}
+.rec-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(400px,100%),1fr));gap:14px;align-items:start}
 .rec-card{background:var(--card-bg);border:1px solid var(--border);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)}
 .rec-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px}
 .rec-name{font-weight:800;font-size:0.88rem}.rec-type{font-size:0.7rem;color:var(--text-muted)}
@@ -411,7 +415,7 @@ button{font-family:inherit}
 .hi-item:hover{background:var(--card-stripe)}
 .hi-item input{width:15px;height:15px;cursor:pointer;accent-color:var(--primary)}
 .hi-teams{flex:1;font-size:0.78rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.hi-opt{font-size:0.72rem;color:var(--text-muted);font-family:var(--mono);white-space:nowrap}
+.hi-opt{font-size:0.72rem;color:var(--text-muted);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:nowrap}
 .hi-lv{font-size:0.62rem;padding:2px 7px;border-radius:6px;font-weight:700;white-space:nowrap}
 .hi-lv.hi{background:var(--high-bg);color:var(--high)}
 .hi-lv.mid{background:var(--medium-bg);color:var(--medium)}
@@ -431,7 +435,7 @@ button{font-family:inherit}
 .loading-slow{color:var(--amber)}
 
 /* ===== 串关面板 ===== */
-.parlay-panel{position:fixed;right:20px;top:80px;width:300px;max-height:calc(100vh - 120px);background:var(--panel-bg);border:1px solid var(--border);border-radius:16px;display:flex;flex-direction:column;z-index:200;box-shadow:var(--shadow-lg)}
+.parlay-panel{position:fixed;right:20px;top:80px;width:300px;max-height:calc(100vh - 120px);max-height:calc(100dvh - 120px);max-width:calc(100vw - 24px);background:var(--panel-bg);border:1px solid var(--border);border-radius:16px;display:flex;flex-direction:column;z-index:200;box-shadow:var(--shadow-lg)}
 .parlay-panel.collapsed .parlay-list,.parlay-panel.collapsed .parlay-footer{display:none}
 .parlay-panel.collapsed{width:auto;min-width:160px}
 .parlay-header{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:8px}
@@ -467,7 +471,7 @@ button{font-family:inherit}
 
 /* ===== 模态 ===== */
 .modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:var(--modal-overlay);z-index:300;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px)}
-.modal-content{background:var(--modal-bg);border-radius:16px;padding:24px;max-width:500px;width:90%;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2)}
+.modal-content{background:var(--modal-bg);border-radius:16px;padding:24px;max-width:500px;width:90%;max-height:80vh;max-height:80dvh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2)}
 .modal-title{font-size:1.05rem;font-weight:800;margin-bottom:14px}
 .modal-match{background:var(--card-stripe);border-radius:8px;padding:9px 12px;margin-bottom:6px}
 .modal-match .teams{font-weight:700}.modal-match .detail{font-size:0.74rem;color:var(--text-muted)}
@@ -477,7 +481,7 @@ button{font-family:inherit}
 .modal-close{display:block;width:100%;margin-top:14px;background:var(--btn-bg);color:var(--text);border:1px solid var(--border);padding:9px;border-radius:9px;cursor:pointer;font-size:0.85rem}
 
 /* ===== 页脚 ===== */
-.footer{text-align:center;padding:20px 24px;color:var(--text-muted);font-size:0.72rem;border-top:1px solid var(--border);margin-top:36px;background:var(--card-bg);max-width:1400px;margin-left:auto;margin-right:auto}
+.footer{text-align:center;padding:20px 24px calc(20px + env(safe-area-inset-bottom));color:var(--text-muted);font-size:0.72rem;border-top:1px solid var(--border);margin-top:36px;background:var(--card-bg);max-width:1260px;margin-left:auto;margin-right:auto}
 .footer .disclaimer{color:var(--red);font-weight:600;margin-bottom:5px}
 .footer .ft-links{margin-bottom:8px;display:flex;gap:16px;justify-content:center;flex-wrap:wrap}
 .footer .ft-links a{color:var(--text-muted)}
@@ -491,6 +495,9 @@ button{font-family:inherit}
 .decision-bar[data-state="careful"]{border-left-color:var(--amber)}
 .decision-bar[data-state="watch"]{border-left-color:var(--low)}
 .decision-bar[data-state="waiting"]{border-left-color:var(--border)}
+/* 推荐闸门说明条：告诉用户"哪些玩法被历史评估拿掉了、为什么" */
+.policy-note{margin:0 0 12px;padding:9px 13px;border-radius:10px;background:var(--amber-soft);border:1px solid var(--amber-border);color:var(--amber-text);font-size:0.68rem;line-height:1.75;overflow-wrap:anywhere}
+.policy-note .link-btn{margin-left:2px}
 .db-left{flex:0 0 200px;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:5px}
 .db-state-row{display:flex;align-items:center;gap:7px}
 .db-dot{width:10px;height:10px;border-radius:50%;background:var(--text-light);flex-shrink:0;box-shadow:0 0 0 3px var(--card-stripe)}
@@ -529,24 +536,125 @@ button{font-family:inherit}
   .db-items{flex-direction:column;gap:4px}
 }
 
-@media(max-width:900px){
-  .main-container{padding:10px;padding-bottom:100px}.content-area{margin-right:0}
+/* 决策条折叠按钮：默认隐藏（仅手机端显示，规则见下方手机媒体查询） */
+.db-fold-btn{display:none}
+
+/* ===== 响应式：平板（481-900px）两列 ===== */
+@media(min-width:481px) and (max-width:900px){
+  .main-container{padding:12px;padding-bottom:100px}
+  .content-area{margin-right:0}
   .match-content{flex-direction:column;gap:10px}
   .match-teams,.match-center{flex:none}
-  .rec-grid{grid-template-columns:1fr}
+  .rec-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .dim-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
   .page-head{padding:6px 0}.page-title{font-size:1.25rem}
   .header{padding:8px 12px}.header .stats{gap:8px}
-  .parlay-panel{position:fixed;right:0;top:auto;bottom:0;left:0;width:100%;max-height:45vh;border-radius:16px 16px 0 0;border-bottom:none}
+  .parlay-panel{position:fixed;right:0;top:auto;bottom:0;left:0;width:100%;max-height:45vh;max-height:45dvh;border-radius:16px 16px 0 0;border-bottom:none;padding-bottom:env(safe-area-inset-bottom)}
   .parlay-panel .parlay-list{max-height:140px}
   .detail-grid{grid-template-columns:1fr}
   .nav-links{order:3;width:100%;justify-content:center}
 }
+
+/* ===== 响应式：手机（≤480px）单列 ===== */
 @media(max-width:480px){
+  body{font-size:15px}
+  .main-container{display:block;padding:8px 10px 96px}
+  .content-area{margin-right:0}
+  .page-head{padding:4px 0;gap:8px}
+  .page-title{font-size:1.15rem}
+  .page-title svg{width:22px;height:22px}
+  .page-sub{font-size:0.78rem;gap:8px}
+  .header{padding:8px 10px;position:static}
+  .header .stats{font-size:0.68rem}
+  .nav-links{order:3;width:100%;justify-content:space-between;gap:4px}
+  .nav-link{padding:10px 8px;min-height:44px;display:inline-flex;align-items:center}
+
+  /* 决策条：吸顶、默认两行、可展开 */
+  .decision-bar{position:sticky;top:0;z-index:95;margin:0 0 10px;padding:9px 12px;gap:6px;border-radius:0 0 12px 12px;box-shadow:0 4px 14px rgba(0,0,0,.10);max-height:34vh;overflow:auto}
+  .decision-bar .db-left{flex-direction:column;align-items:flex-start;gap:2px}
+  .db-state{font-size:0.95rem}
+  .db-reason{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:0.76rem;line-height:1.45}
+  .decision-bar.db-expanded .db-reason{display:block;overflow:visible}
+  .db-fold-btn{display:inline-flex;align-items:center;justify-content:center;min-height:26px;padding:0 8px;font-size:0.68rem;color:var(--text-muted);background:var(--btn-bg);border:1px solid var(--border);border-radius:6px;cursor:pointer}
+  .decision-bar .db-mid,.decision-bar .db-right{display:none}
+  .decision-bar.db-expanded .db-mid{display:flex;flex-direction:column;gap:6px}
+  .decision-bar.db-expanded .db-right{display:flex;flex-direction:row;align-items:baseline;gap:6px}
+
+  /* 可点区域 ≥44px */
+  .btn-refresh,.btn-ghost,.filter-btn,.filter-select,.copy-all-btn,.copy-rec,.detail-toggle,.parlay-toggle,.nav-link,.hi-item,.db-item{min-height:44px}
+  .btn-refresh{padding:10px 16px;font-size:0.85rem}
+  .filter-bar{padding:10px;gap:8px}
+  .filter-btn{padding:8px 12px;font-size:0.8rem}
+  .filter-select{padding:8px 10px;font-size:0.8rem}
+  .fbar-right{width:100%;margin-left:0}
+
+  /* 赛事卡片：单列，赔率数字不换行 */
+  .match-card{padding:12px;border-radius:12px;max-width:100%}
   .match-top{flex-direction:column;gap:4px}
-  .odds-btn{padding:4px 7px;min-width:46px;font-size:0.74rem}
-  .odds-btn .val{font-size:0.84rem}
+  .match-meta{flex-wrap:wrap;gap:4px 6px}
+  .match-teams,.match-center{flex:none;width:100%;min-width:0}
+  .odds-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+  .odds-btn{min-width:0;max-width:none;padding:8px 6px;min-height:48px}
+  .odds-btn .label{font-size:0.7rem;white-space:nowrap}
+  .odds-btn .val{font-size:0.9rem;white-space:nowrap;font-variant-numeric:tabular-nums}
+  .hcp-pick,.htft-pick,.cross-signal,.tg-inline,.value-row{white-space:normal;overflow-wrap:anywhere}
+  .dim-grid{grid-template-columns:1fr}
   .goal-dist-bars{height:44px}
-  .dim-grid{grid-template-columns:1fr 1fr}
+  .rec-grid{grid-template-columns:1fr}
+  .rec-card{min-width:0}
+  .parlay-panel{position:fixed;right:0;top:auto;bottom:0;left:0;width:100%;max-height:52vh;max-height:52dvh;border-radius:16px 16px 0 0;border-bottom:none;padding-bottom:env(safe-area-inset-bottom)}
+  .parlay-panel .parlay-list{max-height:160px}
+  .detail-grid{grid-template-columns:1fr}
+  .bt-stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  /* iOS 聚焦不放大 + 软键盘不遮挡输入框 */
+  input,select,textarea{font-size:16px}
+  #betMultiple,#betStake,#analystMatch{scroll-margin-bottom:150px}
+  /* 浮层不超出屏幕、不被底部安全区/软键盘遮挡 */
+  #glossTip{max-width:calc(100vw - 24px)}
+  .modal-content{width:92%;max-height:86dvh;padding:18px}
+  .copy-toast{bottom:calc(56px + env(safe-area-inset-bottom))}
+}
+
+/* ===== 响应式：小笔记本（901-1199px）两列，避免单列拉得过宽 ===== */
+@media(min-width:901px) and (max-width:1199px){
+  .rec-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .dim-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+
+/* ===== 响应式：电脑（≥1200px）三列 + 居中限宽 ===== */
+@media(min-width:1200px){
+  .main-container{max-width:1280px}
+  .content-area{margin-right:308px}
+  .parlay-panel{width:286px}
+  .rec-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .dim-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+
+/* ===== 口径徽章：玩法 / 赔率真假 / 信心依据（全部沿用现有配色变量） ===== */
+.pick-basis{display:flex;flex-wrap:wrap;gap:4px;margin:5px 0 2px;min-width:0}
+.ok-tag{display:inline-flex;align-items:center;max-width:100%;padding:1px 6px;border-radius:5px;font-size:0.62rem;font-weight:700;line-height:1.6;letter-spacing:0.2px;overflow-wrap:anywhere;white-space:normal}
+.ok-tag.play{color:var(--text-muted);background:var(--btn-bg);border:1px solid var(--border-light)}
+.ok-tag.real{color:var(--primary);background:var(--primary-soft);border:1px solid var(--primary)}
+.ok-tag.est{color:var(--amber-text);background:var(--amber-soft);border:1px solid var(--amber-border)}
+.ok-tag.conf{color:var(--text);background:var(--bar-track);border:1px solid var(--border-light)}
+.ok-tag.basis{color:var(--text-muted);background:transparent;border:1px dashed var(--border-light);font-weight:600}
+.pb-basis{opacity:.85;font-weight:600;margin-left:3px}
+.num-sub{font-size:0.62rem;font-weight:600;color:var(--text-muted);margin-left:2px;white-space:nowrap}
+.hr-meta{font-size:0.62rem;color:var(--text-muted);white-space:normal;overflow-wrap:anywhere}
+.link-btn{display:inline-flex;align-items:center;min-height:26px;padding:0 8px;margin-left:4px;font-size:0.7rem;font-weight:700;color:var(--primary);background:var(--primary-soft);border:1px solid var(--primary);border-radius:6px;cursor:pointer;touch-action:manipulation}
+.link-btn:hover{filter:brightness(1.05)}
+.bt-note.warn{color:var(--amber-text);background:var(--amber-soft);border:1px solid var(--amber-border);border-radius:8px;padding:8px 10px}
+
+/* ===== 窄屏表格改卡片堆叠（不横向滚动） ===== */
+@media(max-width:640px){
+  .m-table thead{display:none}
+  .m-table,.m-table tbody,.m-table tr,.m-table td{display:block;width:100%;box-sizing:border-box}
+  .m-table tr{border:1px solid var(--border-light);border-radius:10px;padding:8px 10px;margin-bottom:8px;background:var(--card-bg)}
+  .m-table td{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:3px 0;border:none;text-align:right;font-size:0.78rem;line-height:1.5;overflow-wrap:anywhere}
+  .m-table td::before{content:attr(data-label);flex:0 0 auto;color:var(--text-muted);font-weight:600;text-align:left}
+  .m-table td[data-label=""]::before,.m-table td:not([data-label])::before{display:none}
+  .m-table td:first-child{display:block;text-align:left;font-weight:800;color:var(--text);border-bottom:1px dashed var(--border-light);margin-bottom:5px;padding-bottom:5px}
+  .m-table td:first-child::before{display:none}
 }
 </style>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2318a05b'/%3E%3Ctext x='16' y='22' font-size='16' text-anchor='middle' fill='white'%3E%E8%B6%B3%3C/text%3E%3C/svg%3E">
@@ -597,11 +705,11 @@ button{font-family:inherit}
         <div>
           <h1 class="page-title"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/></svg>竞彩足球智能分析</h1>
           <div class="page-sub">
-            <span class="sub-item sub-em" id="recruitNote"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>7维度智能分析</span>
+            <span class="sub-item sub-em" id="recruitNote"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>7 维模型输出 · 仅供分析参考</span>
             <span class="sub-div">|</span>
-            <span class="sub-item sub-muted" id="matchStatus">连接中...</span>
+            <span class="sub-item sub-muted" id="matchStatus">连接数据源中…</span>
             <span class="sub-div">|</span>
-            <span class="sub-item sub-amber" id="updateNote">历史战绩可查</span>
+            <span class="sub-item sub-amber" id="updateNote">历史命中率可回测</span>
           </div>
         </div>
         <div class="refresh-ctrl">
@@ -617,8 +725,8 @@ button{font-family:inherit}
     <!-- 今日决策条：首屏一眼看清「今天该不该下、下什么、回避什么」 -->
     <div class="decision-bar" id="decisionBar" data-state="waiting">
       <div class="db-left">
-        <div class="db-state-row"><span class="db-dot"></span><span class="db-state" id="dbState">等待今日数据</span></div>
-        <div class="db-reason" id="dbReason">正在汇总今日场次、价值盘与场外信息…</div>
+        <div class="db-state-row"><span class="db-dot"></span><span class="db-state" id="dbState">正在加载今日结论</span><button class="db-fold-btn" id="dbFoldBtn" type="button" aria-expanded="false" onclick="toggleDecisionFold(this)">展开</button></div>
+        <div class="db-reason" id="dbReason">正在汇总今日场次、价值盘与场外信息，约需数秒；若长时间无变化，请点顶部「刷新数据」。</div>
       </div>
       <div class="db-mid" id="dbMid">
         <div class="db-row"><span class="db-tag t-steady">单注</span><span class="db-items"><span class="db-skel skeleton"></span></span></div>
@@ -631,12 +739,15 @@ button{font-family:inherit}
       </div>
     </div>
 
+    <!-- 推荐闸门说明：被历史评估移除的玩法在此列明，不做黑箱 -->
+    <div class="policy-note" id="policyNote" style="display:none"></div>
+
     <!-- 筛选栏 -->
     <div class="filter-bar" id="filterBar">
-      <button class="filter-btn active" onclick="setFilter('all')">全部</button>
-      <button class="filter-btn" onclick="setFilter('high')">高信心</button>
-      <button class="filter-btn" onclick="setFilter('high_odds')">热门方</button>
-      <button class="filter-btn" onclick="setFilter('value')">价值盘</button>
+      <button class="filter-btn active" data-filter="all" onclick="setFilter('all')">全部</button>
+      <button class="filter-btn" data-filter="high" onclick="setFilter('high')" title="只看信心等级为高的场次">信心等级 高</button>
+      <button class="filter-btn" data-filter="high_odds" onclick="setFilter('high_odds')">热门方</button>
+      <button class="filter-btn" data-filter="value" onclick="setFilter('value')">价值盘</button>
       <select class="filter-select" id="leagueFilter" onchange="setLeagueFilter(this.value)"><option value="all">全部联赛</option></select>
       <select class="filter-select" id="sortBy" onchange="setSort(this.value)">
         <option value="time">按时间</option>
@@ -654,20 +765,20 @@ button{font-family:inherit}
 
     <!-- 赛事看板 -->
     <div class="section-title">今日赛事 <span class="st-tag">实时</span><span class="st-count" id="matchCountLabel"></span></div>
-    <div id="matchesContainer"><div class="loading"><div class="spinner"></div><p style="margin-top:10px">加载赛事数据…</p></div></div>
+    <div id="matchesContainer"><div class="loading"><div class="spinner"></div><p style="margin-top:10px">正在加载今日竞彩场次（约 3–10 秒）…</p></div></div>
 
     <!-- AI 串关 -->
     <div class="rec-section">
-      <div class="section-title">AI 串关推荐 <button class="copy-all-btn" onclick="copyAllRecs()">&#128203; 复制全部</button></div>
+      <div class="section-title">AI 串关方案 <span class="st-tag">模型输出</span><button class="copy-all-btn" onclick="copyAllRecs()">&#128203; 复制全部</button></div>
       <div id="intlBoard"></div>
-      <div id="recContainer"><div class="loading">生成推荐方案…</div></div>
+      <div id="recContainer"><div class="loading">正在生成串关方案…</div></div>
     </div>
 
     <!-- 价值盘（锐盘基准） -->
     <div class="rec-section" style="margin-top:20px">
-      <div class="section-title">价值盘 · 锐盘基准 <span class="st-tag">正期望</span></div>
+      <div class="section-title">价值盘 · 竞彩赔率 vs 国际锐盘 <span class="st-tag">正期望</span></div>
       <div id="valueStats"></div>
-      <div id="valueContainer"><div class="loading">计算价值盘…</div></div>
+      <div id="valueContainer"><div class="loading">正在计算价值盘…</div></div>
     </div>
 
     <!-- 战绩面板 -->
@@ -675,24 +786,24 @@ button{font-family:inherit}
       <div class="section-title">历史预测回测（竞彩官方） <button class="copy-all-btn" onclick="runBacktestNow(this)">&#128260; 立即结算</button></div>
       <div id="calibBox"></div>
       <div id="abBox"></div>
-      <div id="historyContainer"><div class="loading">加载战绩…</div></div>
+      <div id="historyContainer"><div class="loading">正在加载历史战绩…</div></div>
     </div>
 
     <!-- 串关战绩（串关级命中率，独立于单场） -->
     <div class="rec-section" style="margin-top:20px">
       <div class="section-title">串关方案战绩 <span class="st-tag">串关级</span></div>
-      <div id="parlayStatsContainer"><div class="loading">加载串关战绩…</div></div>
+      <div id="parlayStatsContainer"><div class="loading">正在加载串关战绩…</div></div>
     </div>
 
-    <!-- 分析师 -->
+    <!-- 分析台 -->
     <div class="analyst-section" id="analystSection">
-      <div class="section-title">AI 资深分析师</div>
+      <div class="section-title">AI 分析台</div>
       <div class="analyst-panel">
-        <div class="analyst-head">&#129302; 竞彩分析师 <span class="badge">15年经验</span></div>
+        <div class="analyst-head">&#129302; 竞彩分析助手 <span class="badge">模型输出</span></div>
         <div class="pt-tabs">
           <button class="pt-btn active" id="ptTotal" onclick="setAnalystMode('total')">总进球</button>
           <button class="pt-btn" id="ptParlay" onclick="setAnalystMode('parlay')">串关</button>
-          <button class="pt-btn" id="ptHi" onclick="setAnalystMode('hi')">高信心串关</button>
+          <button class="pt-btn" id="ptHi" onclick="setAnalystMode('hi')">信心等级 高</button>
         </div>
         <div class="analyst-mode" id="totalMode">
           <select id="analystMatch"><option value="">-- 选择比赛 --</option></select>
@@ -703,13 +814,13 @@ button{font-family:inherit}
           <button class="analyst-run" onclick="runParlayAnalysis()">生成串关方案</button>
         </div>
         <div class="analyst-mode" id="hlMode" style="display:none">
-          <span class="analyst-hint">勾选比赛生成高信心串关（至少2场，勾选N场即N串1）</span>
-          <button class="analyst-run" onclick="fillHighConf()">填入高信心</button>
-          <button class="analyst-run" onclick="generateHiParlay()">生成高信心串关</button>
+          <span class="analyst-hint">勾选比赛生成「信心等级=高」的串关（至少 2 场；勾选 N 场即 N 串 1）</span>
+          <button class="analyst-run" onclick="fillHighConf()">填入达标场次</button>
+          <button class="analyst-run" onclick="generateHiParlay()">生成串关（信心高）</button>
         </div>
         <div class="hi-pick-list" id="hlPickList"></div>
         <div class="analyst-output" id="analystOutput">
-          <div class="an-empty">请先加载赛事数据，然后选择玩法开始分析</div>
+          <div class="an-empty">请先加载赛事数据，再选择玩法开始分析（无数据时点击页面顶部「刷新数据」重试）</div>
         </div>
       </div>
     </div>
@@ -733,8 +844,8 @@ button{font-family:inherit}
     <div class="parlay-betinfo">
       <span>1注=<b>2元</b></span>
       <span class="multi-wrap">倍数 <input type="number" id="betMultiple" min="1" value="50" step="1" oninput="renderParlay()"></span>
-      <span>投注 <b id="betStake">--</b></span>
-      <span>预计奖金 <b id="betWin">--</b></span>
+      <span>投入 <b id="betStake">--</b></span>
+      <span>预计返奖 <b id="betWin">--</b></span>
     </div>
     <div class="parlay-btns"><button class="btn-clear" onclick="clearParlay()">清空</button><button class="btn-generate" id="btnGenerate" disabled onclick="generatePlan()">生成方案</button></div>
   </div>
@@ -782,7 +893,11 @@ var GLOSSARY = {
   imp: '隐含概率：1÷赔率，是市场认为该结果发生的概率（未去水、含抽水）。',
   edge: '正期望：估算概率×赔率−1；>0 才长期有利，≤0 长期必亏。',
   fair: '公平赔率：按去水后的真实概率换算出的赔率；竞彩赔率高于公平赔率=有正期望。',
-  breakeven: '盈亏平衡命中率=1÷平均赔率；命中率低于它则长期亏损。',
+  breakeven: '盈亏线（break-even）：=1÷平均赔率，即该赔率下至少需要多少命中率才不亏；命中率低于盈亏线则长期亏损。',
+  roi: 'ROI（投入回报率）=（累计返奖−累计投入）÷累计投入；只统计已结算、且赔率为真实盘口的记录。',
+  pp: 'pp（百分点）：命中率之差用百分点表示，如 26.1% 与 42.2% 相差 16.1pp，而不是「16.1%」。',
+  sample: '样本 n：参与统计的已结算场次数；n 越小，命中率的随机波动越大。',
+  moe: '抽样误差：按 95% 置信度估算的命中率波动范围（±Ypp）；样本越小误差越大，命中率差异需大于误差才可信。',
   hcp: '让球盘：负号=主队让球、正号=主队受让，把强弱拉平后再猜让球胜平负。',
   xgd: '净胜球=进球−失球；xGD=预期净胜球，反映真实攻防实力。',
   htft: '半全场：同时猜半场与全场结果，如「胜胜」=半场胜且全场胜。',
@@ -939,6 +1054,72 @@ function teamMetaHTML(v) {
   return '<span class="team-meta"'+title+'>'+parts.join(' · ')+'</span>';
 }
 
+/* ===== 口径统一辅助（新增；不替代任何既有函数） ===== */
+// 95% 抽样误差（百分点）：p=命中率(%)，n=样本量；n<30 不做估计（返回 null）
+function moE(p, n){
+  var n0 = Number(n) || 0, p0 = Number(p);
+  if(!n0 || n0 < 30 || isNaN(p0)) return null;
+  var r = p0 / 100;
+  var se = Math.sqrt(Math.max(r * (1 - r), 0) / n0);
+  return Math.round(1.96 * se * 1000) / 10;
+}
+// 命中率统一写法：42.1%（样本 n=120，误差 ±8.9pp）
+function hitRateText(rate, n, withSample){
+  if(rate == null || rate === '') return '—';
+  var s = rate + '%';
+  var mo = moE(rate, n);
+  var bits = [];
+  if(withSample && n) bits.push('样本 ' + n);
+  if(mo != null) bits.push('抽样误差 ±' + mo + 'pp');
+  if(!bits.length) return s;
+  return s + '<span class="hr-meta">（' + bits.join('，') + '）</span>';
+}
+// 信心等级统一文案（高/中/低）
+function confLabel(level){
+  var lv = (level === '高' || level === '中' || level === '低') ? level : '';
+  return lv ? '信心等级 ' + lv : '信心等级 —';
+}
+// 玩法名：后端 option 形如「胜·胜平负」，优先用独立字段 play_type
+function playOfLeg(option, playType){
+  if(playType) return String(playType);
+  var s = String(option || '');
+  var i = s.indexOf('·');
+  return i >= 0 ? s.slice(i + 1) : '';
+}
+// 赔率真假：总进球/半全场/比分为模型估算赔率，胜平负/让球为竞彩官方盘口
+function isEstPlay(play){
+  var p = String(play || '');
+  return p.indexOf('总进球') >= 0 || p.indexOf('半全场') >= 0 || p.indexOf('比分') >= 0;
+}
+function oddsKindTag(play){
+  return isEstPlay(play)
+    ? '<span class="ok-tag est" title="该赔率由模型概率反推，非竞彩官方盘口">估算赔率（不可投注，仅供参考）</span>'
+    : '<span class="ok-tag real" title="竞彩官方开售赔率">竞彩盘口 · 真实赔率</span>';
+}
+function playTag(play){
+  return play ? '<span class="ok-tag play">玩法：' + esc(play) + '</span>' : '';
+}
+// 后端方案名里的口语化叫法统一成中性术语（只改展示，不改数据）
+function nicePlanType(t){
+  if(!t) return '';
+  return String(t).replace(/稳胆/g, '稳健').replace(/高信心/g, '信心等级为高');
+}
+// 卡片上「玩法 / 赔率真假 / 信心等级依据」三要素行
+function renderMarketBasis(m){
+  var mp = m.model_prob || {}, mk = m.market_prob || {};
+  var k = null;
+  var po = m.predicted_option;
+  if(po === '胜') k = 'win'; else if(po === '平') k = 'draw'; else if(po === '负') k = 'lose';
+  var bits = [];
+  bits.push('<span class="ok-tag play">玩法：胜平负</span>');
+  bits.push('<span class="ok-tag real" title="竞彩官方开售赔率">竞彩盘口 · 真实赔率</span>');
+  if(m.confidence_level) bits.push('<span class="ok-tag conf">' + confLabel(m.confidence_level) + '</span>');
+  if(k && mp[k] != null && mk[k] != null){
+    bits.push('<span class="ok-tag basis" title="信心等级依据：模型概率高于赔率隐含概率越多，等级越高">依据：模型 ' + mp[k] + '% vs 隐含 ' + mk[k] + '%（1/赔率）</span>');
+  }
+  return '<div class="pick-basis">' + bits.join('') + '</div>';
+}
+
 /* ===== 模型概率 vs 赔率隐含 / 凯利 ===== */
 function renderModelPanel(m){
   var mp = m.model_prob, mk = m.market_prob;
@@ -952,13 +1133,13 @@ function renderModelPanel(m){
       '<div class="mp-name">'+name+'</div>'+
       '<div class="mp-row"><span class="mp-lab">模型</span><span class="mp-val">'+mp[key]+'%</span></div>'+
       '<div class="mp-row"><span class="mp-lab">赔率隐含</span><span class="mp-val">'+market+'%</span></div>'+
-      '<div class="mp-row"><span class="mp-lab">Edge</span><span class="mp-edge '+eCls+'">'+((e>0?'+':'')+(e==null?'—':e))+'</span></div>'+
+      '<div class="mp-row"><span class="mp-lab">期望值 Edge</span><span class="mp-edge '+eCls+'">'+((e>0?'+':'')+(e==null?'—':e))+'</span></div>'+
       '<div class="mp-row"><span class="mp-lab">凯利</span><span class="mp-kelly '+kCls+'">'+(k==null?'—':k)+'</span></div>'+
     '</div>';
   }
   var warn = m.model_warning ? '<div class="mp-warn">&#9888; '+esc(m.model_warning)+'</div>' : '';
   return '<div class="model-panel">'+
-    '<div class="mp-head">模型概率 vs 赔率隐含 <span class="mp-note">Edge=模型-市场；凯利&gt;0 才有正期望</span></div>'+
+    '<div class="mp-head">模型概率 vs 赔率隐含 <span class="mp-note">期望值 Edge = 模型概率 − 赔率隐含概率（百分点）；凯利&gt;0 才有正期望</span></div>'+
     '<div class="mp-grid">'+col('主胜', mk.win, 'win')+col('平局', mk.draw, 'draw')+col('客胜', mk.lose, 'lose')+'</div>'+
     warn+'</div>';
 }
@@ -1149,8 +1330,19 @@ function renderPredictionBadge(m) {
     if(odds[0].v<1.8) best=odds[0].k;
   }
   if (!best) return '';
-  const bgColor = best === '胜' ? 'var(--home)' : (best === '平' ? '#94a3b8' : 'var(--away)');
-  return `<span class="pred-badge" style="background:${bgColor}">推荐${best}</span>`;
+  var keyMap = {'胜':'win','平':'draw','负':'lose'};
+  var k = keyMap[best];
+  var mp = m.model_prob || {}, mk = m.market_prob || {};
+  var basis = [];
+  if (k && mp[k] != null) basis.push('模型 ' + mp[k] + '%');
+  if (k && mk[k] != null) basis.push('赔率隐含 ' + mk[k] + '%（=1/赔率）');
+  var lv = m.confidence_level;
+  var title = '倾向 ' + best + '；等级依据：' + (basis.length ? basis.join(' / ') : '市场倾向') + (lv ? '；' + confLabel(lv) : '') + '。仅供分析参考。';
+  var bgColor = best === '胜' ? 'var(--home)' : (best === '平' ? '#94a3b8' : 'var(--away)');
+  return '<span class="pred-badge" style="background:' + bgColor + '" title="' + esc(title) + '">'
+    + (lv ? '信心等级 ' + esc(lv) + ' · ' : '') + '倾向 ' + esc(best)
+    + (k && mp[k] != null ? ' <span class="pb-basis">模型 ' + mp[k] + '%</span>' : '')
+    + '</span>';
 }
 
 function renderOddsMove(m) {
@@ -1226,14 +1418,14 @@ function renderIntlPanel(m) {
   const fmtE = function(v){ if (v==null) return '—'; return '<b style="color:'+(v>0?'var(--high)':v<0?'var(--low)':'var(--text-muted)')+'">'+(v>0?'+':'')+v+'%</b>'; };
   const bk = (io.bookmakers||[]).slice(0, 12);
   const rows = bk.map(function(x){
-    return '<tr><td>'+esc(x.name)+'</td><td>'+fmt(x.home)+mv(x.home)+'</td><td>'+fmt(x.draw)+mv(x.draw)+'</td><td>'+fmt(x.away)+mv(x.away)+'</td></tr>';
+    return '<tr><td data-label="公司">'+esc(x.name)+'</td><td data-label="主胜">'+fmt(x.home)+mv(x.home)+'</td><td data-label="平局">'+fmt(x.draw)+mv(x.draw)+'</td><td data-label="客胜">'+fmt(x.away)+mv(x.away)+'</td></tr>';
   }).join('');
-  const jcRow = (m.win_odds>0) ? '<tr style="font-weight:700"><td>竞彩官方</td><td>'+(m.win_odds||'—')+'</td><td>'+(m.draw_odds||'—')+'</td><td>'+(m.lose_odds||'—')+'</td></tr>' : '';
-  const bestRow = '<tr style="color:var(--primary);font-weight:700"><td>国际最佳</td><td>'+(b.home||'—')+'</td><td>'+(b.draw||'—')+'</td><td>'+(b.away||'—')+'</td></tr>';
-  const edgeRow = iv.edges ? '<tr><td>价值差</td><td>'+fmtE(e.home)+'</td><td>'+fmtE(e.draw)+'</td><td>'+fmtE(e.away)+'</td></tr>' : '';
+  const jcRow = (m.win_odds>0) ? '<tr style="font-weight:700"><td data-label="公司">竞彩官方</td><td data-label="主胜">'+(m.win_odds||'—')+'</td><td data-label="平局">'+(m.draw_odds||'—')+'</td><td data-label="客胜">'+(m.lose_odds||'—')+'</td></tr>' : '';
+  const bestRow = '<tr style="color:var(--primary);font-weight:700"><td data-label="公司">国际最佳</td><td data-label="主胜">'+(b.home||'—')+'</td><td data-label="平局">'+(b.draw||'—')+'</td><td data-label="客胜">'+(b.away||'—')+'</td></tr>';
+  const edgeRow = iv.edges ? '<tr><td data-label="公司">价值差</td><td data-label="主胜">'+fmtE(e.home)+'</td><td data-label="平局">'+fmtE(e.draw)+'</td><td data-label="客胜">'+fmtE(e.away)+'</td></tr>' : '';
   const note = (iv.jc_overround!=null) ? ('<div style="font-size:0.62rem;color:var(--text-muted);margin-top:5px">竞彩返奖率 '+(100-iv.jc_overround).toFixed(1)+'% vs 国际 '+(100-iv.mkt_overround).toFixed(1)+'%；&#8595;=赔率下降(资金流入)，&#8593;=上升 · 价值差为正=该结果竞彩相对更划算</div>') : '';
   return '<div class="detail-section" style="grid-column:1/-1"><h4>&#127760; 国际盘口对比 (1x2 欧赔)</h4>'+
-    '<table class="intl-table"><thead><tr><th>公司</th><th>主胜</th><th>平</th><th>客胜</th></tr></thead><tbody>'+jcRow+bestRow+rows+edgeRow+'</tbody></table>'+note+
+    '<table class="intl-table m-table"><thead><tr><th>公司</th><th>主胜</th><th>平</th><th>客胜</th></tr></thead><tbody>'+jcRow+bestRow+rows+edgeRow+'</tbody></table>'+note+
   '</div>';
 }
 
@@ -1303,7 +1495,7 @@ function renderDimGrid(m) {
 function renderHistoryPanel(stats) {
   const c = document.getElementById('historyContainer');
   if (!stats || stats.total === 0) {
-    c.innerHTML = '<div class="backtest-card"><div style="padding:6px;font-size:0.78rem;color:var(--text-muted)">暂无预测记录，系统将在定时采集后自动生成推荐并结算</div></div>';
+    c.innerHTML = '<div class="backtest-card"><div style="padding:6px;font-size:0.78rem;color:var(--text-muted)">暂无预测记录：系统在定时采集后会自动生成记录并结算，稍后再看或点「立即结算」。</div></div>';
     return;
   }
   const rate = stats.total_rate || 0;
@@ -1338,8 +1530,11 @@ function setSort(v) { currentSort=v; applyFilters(); }
 
 function updateFilterButtons(){
   document.querySelectorAll('.filter-btn').forEach(b=>{
-    var f=b.textContent;
-    var key = f==='全部'?'all':f==='高信心'?'high':f==='热门方'?'high_odds':f==='价值盘'?'value':null;
+    var key = b.getAttribute('data-filter');
+    if(!key){
+      var f = (b.textContent||'').trim();
+      key = f==='全部'?'all':f.indexOf('信心')>=0?'high':f==='热门方'?'high_odds':f==='价值盘'?'value':null;
+    }
     if(key) b.classList.toggle('active', key===currentFilter);
   });
 }
@@ -1445,7 +1640,7 @@ function renderMatchesInternal(matches) {
   const c = document.getElementById('matchesContainer');
   document.getElementById('matchCountLabel').textContent = matches.length + ' 场';
   if(!matches.length){
-    c.innerHTML='<div style="text-align:center;padding:60px 20px;color:var(--text-muted)"><div style="font-size:3rem;margin-bottom:16px">&#9917;</div><div style="font-size:0.9rem;font-weight:700;margin-bottom:8px">暂无赛事数据</div><div style="font-size:0.75rem">可能原因：竞彩今日未开售 / API 暂时不可用<br>请稍后刷新或检查网络连接</div><button class="btn-refresh" onclick="refreshData()" style="margin-top:16px">重新加载</button></div>';
+    c.innerHTML='<div style="text-align:center;padding:48px 16px;color:var(--text-muted)"><div style="font-size:3rem;margin-bottom:16px">&#9917;</div><div style="font-size:0.95rem;font-weight:700;margin-bottom:8px">今日暂无竞彩场次</div><div style="font-size:0.8rem;line-height:1.7">可能原因：竞彩今日未开售该赛事 / 数据接口暂时不可用 / 网络超时<br>可先点下方按钮重试；仍为空说明官方今日确无开售</div><button class="btn-refresh" onclick="refreshData(true)" style="margin-top:16px">重新加载</button></div>';
     return;
   }
 
@@ -1483,19 +1678,20 @@ function renderMatchesInternal(matches) {
           <div class="team-conf">${confBar(m.away_confidence)}${m.away_confidence}/10 ${formStrHTML(m.away_form)}</div>
         </div>
         <div class="match-center">
-          <div class="odds-section-label">${m.win_odds>0?'胜平负':'胜平负(未开·仅让球)'}</div>
+          <div class="odds-section-label">${m.win_odds>0?'胜平负 · 竞彩盘口':'胜平负（未开售 · 仅让球）'}</div>
           <div class="odds-row">
             ${m.win_odds>0?renderOddsBtn(m,'胜',m.win_odds,'spf'):'<div class="odds-btn na-odds"><span class="label">胜</span><span class="val">--</span></div>'}
             ${m.draw_odds>0?renderOddsBtn(m,'平',m.draw_odds,'spf'):'<div class="odds-btn na-odds"><span class="label">平</span><span class="val">--</span></div>'}
             ${m.lose_odds>0?renderOddsBtn(m,'负',m.lose_odds,'spf'):'<div class="odds-btn na-odds"><span class="label">负</span><span class="val">--</span></div>'}
           </div>
-          ${hcp !== null ? `<div class="odds-section-label">${hLabel}</div><div class="odds-row">
+          ${renderMarketBasis(m)}
+          ${hcp !== null ? `<div class="odds-section-label">${hLabel} · 竞彩盘口</div><div class="odds-row">
             ${renderOddsBtn(m,'让胜',m.handicap_win_odds,'hcp')}
             ${renderOddsBtn(m,'让平',m.handicap_draw_odds,'hcp')}
             ${renderOddsBtn(m,'让负',m.handicap_lose_odds,'hcp')}
-          </div>
-          ${m.hcp_pick?'<div class="hcp-pick" title="'+esc(m.hcp_reason||'')+'">&#128161; 让球推荐: <strong style="color:var(--primary)">'+esc(m.hcp_pick.option)+'</strong> @'+m.hcp_pick.odds+' <span style="color:var(--text-muted)">(概率'+m.hcp_pick.prob+'%)</span>'+(m.hcp_pick.option2?' <span style="color:var(--text-muted);margin-left:6px">次选: <strong style="color:var(--primary)">'+esc(m.hcp_pick.option2)+'</strong> @'+m.hcp_pick.odds2+' ('+m.hcp_pick.prob2+'%)</span>':'')+'</div>':''}` : ''}
-          ${m.htft?('<div class="htft-pick" title="半全场（半场/全场）'+esc((m.htft.source)||'模型估算，仅供参考')+'">&#9201; 半全场: <strong style="color:var(--primary)">'+esc(m.htft.pick)+'</strong>'+(m.htft.odds?(' @'+m.htft.odds):'')+' ('+m.htft.prob+'%) <span style="color:var(--text-muted);margin-left:6px">次选 <strong style="color:var(--primary)">'+esc(m.htft.pick2)+'</strong>'+(m.htft.odds2?(' @'+m.htft.odds2):'')+' ('+m.htft.prob2+'%)</span></div>'):''}
+          </div>` : ''}
+          ${m.hcp_pick?(function(){ var hsrc = m.hcp_pick.source || ''; var est = hsrc !== '官方盘口'; return '<div class="hcp-pick" title="'+esc(m.hcp_reason||'')+'">&#128161; 让球方向（模型）: <strong style="color:var(--primary)">'+esc(m.hcp_pick.option)+'</strong> @'+esc(m.hcp_pick.odds)+' <span style="color:var(--text-muted)">(模型概率 '+esc(m.hcp_pick.prob)+'%)</span>'+(m.hcp_pick.option2?' <span style="color:var(--text-muted);margin-left:6px">次选: <strong style="color:var(--primary)">'+esc(m.hcp_pick.option2)+'</strong> @'+esc(m.hcp_pick.odds2)+' ('+esc(m.hcp_pick.prob2)+'%)</span>':'')+(est?' '+oddsKindTag('让球'):' <span class="ok-tag real">竞彩盘口 · 真实赔率</span>')+'</div>'; })():''}
+          ${m.htft?('<div class="htft-pick" title="半全场（半场/全场）'+esc((m.htft.source)||'模型估算，仅供参考')+'">&#9201; 半全场（模型）: <strong style="color:var(--primary)">'+esc(m.htft.pick)+'</strong>'+(m.htft.odds?(' @'+esc(m.htft.odds)):'')+' <span style="color:var(--text-muted)">('+esc(m.htft.prob)+'%)</span> <span style="color:var(--text-muted);margin-left:6px">次选 <strong style="color:var(--primary)">'+esc(m.htft.pick2)+'</strong>'+(m.htft.odds2?(' @'+esc(m.htft.odds2)):'')+' ('+esc(m.htft.prob2)+'%)</span> '+(m.htft.source==='竞彩官方'?'<span class="ok-tag real">竞彩盘口 · 真实赔率</span>':'<span class="ok-tag est" title="模型按概率反推的赔率，非竞彩盘口">估算赔率（不可投注，仅供参考）</span>')+'</div>'):''}
           <div class="market-row">
             <div class="market-bar-wrap"><span class="market-bar-label">主</span><div class="market-bar"><div class="market-bar-fill win" style="width:${m.market_win_pct||0}%"></div></div><span class="market-bar-pct">${m.market_win_pct||0}%</span></div>
             <div class="market-bar-wrap"><span class="market-bar-label">平</span><div class="market-bar"><div class="market-bar-fill draw" style="width:${m.market_draw_pct||0}%"></div></div><span class="market-bar-pct">${m.market_draw_pct||0}%</span></div>
@@ -1584,10 +1780,33 @@ function scrollToMatch(matchId) {
 }
 
 /* ===== AI 串关推荐 ===== */
+// 单腿渲染：玩法 / 赔率真假 / 信心等级依据 三要素齐备（用拼接，避免嵌套模板串）
+function recLegHTML(md){
+  md = md || {};
+  var play = playOfLeg(md.option, md.play_type);
+  var lv = md.confidence_level;
+  var basis = '信心等级 ' + (lv ? lv : '—') + (md.confidence_score != null ? '（评分 ' + md.confidence_score + '）' : '');
+  var intl = (md.intl_edge != null)
+    ? '<span title="国际盘价值差，正值=竞彩相对更划算" style="color:' + (md.intl_edge > 0 ? 'var(--high)' : md.intl_edge < 0 ? 'var(--low)' : 'var(--text-muted)') + '">国际价值差 ' + (md.intl_edge > 0 ? '+' : '') + md.intl_edge + '%</span>'
+    : '';
+  return '<div class="rec-match-item">'
+    + '<div class="teams"><span class="h">' + esc(md.home_team) + '</span> vs <span class="a">' + esc(md.away_team) + '</span>'
+    + '<span style="font-size:0.66rem;color:var(--text-muted);margin-left:5px">' + esc(md.league) + ' #' + esc(md.match_id) + '</span></div>'
+    + '<div class="detail"><span>选择: <strong style="color:var(--primary)">' + esc(md.option) + '</strong> @' + esc(md.odds) + '</span>'
+    + '<span>' + esc(md.hotness_label || '') + (md.bookmaker_intent ? ' | ' + esc(md.bookmaker_intent) : '') + '</span>'
+    + (md.market_tendency ? '<span>市场: ' + esc(md.market_tendency) + '</span>' : '')
+    + intl + '</div>'
+    + '<div class="pick-basis">' + playTag(play) + oddsKindTag(play) + '<span class="ok-tag conf">' + esc(basis) + '</span></div>'
+    + '</div>';
+}
+
 function renderRecommendations(recs) {
   const c = document.getElementById('recContainer');
   window.currentRecs = recs || [];
-  if(!recs||!recs.length){c.innerHTML='<div style="text-align:center;padding:30px;color:var(--text-muted)">暂无推荐方案</div>';return}
+  if(!recs||!recs.length){
+    c.innerHTML='<div class="bt-note" style="text-align:center;padding:24px 16px">当前无符合条件的串关方案：需至少 2 场信心等级达标的场次才会生成。<br>可先看下方「单场价值盘」，或点顶部「刷新数据」重试。</div>';
+    return;
+  }
   c.innerHTML='<div class="rec-grid">'+recs.map((r,ri)=>{
     const riskCls=r.risk_level==='低风险'?'rec-risk-low':'rec-risk-mid';
     const co=r.combo_odds||0;
@@ -1599,15 +1818,12 @@ function renderRecommendations(recs) {
     const corrTxt=r.correlation_warning||(sameLg.length?(sameLg.map(k=>lg[k]+'场'+k).join('、')+' 关联风险'):'');
     const corr=corrTxt?('&#9888; '+corrTxt):'';
     const cutoff=r.cutoff_note||(earliest?('请在 '+earliest+' 前完成投注'):'');
-    const riskNote=co<2.5?'(含保底场，稳健型)':co<5?'(中等回报，攻守兼备)':'(高风险高回报，谨慎参考)';
+    const riskNote=co<2.5?'（低组合赔率，含保底场）':co<5?'（中等组合赔率）':'（高组合赔率，波动大）';
     return `<div class="rec-card">
-      <div class="rec-header"><div><div class="rec-name">${esc(r.name)}</div><div class="rec-type">${esc(r.plan_type)}</div></div><span class="rec-risk ${riskCls}">${esc(r.risk_level)}</span></div>
+      <div class="rec-header"><div><div class="rec-name">${esc(nicePlanType(r.name))}</div><div class="rec-type">${esc(nicePlanType(r.plan_type))}（模型输出）</div></div><span class="rec-risk ${riskCls}">${esc(r.risk_level)} · 风险等级</span></div>
       ${r.logic ? `<div class="rec-logic">&#128161; ${esc(r.logic)}</div>` : ''}
-      ${(r.matches_detail||[]).map(md=>`<div class="rec-match-item">
-        <div class="teams"><span class="h">${esc(md.home_team)}</span> vs <span class="a">${esc(md.away_team)}</span><span style="font-size:0.66rem;color:var(--text-muted);margin-left:5px">${esc(md.league)} #${esc(md.match_id)}</span></div>
-        <div class="detail"><span>推荐: <strong style="color:var(--primary)">${esc(md.option)}</strong> @${md.odds}</span><span>${esc(md.hotness_label)} | ${esc(md.bookmaker_intent)}</span>${md.market_tendency?'<span>市场: '+esc(md.market_tendency)+'</span>':''}${(md.intl_edge!=null)?('<span title="国际盘价值差，正值=竞彩相对更划算" style="color:'+(md.intl_edge>0?'var(--high)':md.intl_edge<0?'var(--low)':'var(--text-muted)')+'">国际'+((md.intl_edge>0?'+':'')+md.intl_edge)+'%</span>'):''}</div>
-      </div>`).join('')}
-      <div class="rec-odds-display"><div class="combo">${tip('parlay','组合赔率')} ${r.combo_odds}</div><div class="ret">${r.expected_return} <span style="font-size:0.6rem;color:var(--text-muted)">${riskNote}</span></div>${r.stake_note?('<div class="ret" style="color:var(--amber);margin-top:2px">&#128176; '+r.stake_note+'</div>'):''}${r.has_estimated_legs?('<div class="ret" style="color:var(--amber);margin-top:2px">&#9888; 含模型估算赔率玩法，组合赔率非实盘，仅供参考</div>'):''}</div>
+      ${mds.map(recLegHTML).join('')}
+      <div class="rec-odds-display"><div class="combo">${tip('parlay','组合赔率')} ${r.combo_odds}</div><div class="ret">${r.expected_return} <span style="font-size:0.6rem;color:var(--text-muted)">${riskNote}</span></div>${r.stake_note?('<div class="ret" style="color:var(--amber);margin-top:2px">&#128176; '+r.stake_note+'</div>'):''}${r.has_estimated_legs?('<div class="ret" style="color:var(--amber);margin-top:2px">&#9888; 含模型估算赔率玩法，组合赔率非实盘，不可投注，仅供参考</div>'):''}</div>
       <div class="rec-meta">${cutoff?('<span class="rec-cutoff">&#9200; '+cutoff+'</span>'):(earliest?('&#9200; 最早 '+earliest+' 开赛'):'')} ${corr?('<span class="rec-warn">'+corr+'</span>'):''}</div>
       <button class="rec-copy" onclick="copyRec(${ri})">&#128203; 复制方案</button>
     </div>`;
@@ -1616,15 +1832,21 @@ function renderRecommendations(recs) {
 
 function recToText(r) {
   var lines = [];
-  lines.push('【' + (r.name || '') + '】' + (r.plan_type || ''));
+  lines.push('【' + nicePlanType(r.name || '') + '】' + nicePlanType(r.plan_type || ''));
   if (r.logic) lines.push('思路: ' + r.logic);
   (r.matches_detail || []).forEach(function(md, k){
-    var s = (k + 1) + '. ' + md.home_team + ' vs ' + md.away_team + ' | ' + md.option + ' @' + md.odds;
-    if (md.intl_edge != null) s += ' (国际' + (md.intl_edge > 0 ? '+' : '') + md.intl_edge + '%)';
+    var play = playOfLeg(md.option, md.play_type);
+    var est = isEstPlay(play);
+    var s = (k + 1) + '. ' + md.home_team + ' vs ' + md.away_team + ' | 玩法 ' + (play || '—') + ' · ' + md.option + ' @' + md.odds +
+      (est ? '（估算赔率，不可投注）' : '（竞彩盘口）');
+    if (md.confidence_level) s += ' | 信心等级 ' + md.confidence_level;
+    if (md.intl_edge != null) s += ' | 国际价值差 ' + (md.intl_edge > 0 ? '+' : '') + md.intl_edge + '%';
     lines.push(s);
   });
   lines.push('组合赔率 ' + r.combo_odds + '，预计返奖 ' + r.expected_return);
+  if (r.has_estimated_legs) lines.push('说明：含模型估算赔率的玩法，组合赔率非实盘，不可投注，仅供参考。');
   if (r.stake_note) lines.push(r.stake_note);
+  lines.push('（模型输出与历史统计，仅供参考，不构成投注建议）');
   return lines.join('\n');
 }
 
@@ -1644,7 +1866,7 @@ function copyRec(i) {
 
 function copyAllRecs() {
   var recs = window.currentRecs || [];
-  if (!recs.length) { alert('暂无推荐方案'); return; }
+  if (!recs.length) { alert('当前没有可复制的串关方案（今日暂无符合条件的场次组合）'); return; }
   var parts = recs.map(recToText);
   var text = '竞彩分析 · ' + new Date().toLocaleString() + '\n\n' + parts.join('\n\n');
   copyText(text);
@@ -1671,7 +1893,7 @@ function renderValueRecs(recs){
   var c = document.getElementById('valueContainer');
   if(!c) return;
   if(!recs || !recs.length){
-    c.innerHTML = '<div class="bt-note">当前无正期望价值盘：需竞彩赔率相对国际锐盘（去水）有 ≥2% 价值时才会出现。</div>';
+    c.innerHTML = '<div class="bt-note">当前无正期望价值盘：需竞彩赔率相对国际锐盘（去水后）存在 ≥2% 的价值（即竞彩更划算）才会列出。属正常空态，不是加载失败。</div>';
     return;
   }
   c.innerHTML = '<div class="rec-grid">' + recs.map(function(r){
@@ -1680,13 +1902,14 @@ function renderValueRecs(recs){
     return '<div class="rec-card">' +
       '<div class="rec-header"><div><div class="rec-name">' + esc(r.home_team) + ' vs ' + esc(r.away_team) + '</div>' +
       '<div class="rec-type">' + esc(r.league||'') + ' #' + esc(r.match_id||'') + ' ' + esc(r.match_time||'') + '</div></div>' +
-      '<span class="rec-risk ' + cls + '">+' + r.edge_pct + '%</span></div>' +
+      '<span class="rec-risk ' + cls + '" title="竞彩赔率相对国际锐盘（去水）的价值差">+' + esc(r.edge_pct) + '%</span></div>' +
+      '<div class="pick-basis"><span class="ok-tag play">玩法：胜平负</span><span class="ok-tag real">竞彩盘口 · 真实赔率</span><span class="ok-tag basis">依据：竞彩赔率 vs 国际锐盘去水概率</span></div>' +
       '<div class="rec-match-item"><div class="detail">' +
         '<span>方向: <strong style="color:var(--primary)">' + esc(r.option) + '</strong></span>' +
-        '<span>竞彩赔率 ' + r.jc_odds + '</span>' +
-        '<span>' + tip('fair','公平赔率') + ' ' + r.fair_odds + '</span>' +
-        '<span>' + tip('edge','正期望') + ' ' + r.edge_pct + '%</span>' +
-        '<span>' + tip('imp','估算概率') + ' ' + r.prob + '%</span>' +
+        '<span>竞彩赔率 ' + esc(r.jc_odds) + '</span>' +
+        '<span>' + tip('fair','公平赔率') + ' ' + esc(r.fair_odds) + '</span>' +
+        '<span>' + tip('edge','正期望') + ' ' + esc(r.edge_pct) + '%</span>' +
+        '<span>' + tip('imp','估算概率') + ' ' + esc(r.prob) + '%</span>' +
       '</div></div>' +
       '<div class="rec-odds-display">' +
         '<div class="ret">' + tip('imp','锐盘概率') + ' 主' + (sp.home||'-') + '/平' + (sp.draw||'-') + '/客' + (sp.away||'-') + '%</div>' +
@@ -1701,22 +1924,31 @@ async function loadValueStats(){
   if(!el) return;
   try{
     var resp = await fetch('/api/value-stats');
-    if(!resp.ok){ el.innerHTML=''; return; }
+    if(!resp.ok){
+      el.innerHTML = '<div class="bt-note warn">价值盘统计接口返回异常（HTTP ' + resp.status + '），本次数值不可用。 <button class="link-btn" type="button" onclick="loadValueStats()">重试</button></div>';
+      return;
+    }
     var s = await resp.json();
-    if(!s || !s.total_bets){ el.innerHTML=''; return; }
-    var roi = s.roi || 0, rate = s.hit_rate || 0;
+    if(!s || !s.total_bets){
+      el.innerHTML = '<div class="bt-note">价值盘统计暂无已结算样本（样本 n=0），暂不展示 ROI 与命中率；有历史结算记录后自动出现。</div>';
+      return;
+    }
+    var roi = s.roi || 0, rate = s.hit_rate || 0, n = s.total_bets || 0;
+    var mo = moE(rate, n);
     var roiColor = roi > 0 ? 'var(--high)' : roi < 0 ? 'var(--low)' : 'var(--text)';
     var brier = (s.brier!=null) ? s.brier : '—';
     var ll = (s.log_loss!=null) ? s.log_loss : '—';
     el.innerHTML = '<div class="backtest-card" style="margin-bottom:10px"><div class="bt-stats">' +
-      '<div class="bt-stat"><div class="num" style="color:'+roiColor+'">'+(roi>0?'+':'')+roi+'%</div><div class="lab">'+tip('value','价值盘 ROI')+'</div></div>' +
-      '<div class="bt-stat"><div class="num">'+(s.total_bets||0)+'</div><div class="lab">样本(结算)</div></div>' +
-      '<div class="bt-stat"><div class="num">'+rate+'%</div><div class="lab">命中率</div></div>' +
-      '<div class="bt-stat"><div class="num">'+(s.wins||0)+'/'+(s.losses||0)+'</div><div class="lab">胜/负</div></div>' +
-      '<div class="bt-stat"><div class="num">'+brier+'</div><div class="lab">'+tip('brier','Brier')+'(越低越好)</div></div>' +
-      '<div class="bt-stat"><div class="num">'+ll+'</div><div class="lab">'+tip('logloss','LogLoss')+'</div></div>' +
-      '</div><div class="bt-note">价值盘 = 正期望估算（锐盘基准+模型校准），命中率天然偏低，需看 ROI 与校准指标</div></div>';
-  }catch(e){}
+      '<div class="bt-stat"><div class="num" style="color:'+roiColor+'">'+(roi>0?'+':'')+roi+'%</div><div class="lab">'+tip('roi','ROI（投入回报率）')+'</div></div>' +
+      '<div class="bt-stat"><div class="num">'+n+'</div><div class="lab">'+tip('sample','已结算样本')+'</div></div>' +
+      '<div class="bt-stat"><div class="num">'+rate+'%'+(mo!=null?'<span class="num-sub">±'+mo+'pp</span>':'')+'</div><div class="lab">'+tip('moe','命中率')+'</div></div>' +
+      '<div class="bt-stat"><div class="num">'+(s.wins||0)+' / '+(s.losses||0)+'</div><div class="lab">命中 / 未中</div></div>' +
+      '<div class="bt-stat"><div class="num">'+brier+'</div><div class="lab">'+tip('brier','Brier 分数(越低越好)')+'</div></div>' +
+      '<div class="bt-stat"><div class="num">'+ll+'</div><div class="lab">'+tip('logloss','对数损失')+'</div></div>' +
+      '</div><div class="bt-note">价值盘 = 正期望估算（锐盘基准 + 模型校准），命中率天然偏低；是否长期有效应看 '+tip('roi','ROI')+' 与校准误差，而非单场输赢。</div></div>';
+  }catch(e){
+    el.innerHTML = '<div class="bt-note warn">价值盘统计请求超时或网络异常，数值暂缺。 <button class="link-btn" type="button" onclick="loadValueStats()">重试</button></div>';
+  }
 }
 
 async function loadAbTest(){
@@ -1724,24 +1956,38 @@ async function loadAbTest(){
   if(!el) return;
   try{
     var resp = await fetch('/api/ab-test');
-    if(!resp.ok){ el.innerHTML=''; return; }
+    if(!resp.ok){
+      el.innerHTML = '<div class="bt-note warn">A/B 对比接口返回异常（HTTP ' + resp.status + '）。 <button class="link-btn" type="button" onclick="loadAbTest()">重试</button></div>';
+      return;
+    }
     var s = await resp.json();
-    if(!s || !s.total){ el.innerHTML=''; return; }
+    if(!s || !s.total){
+      el.innerHTML = '<div class="bt-note">A/B 对比暂无已结算样本，样本累积后自动展示。</div>';
+      return;
+    }
     function row(name, d, hl){
       d = d || {};
       var c = d.roi>0 ? 'var(--high)' : d.roi<0 ? 'var(--low)' : 'var(--text)';
       var pc = d.pnl>0 ? 'var(--high)' : d.pnl<0 ? 'var(--low)' : 'var(--text)';
-      return '<tr style="' + (hl?'background:var(--card-stripe)':'') + '"><td>' + name + '</td><td align="right">' + (d.n||0) + '</td><td align="right">' + (d.hit_rate||0) + '%</td><td align="right" style="color:' + c + '">' + (d.roi>0?'+':'') + (d.roi||0) + '%</td><td align="right" style="color:' + pc + '">' + (d.pnl||0) + '</td></tr>';
+      var mo = moE(d.hit_rate||0, d.n||0);
+      return '<tr' + (hl?' style="background:var(--card-stripe)"':'') + '>'
+        + '<td data-label="分组">' + name + '</td>'
+        + '<td data-label="样本 n" align="right">' + (d.n||0) + '</td>'
+        + '<td data-label="命中率" align="right">' + (d.hit_rate||0) + '%' + (mo!=null?'<span class="num-sub">±'+mo+'pp</span>':'') + '</td>'
+        + '<td data-label="ROI（投入回报率）" align="right" style="color:' + c + '">' + (d.roi>0?'+':'') + (d.roi||0) + '%</td>'
+        + '<td data-label="累计盈亏（元）" align="right" style="color:' + pc + '">' + (d.pnl||0) + '</td></tr>';
     }
     el.innerHTML = '<div class="backtest-card" style="margin-bottom:10px">'
-      + '<div class="bt-note">A/B 对比（有资讯 / 有首发 vs 无，竞彩 1X2 真实推荐）</div>'
-      + '<table style="width:100%;font-size:0.68rem;border-collapse:collapse;margin-top:6px">'
-      + '<tr style="color:var(--text-muted)"><th align="left">分组</th><th align="right">样本</th><th align="right">命中率</th><th align="right">ROI</th><th align="right">盈亏</th></tr>'
+      + '<div class="bt-note">A/B 对比：有资讯 / 有首发 vs 无（竞彩 1X2 真实盘口样本）</div>'
+      + '<table class="m-table" style="width:100%;font-size:0.7rem;border-collapse:collapse;margin-top:6px">'
+      + '<thead><tr style="color:var(--text-muted)"><th align="left">分组</th><th align="right">样本 n</th><th align="right">命中率</th><th align="right">'+tip('roi','ROI')+'（投入回报率）</th><th align="right">累计盈亏（元）</th></tr></thead><tbody>'
       + row('有资讯', s.with_news, false) + row('有首发', s.with_lineup, false)
-      + row('有资讯或首发', s.with_any, true) + row('无（对照）', s.without, false)
-      + '</table>'
-      + '<div class="bt-note">样本足够后，若「有」组 ROI/命中率显著优于「无」组，说明资讯/首发确有增量</div></div>';
-  }catch(e){}
+      + row('有资讯或首发', s.with_any, true) + row('无（对照组）', s.without, false)
+      + '</tbody></table>'
+      + '<div class="bt-note">样本足够后，若「有」组 '+tip('roi','ROI')+' 与命中率显著优于「无」组，说明资讯与首发确有增量；两组差异需大于抽样误差才可信。</div></div>';
+  }catch(e){
+    el.innerHTML = '<div class="bt-note warn">A/B 对比请求超时或网络异常。 <button class="link-btn" type="button" onclick="loadAbTest()">重试</button></div>';
+  }
 }
 
 async function loadCalibration(){
@@ -1749,38 +1995,52 @@ async function loadCalibration(){
   if(!el) return;
   try{
     var resp = await fetch('/api/calibration');
-    if(!resp.ok){ el.innerHTML=''; return; }
+    if(!resp.ok){
+      el.innerHTML = '<div class="bt-note warn">校准数据接口返回异常（HTTP ' + resp.status + '）。 <button class="link-btn" type="button" onclick="loadCalibration()">重试</button></div>';
+      return;
+    }
     var s = await resp.json();
     var b = (s && s.buckets) || {};
     var keys = ['高','中','低'].filter(function(k){ return b[k]; });
     function rowHtml(name, d){
       var edgeColor = d.edge >= 0 ? 'var(--high)' : 'var(--low)';
-      return '<tr><td>'+name+'</td><td align="right">'+(d.n||0)+'</td><td align="right">'+(d.hit_rate||0)+'%</td><td align="right">'+(d.required_rate||0)+'%</td><td align="right" style="color:'+edgeColor+'">'+(d.edge>0?'+':'')+d.edge+'%</td></tr>';
+      var mo = moE(d.hit_rate||0, d.n||0);
+      return '<tr><td data-label="分段">'+esc(name)+'</td>'
+        + '<td data-label="样本 n" align="right">'+(d.n||0)+'</td>'
+        + '<td data-label="命中率" align="right">'+(d.hit_rate||0)+'%'+(mo!=null?'<span class="num-sub">±'+mo+'pp</span>':'')+'</td>'
+        + '<td data-label="盈亏线（1/平均赔率）" align="right">'+(d.required_rate||0)+'%</td>'
+        + '<td data-label="优势（pp）" align="right" style="color:'+edgeColor+'">'+(d.edge>0?'+':'')+d.edge+'pp</td></tr>';
     }
-    var head = '<tr style="color:var(--text-muted)"><th align="left">分段</th><th align="right">样本</th><th align="right">命中率</th><th align="right">盈亏线</th><th align="right">优势</th></tr>';
+    var head = '<thead><tr style="color:var(--text-muted)"><th align="left">分段</th><th align="right">样本 n</th><th align="right">命中率</th><th align="right">'+tip('breakeven','盈亏线')+'（1/平均赔率）</th><th align="right">优势（pp）</th></tr></thead>';
+    function tbl(rowsHtml){
+      return '<table class="m-table" style="width:100%;font-size:0.7rem;border-collapse:collapse;margin-top:6px">'+head+'<tbody>'+rowsHtml+'</tbody></table>';
+    }
     var body = '';
     if(keys.length){
-      body += '<div class="bt-note">信心等级校准（样本≥'+(s.min_n||50)+'）</div><table style="width:100%;font-size:0.68rem;border-collapse:collapse;margin-top:6px">'+head
-            + keys.map(function(k){ return rowHtml(k, b[k]); }).join('')+'</table>';
+      body += '<div class="bt-note">信心等级校准（样本≥'+(s.min_n||50)+'，仅统计已结算记录）</div>'
+            + tbl(keys.map(function(k){ return rowHtml('信心等级 '+k, b[k]); }).join(''));
     }
     var seg = s.segments || {};
     var segKeys = Object.keys(seg).filter(function(k){ return seg[k].n >= (s.min_seg||30); }).sort(function(x,y){ return seg[y].n-seg[x].n; }).slice(0,10);
     if(segKeys.length){
-      body += '<div class="bt-note" style="margin-top:10px">同类场次校准：玩法|赔率区间（样本≥'+(s.min_seg||30)+'，负优势将触发降级）</div>'
-            + '<table style="width:100%;font-size:0.68rem;border-collapse:collapse;margin-top:6px">'+head
-            + segKeys.map(function(k){ return rowHtml(k, seg[k]); }).join('')+'</table>';
+      body += '<div class="bt-note" style="margin-top:10px">同类场次校准：玩法｜赔率区间（样本≥'+(s.min_seg||30)+'，负优势会自动降级）</div>'
+            + tbl(segKeys.map(function(k){ return rowHtml(k, seg[k]); }).join(''));
     }
     var lg = s.leagues || {};
     var lgKeys = Object.keys(lg).filter(function(k){ return lg[k].n >= (s.min_seg||30); }).sort(function(x,y){ return lg[y].n-lg[x].n; }).slice(0,8);
     if(lgKeys.length){
       body += '<div class="bt-note" style="margin-top:10px">联赛分段（样本≥'+(s.min_seg||30)+'）</div>'
-            + '<table style="width:100%;font-size:0.68rem;border-collapse:collapse;margin-top:6px">'+head
-            + lgKeys.map(function(k){ return rowHtml(k, lg[k]); }).join('')+'</table>';
+            + tbl(lgKeys.map(function(k){ return rowHtml(k, lg[k]); }).join(''));
     }
-    if(!body){ el.innerHTML=''; return; }
+    if(!body){
+      el.innerHTML = '<div class="bt-note">校准样本不足（信心等级需 ≥'+(s.min_n||50)+' 场、玩法分段需 ≥'+(s.min_seg||30)+' 场），暂不展示分段校准。</div>';
+      return;
+    }
     el.innerHTML = '<div class="backtest-card" style="margin-bottom:10px">'+ body
-      + '<div class="bt-note">命中率低于盈亏线(1/平均赔率)说明长期不盈利，系统会自动降级；总样本 '+(s.total||0)+'</div></div>';
-  }catch(e){}
+      + '<div class="bt-note">命中率低于'+tip('breakeven','盈亏线')+'说明长期不盈利，系统会自动降级对应分段；总样本 '+(s.total||0)+'。命中率差异需大于 ±pp 抽样误差才可信。</div></div>';
+  }catch(e){
+    el.innerHTML = '<div class="bt-note warn">校准数据请求超时或网络异常。 <button class="link-btn" type="button" onclick="loadCalibration()">重试</button></div>';
+  }
 }
 
 /* ===== 总进球 ===== */
@@ -1789,7 +2049,7 @@ function renderCardTotalGoals(m) {
   const tg = allTotalGoals[m.match_id];
   if (!tg) return '';
   const certCls = tg.cert==='高'?'cert-high':tg.cert==='中'?'cert-mid':'cert-low';
-  const certTxt = tg.cert==='高'?'高把握':tg.cert==='中'?'中等':'接近';
+  const certTxt = tg.cert==='高'?'信心等级 高':tg.cert==='中'?'信心等级 中':tg.cert==='低'?'信心等级 低':'信心等级 —';
   const certDots = tg.cert==='高'?'◆◆◆':tg.cert==='中'?'◆◆':'◆';
   const alt = (tg.alt_picks||[]).join(' / ');
   const over = tg.over25_prob!=null ? `<span class="tg-kv"><span class="tg-klab">${tip('over25','大2.5')}</span><span class="tg-kval">${tg.over25_prob}%</span></span>` : '';
@@ -1797,11 +2057,12 @@ function renderCardTotalGoals(m) {
   const exp = tg.expected_goals ? `<span class="tg-kv"><span class="tg-klab">预期</span><span class="tg-kval">${tg.expected_goals}球</span></span>` : '';
   return `<div class="tg-inline">
     <div class="tg-inline-head">
-      <span class="tg-inline-title">&#9917; 总进球推荐</span>
-      <span class="tg-certainty ${certCls}">${certTxt}把握 <span class="cert-mark">${certDots}</span></span>
+      <span class="tg-inline-title">&#9917; 总进球（模型估算）</span>
+      <span class="tg-certainty ${certCls}">${certTxt} <span class="cert-mark">${certDots}</span></span>
     </div>
     <div class="tg-inline-body">
-      <div class="tg-inline-pick"><span class="tg-pickbig">${tg.main_pick}</span><span class="tg-pickpct">${tg.main_prob}%</span></div>
+      <div class="tg-inline-pick"><span class="tg-pickbig">${tg.main_pick}</span><span class="tg-pickpct">模型概率 ${tg.main_prob}%</span></div>
+      <div class="pick-basis"><span class="ok-tag play">玩法：总进球</span><span class="ok-tag est" title="该赔率由模型概率反推，非竞彩官方盘口">估算赔率（不可投注，仅供参考）</span><span class="ok-tag basis">依据：模型概率与历史同赔率分段命中率对比</span></div>
       <div class="tg-inline-quick">
         ${over}${under}${exp}
         ${alt?`<span class="tg-kv"><span class="tg-klab">次选</span><span class="tg-kval">${alt}</span></span>`:''}
@@ -1942,14 +2203,14 @@ function renderHiPickList(){
     var opt = _hiValueOpt(m) || _hiBestOpt(m);
     var odds = (opt[1] || 0);
     if(!reason) qualify++;
-    var tag = reason ? '<span class="hi-lv low" title="'+esc(reason)+'">不达标</span>' : '<span class="hi-lv hi">价值✔</span>';
+    var tag = reason ? '<span class="hi-lv low" title="'+esc(reason)+'">不达标</span>' : '<span class="hi-lv hi">达标</span>';
     return '<label class="hi-item"><input type="checkbox" data-mid="' + esc(m.match_id) + '"' + checked + ' onchange="hlToggle(\'' + esc(m.match_id) + '\')">' +
       '<span class="hi-teams">' + esc(m.home_team) + ' vs ' + esc(m.away_team) + '</span>' +
       '<span class="hi-opt">' + esc(opt[0]) + ' @' + (odds > 0 ? (parseFloat(odds)||0).toFixed(2) : '—') + '</span>' +
-      '<span class="hi-lv ' + lvCls + '">' + esc(lv || '低') + '</span>' + tag +
+      '<span class="hi-lv ' + lvCls + '">' + '信心 ' + esc(lv || '低') + '</span>' + tag +
     '</label>';
   }).join('');
-  box.innerHTML = '<div class="hi-hint">筛选口径：高信心 + 非极端热门 + 赔率1.5~2.5（今日达标 '+qualify+' 场）</div><div class="hi-list">' + rows + '</div>';
+  box.innerHTML = '<div class="hi-hint">筛选口径：信心等级=高 + 非极端热门 + 赔率 1.5~2.5（今日达标 '+qualify+' 场）</div><div class="hi-list">' + rows + '</div>';
 }
 function hlToggle(mid){
   if(hlPicked[mid]){ delete hlPicked[mid]; } else { hlPicked[mid] = true; }
@@ -1959,14 +2220,14 @@ function fillHighConf(){
   var n = 0;
   currentMatches.forEach(function(m){ if(!_hiReason(m)){ hlPicked[m.match_id] = true; n++; } });
   renderHiPickList();
-  if(n === 0){ var out = document.getElementById('analystOutput'); if(out) out.innerHTML = '<div class="an-warn">按当前口径（高信心+非极端热门+赔率1.5~2.5）没有达标场次，可手动勾选放宽</div>'; }
+  if(n === 0){ var out = document.getElementById('analystOutput'); if(out) out.innerHTML = '<div class="an-warn">按当前口径（信心等级=高 + 非极端热门 + 赔率 1.5~2.5）没有达标场次，可手动勾选放宽口径。</div>'; }
 }
 function generateHiParlay(){
   var out = document.getElementById('analystOutput');
   if(!currentMatches.length){ out.innerHTML = '<div class="an-warn">请先加载赛事数据</div>'; return; }
   var picked = currentMatches.filter(function(m){ return hlPicked[m.match_id]; });
   var bestOpt = function(m){ return _hiValueOpt(m) || _hiBestOpt(m); };
-  if(picked.length < 2){ out.innerHTML = '<div class="an-warn">至少勾选2场比赛才能生成串关（当前' + picked.length + '场）</div>'; return; }
+  if(picked.length < 2){ out.innerHTML = '<div class="an-warn">至少勾选 2 场比赛才能生成串关（当前 ' + picked.length + ' 场），请在上方列表继续勾选</div>'; return; }
   // 高信心优先排序
   var order = { '高': 0, '中': 1, '低': 2 };
   picked.sort(function(a,b){ return (order[a.confidence_level]||3) - (order[b.confidence_level]||3); });
@@ -1979,7 +2240,7 @@ function generateHiParlay(){
     }
   }
   combos.sort(function(x,y){ return (parseFloat(x.oa[1])*parseFloat(x.ob[1])) - (parseFloat(y.oa[1])*parseFloat(y.ob[1])); });
-  var html = '<div class="an-out"><div class="an-title">&#128640; 高信心串关（' + picked.length + '场全选=' + picked.length + '串1）</div>';
+  var html = '<div class="an-out"><div class="an-title">&#128640; 信心等级为高 · 串关方案（' + picked.length + ' 场，' + picked.length + ' 串 1）</div>';
   var allOdds = picked.reduce(function(acc,m){ var o = bestOpt(m); return acc * (parseFloat(o[1])||1); }, 1);
   picked.forEach(function(m){
     var o = bestOpt(m);
@@ -1994,8 +2255,8 @@ function generateHiParlay(){
     }
   }
   var stake = 2 * mult;
-  html += '<div class="an-tip">' + picked.length + '串1 全串赔率：<strong>' + allOdds.toFixed(2) + '</strong>　投注 ' + stake + '元（1注2元×' + mult + '倍）预计返 <strong>' + (allOdds*stake).toFixed(2) + '元</strong></div>';
-  html += '<div class="an-risk">请理性购彩，本推荐仅供参考</div></div>';
+  html += '<div class="an-tip">' + picked.length + '串1 组合赔率：<strong>' + allOdds.toFixed(2) + '</strong>　投入 ' + stake + ' 元（1注2元×' + mult + '倍），预计返奖 <strong>' + (allOdds*stake).toFixed(2) + ' 元</strong></div>';
+  html += '<div class="an-risk">以上为模型输出与组合赔率测算，仅供参考，请理性购彩</div></div>';
   out.innerHTML = html;
 }
 function getSummaryMatch(matches, matchId){
@@ -2042,8 +2303,8 @@ function runTotalAnalysis(){
     '<div style="font-size:0.8rem;font-weight:700;margin-bottom:6px">' + esc(m.home_team) + ' vs ' + esc(m.away_team) + '（' + esc(m.match_id) + ' ' + esc(m.league||'') + '）</div>' +
     (r.o25 != null ? '<div class="an-line"><span class="m">大2.5球概率</span><span class="o">' + r.o25 + '%</span></div>' : '') +
     bars +
-    '<div class="an-tip">推荐区间：<strong>' + r.best.label + '</strong>（' + r.best.p + '%）' + (tendNote ? ' ｜ ' + tendNote : '') + '</div>' +
-    '<div class="an-risk">请理性购彩，本推荐仅供参考</div>' +
+    '<div class="an-tip">最可能进球区间（模型）：<strong>' + esc(r.best.label) + '</strong>（' + esc(r.best.p) + '%）' + (tendNote ? ' ｜ ' + tendNote : '') + '</div>' +
+    '<div class="an-risk">以上为模型输出，仅供参考，请理性购彩</div>' +
     '</div>';
 }
 function runParlayAnalysis(){
@@ -2061,12 +2322,12 @@ function runParlayAnalysis(){
   pairs.sort(function(x, y){ return x.odds - y.odds; });
   var minPair = pairs[0], maxPair = pairs[pairs.length - 1];
   var allOdds = items.reduce(function(acc, x){ return acc * parseFloat(x.odds); }, 1);
-  function detail(item){ return '<span class="m">' + item.home_team + ' vs ' + item.away_team + '（' + item.option + ' @' + item.odds + '）</span>'; }
+  function detail(item){ return '<span class="m">' + esc(item.home_team) + ' vs ' + esc(item.away_team) + '（' + esc(item.option) + ' @' + esc(item.odds) + '）</span>'; }
   var html = '<div class="an-out">' + '<div class="an-title">&#128640; 串关方案（' + items.length + '场）</div>';
   if (items.length === 2){
     html += '<div class="an-line"><span class="m">' + items[0].home_team + ' vs ' + items[0].away_team + '：' + items[0].option + '（' + items[0].odds + '）</span></div>';
     html += '<div class="an-line"><span class="m">' + items[1].home_team + ' vs ' + items[1].away_team + '：' + items[1].option + '（' + items[1].odds + '）</span></div>';
-    html += '<div class="an-tip">2串1 组合赔率：<strong>' + (allOdds.toFixed(2)) + '</strong>　投2元预计返 ' + (allOdds * 2).toFixed(2) + ' 元</div>';
+    html += '<div class="an-tip">2串1 组合赔率：<strong>' + (allOdds.toFixed(2)) + '</strong>　投入 2 元，预计返奖 ' + (allOdds * 2).toFixed(2) + ' 元（测算，不含抽水）</div>';
   } else {
     html += '<div class="an-line" style="justify-content:flex-start"><span class="m" style="font-size:0.68rem;color:var(--text-muted)">低风险（赔率最低）：</span></div>';
     html += '<div class="an-line">' + detail(minPair.a) + '</div><div class="an-line">' + detail(minPair.b) + '</div>';
@@ -2091,21 +2352,21 @@ function runParlayAnalysis(){
     rec3.items.forEach(function(it){ html += '<div class="an-line">' + detail(it) + '</div>'; });
     html += '<div class="an-line">3串1 组合赔率 <strong>' + rec3.odds.toFixed(2) + '</strong></div>';
   }
-  html += '<div class="an-tip">全部' + items.length + '场全串：' + allOdds.toFixed(2) + '（' + (allOdds * 2).toFixed(2) + '元）</div>';
-  html += '<div class="an-risk">请理性购彩，本推荐仅供参考</div></div>';
+  html += '<div class="an-tip">全部 ' + items.length + ' 场全串：组合赔率 ' + allOdds.toFixed(2) + '（投入 2 元测算返奖 ' + (allOdds * 2).toFixed(2) + ' 元）</div>';
+  html += '<div class="an-risk">以上为模型输出与组合赔率测算，仅供参考，请理性购彩；任一腿未中则整套未中</div></div>';
   out.innerHTML = html;
 }
 
 /* ===== 骨架屏 ===== */
 function renderSkeleton(){
-  var sk = '<div class="loading"><div class="spinner"></div><p style="margin-top:10px">加载赛事数据…</p><div class="loading-hint" id="loadHint">首次加载若较慢请稍候</div></div>';
+  var sk = '<div class="loading"><div class="spinner"></div><p style="margin-top:10px">正在获取今日竞彩场次…</p><div class="loading-hint" id="loadHint">首次加载通常 3-10 秒，请稍候</div></div>';
   for (var i = 0; i < 3; i++) { sk += '<div class="sk-card"><div class="sk-line sk-title skeleton"></div><div class="sk-line sk-sub skeleton"></div><div class="sk-line sk-sub skeleton"></div></div>'; }
-  var rec = '<div class="loading">生成推荐方案…</div>';
+  var rec = '<div class="loading">正在生成串关方案…</div>';
   for (var j = 0; j < 2; j++) rec += '<div class="sk-card sk-rec skeleton" style="margin-bottom:8px"></div>';
   document.getElementById('matchesContainer').innerHTML = sk;
   document.getElementById('recContainer').innerHTML = rec;
   var hint = document.getElementById('loadHint');
-  if (hint) setTimeout(function(){ if (hint) { hint.textContent = '加载较慢，正在连接数据源…'; hint.className = 'loading-hint loading-slow'; } }, 6000);
+  if (hint) setTimeout(function(){ if (hint) { hint.textContent = '加载较慢，正在重试数据源；若持续无数据请点顶部「刷新数据」'; hint.className = 'loading-hint loading-slow'; } }, 6000);
 }
 
 /* ===== 今日决策条（首屏）：状态灯 + 单注/价值盘/回避摘要 + 串关条数 =====
@@ -2153,6 +2414,17 @@ function toggleDecisionAvoid(){
   renderDecisionBar(dbLastReport, dbLastRecs);
 }
 
+// 决策条理由折叠：手机端默认最多两行，点「展开」看完整理由
+function toggleDecisionFold(btn){
+  var bar = document.getElementById('decisionBar');
+  var rs = document.getElementById('dbReason');
+  if(!bar || !rs) return;
+  var open = !bar.classList.contains('db-expanded');
+  if(open){ bar.classList.add('db-expanded'); rs.classList.add('db-expanded'); }
+  else { bar.classList.remove('db-expanded'); rs.classList.remove('db-expanded'); }
+  if(btn){ btn.textContent = open ? '收起' : '展开'; btn.setAttribute('aria-expanded', open ? 'true' : 'false'); }
+}
+
 // 状态判定：high=0 且（无正 Edge 价值场 或 价值数组为空）→ 观望；high>=2 且场外覆盖>=30% → 可投注；其余谨慎
 function dbJudge(rep){
   var counts = (rep && rep.counts) || {};
@@ -2172,17 +2444,17 @@ function dbJudge(rep){
   if(high === 0 && (posEdge === 0 || values.length === 0)){
     state = 'watch';
     why = values.length === 0
-      ? '今日既无高信心场次，也无正期望价值盘，宜观望或小额娱乐'
-      : '今日无高信心场次，价值盘仅零星信号，宜小注或观望';
+      ? '今天不建议下手：既无信心等级为高的场次，也无正期望价值盘，观望为宜'
+      : '今天不建议重仓：无信心等级为高的场次，价值盘只有零星信号，小注或观望';
   } else if(high >= 2 && cover >= 0.3){
     state = 'bet';
-    why = '高信心 ' + high + ' 场，场外信息覆盖 ' + Math.round(cover * 100) + '%，可按计划参与并控制仓位';
+    why = '今天可以小额参与：信心等级为高 ' + high + ' 场，场外信息覆盖 ' + Math.round(cover * 100) + '%，仍须控制单注仓位';
   } else {
     var bits = [];
-    if(high < 2) bits.push('高信心仅 ' + high + ' 场');
+    if(high < 2) bits.push('信心等级为高仅 ' + high + ' 场');
     if(cover < 0.3) bits.push('场外信息覆盖 ' + Math.round(cover * 100) + '%（偏低）');
     if(!bits.length) bits.push('信号不足以构成重仓条件');
-    why = bits.join('，') + '，建议减仓、只打最有把握的场次';
+    why = '今天建议减仓：' + bits.join('，') + '，只挑最有把握的场次';
     state = 'careful';
   }
   return { state: state, why: why, high: high, cover: cover };
@@ -2190,7 +2462,7 @@ function dbJudge(rep){
 
 function dbSteadyHtml(rep){
   var arr = ((rep && rep.steady) || []).slice(0, 3);
-  if(!arr.length) return '<span class="db-item db-muted">暂无稳健单注方案</span>';
+  if(!arr.length) return '<span class="db-item db-muted">暂无符合条件（信心等级达标）的单注场次</span>';
   return arr.map(function(s){
     // steady.legs 形如「主队 vs 客队：胜 @1.85」，无独立时间字段，时间按队名回查场次表
     var legs = s.legs || [];
@@ -2207,7 +2479,7 @@ function dbSteadyHtml(rep){
     var t = dbMatchTime(teams);
     var txt = (t ? t + ' ' : '') + teams + (dir ? ' · ' + dir : '') + (od ? ' @' + od : '') +
       (legs.length > 1 ? '（' + legs.length + '串1 · 组合 ' + (s.combo_odds || '-') + '）' : '') +
-      (s.risk_level ? ' · 信心' + s.risk_level : '');
+      (s.risk_level ? ' · 风险等级 ' + s.risk_level : '');
     return '<span class="db-item" data-teams="' + esc(teams) + '" data-fallback="matchesContainer" onclick="dbJump(this)" title="点击定位到该场比赛">' + esc(txt) + '</span>';
   }).join('');
 }
@@ -2226,9 +2498,9 @@ function dbValueHtml(rep){
     var txt = (v.match_time ? v.match_time + ' ' : '') + (v.teams || '') +
       (v.option ? ' · ' + v.option : '') +
       (v.jc_odds ? ' @' + v.jc_odds : '') +
-      ' · edge ' + (isFinite(edge) ? (edge > 0 ? '+' : '') + edge + '%' : '—') +
-      ' · 凯利 ' + (isFinite(kel) ? kel + '%' : '—') +
-      (v.contra ? '（与推荐方向相反，仅作参考）' : '');
+      ' · 价值差 ' + (isFinite(edge) ? (edge > 0 ? '+' : '') + edge + '%' : '—') +
+      ' · 建议仓位（分数凯利）' + (isFinite(kel) ? kel + '%' : '—') +
+      (v.contra ? '（与国际盘方向相反，仅作参考）' : '');
     return '<span class="db-item" data-teams="' + esc(v.teams || '') + '" data-fallback="valueContainer" onclick="dbJump(this)" title="点击定位到该场比赛">' + esc(txt) + '</span>';
   }).join('');
 }
@@ -2253,8 +2525,8 @@ function renderDecisionWaiting(){
   var bar = document.getElementById('decisionBar');
   if(!bar) return;
   bar.setAttribute('data-state', 'waiting');
-  var st = document.getElementById('dbState'); if(st) st.textContent = '等待今日数据';
-  var rs = document.getElementById('dbReason'); if(rs) rs.textContent = '正在汇总今日场次、价值盘与场外信息…';
+  var st = document.getElementById('dbState'); if(st) st.textContent = '正在加载今日结论';
+  var rs = document.getElementById('dbReason'); if(rs) rs.textContent = '正在汇总今日场次、价值盘与场外信息，约需数秒…若长时间无变化，请点顶部「刷新数据」重试。';
   var mid = document.getElementById('dbMid');
   if(mid){
     mid.innerHTML =
@@ -2265,6 +2537,36 @@ function renderDecisionWaiting(){
   var pv = document.getElementById('dbParlay'); if(pv) pv.textContent = '暂无';
 }
 
+/* 推荐闸门说明：后端 reco_policy 会把历史评估未通过的玩法从推荐里移除，
+   这里把"移除了什么、为什么"显式写出来，避免用户以为页面坏了。 */
+function renderPolicyNote(policy){
+  var box = document.getElementById('policyNote');
+  if(!box) return;
+  var sup = (policy && policy.suppressed) || [];
+  var plays = (policy && policy.plays) || {};
+  var names = { '1X2':'胜平负', 'AH':'让胜平负', 'TG':'总进球', 'VAL':'价值盘', 'CS':'比分', 'HTFT':'半全场' };
+  var keys = Object.keys(plays);
+  if(!sup.length && !keys.length){ box.style.display = 'none'; return; }
+  var lines = [];
+  if(sup.length){
+    var cnt = {};
+    sup.forEach(function(s){ var k = s.play || '?'; cnt[k] = (cnt[k] || 0) + 1; });
+    var parts = Object.keys(cnt).map(function(k){ return (names[k] || k) + ' ' + cnt[k] + ' 条'; });
+    lines.push('<b>推荐闸门</b>：' + esc(parts.join('、')) + ' 未通过历史评估，已从推荐中移除。');
+  }
+  var notes = [];
+  keys.forEach(function(k){
+    var p = plays[k];
+    if(p && (p.code === 'pause' || p.code === 'reference')){
+      notes.push((names[k] || k) + '：' + esc(p.note || ''));
+    }
+  });
+  if(notes.length){ lines.push('依据 — ' + notes.join('；')); }
+  box.innerHTML = lines.join('<br>') +
+    ' <a class="link-btn" href="/history">查看玩法证据</a>';
+  box.style.display = 'block';
+}
+
 function renderDecisionBar(report, recs){
   dbLastReport = report || null;
   dbLastRecs = recs || null;
@@ -2272,7 +2574,7 @@ function renderDecisionBar(report, recs){
   var bar = document.getElementById('decisionBar');
   if(!bar) return;
   var j = dbJudge(report);
-  var label = j.state === 'bet' ? '可投注' : (j.state === 'careful' ? '谨慎' : '建议观望');
+  var label = j.state === 'bet' ? '可小额参与' : (j.state === 'careful' ? '谨慎 · 建议减仓' : '建议观望');
   bar.setAttribute('data-state', j.state);
   var st = document.getElementById('dbState');
   if(st) st.textContent = label;
@@ -2280,6 +2582,12 @@ function renderDecisionBar(report, recs){
   if(rs){
     var up = report.updated ? '（更新 ' + report.updated + '）' : '';
     rs.textContent = j.why + up;
+  }
+  var fb = document.getElementById('dbFoldBtn');
+  if(fb){
+    var short = (j.why || '').length <= 44;
+    fb.style.display = short ? 'none' : '';
+    if(short){ bar.classList.remove('db-expanded'); rs.classList.remove('db-expanded'); fb.textContent = '展开'; fb.setAttribute('aria-expanded', 'false'); }
   }
   var mid = document.getElementById('dbMid');
   if(mid){
@@ -2292,7 +2600,7 @@ function renderDecisionBar(report, recs){
   if(pv){
     var n = (recs || []).length;
     pv.textContent = n ? n + ' 套' : '暂无';
-    pv.title = n ? 'AI 串关推荐方案数量，点击查看' : '今日暂无串关方案';
+    pv.title = n ? 'AI 串关方案数量，点击查看' : '今日暂无串关方案';
     pv.style.cursor = n ? 'pointer' : 'default';
     pv.onclick = n ? function(){ var el = document.getElementById('recContainer'); if(el) el.scrollIntoView({ behavior:'smooth', block:'start' }); } : null;
   }
@@ -2340,7 +2648,7 @@ async function refreshData(force){
     }).catch(function(){ renderNoJingcai('竞彩官方接口暂时不可用'); });
   }catch(err){
     setConnStatus(false, '数据暂不可用');
-    document.getElementById('matchesContainer').innerHTML='<div style="text-align:center;padding:40px;color:var(--text-muted)">加载异常: '+esc(err.message)+'<br><button class="btn-refresh" onclick="refreshData()" style="margin-top:8px">重试</button></div>';
+    document.getElementById('matchesContainer').innerHTML='<div style="text-align:center;padding:40px;color:var(--text-muted)">数据加载失败：'+esc(err && err.message ? err.message : '网络异常')+'<br><span style="font-size:0.74rem">请检查网络后点下方按钮重试；若持续失败可能是数据接口暂时不可用。</span><br><button class="btn-refresh" onclick="refreshData()" style="margin-top:10px">点击重试</button></div>';
   }finally{
     if(btn){ btn.disabled = false; if(lbl) lbl.textContent = '刷新数据'; }
   }
@@ -2350,7 +2658,7 @@ function setConnStatus(ok, text){
   var dotEl = document.getElementById('connDot');
   var txt = document.getElementById('matchStatus');
   if(dotEl){ dotEl.className = ok ? 'dot' : 'dot dot-warn'; }
-  if(txt){ txt.textContent = text || (ok ? '已连接' : '连接中...'); }
+  if(txt){ txt.textContent = text || (ok ? '已连接' : '正在连接…'); }
 }
 
 // 无竞彩官方场次时的空状态：明确提示，不展示第三方/模拟场次
@@ -2363,9 +2671,9 @@ function renderNoJingcai(msg){
     + '<div style="font-size:0.95rem;font-weight:700;margin-bottom:8px">' + msg + '</div>'
     + '<div style="font-size:0.72rem;line-height:1.7">本网站只展示<b>竞彩官方</b>开售场次；<br>第三方 / 模拟数据不予展示，也不计入回测。</div>'
     + '<button class="btn-refresh" onclick="refreshData(true)" style="margin-top:14px">重试</button></div>';
-  if(rc) rc.innerHTML = '<div class="bt-note">暂无竞彩官方场次，未生成推荐。</div>';
+  if(rc) rc.innerHTML = '<div class="bt-note">今日无竞彩官方开售场次，因此未生成串关方案。属正常空态。</div>';
   if(vc) vc.innerHTML = '';
-  if(hc) hc.innerHTML = '<div class="bt-note">暂无竞彩官方场次。</div>';
+  if(hc) hc.innerHTML = '<div class="bt-note">今日无竞彩官方开售场次，暂无历史预测记录可展示。</div>';
   var vs = document.getElementById('valueStats'); if(vs) vs.innerHTML = '';
   var cb = document.getElementById('calibBox'); if(cb) cb.innerHTML = '';
   var ab = document.getElementById('abBox'); if(ab) ab.innerHTML = '';
@@ -2398,6 +2706,7 @@ function showData(data){
   renderValueRecs(data.value_recs);
   // 首屏决策条：消费后端已生成的 daily_report（此前被丢弃），不产生新的计算口径
   renderDecisionBar(data.daily_report, data.recommendations);
+  renderPolicyNote(data.policy);
   loadValueStats();
   allTotalGoals = {};
   (data.total_goals_recs||[]).forEach(function(tg){ if(tg && tg.match_id) allTotalGoals[tg.match_id] = tg; });
@@ -2469,13 +2778,19 @@ async function runBacktestNow(btn){
 
 async function loadBacktestPanel(){
   var c = document.getElementById('historyContainer');
+  if(!c) return;
   try{
     var resp = await fetch('/api/backtest');
-    if(!resp.ok){ c.innerHTML='<div class="loading">加载战绩…</div>'; return; }
+    if(!resp.ok){
+      c.innerHTML = '<div class="bt-note warn">战绩接口返回异常（HTTP ' + resp.status + '），本次战绩不可用。 <button class="link-btn" type="button" onclick="loadBacktestPanel()">重试</button></div>';
+      return;
+    }
     var s = await resp.json();
     if(!s || s.total_bets === 0){ renderHistoryPanel(null); return; }
     renderBacktestPanel(s);
-  }catch(e){ }
+  }catch(e){
+    c.innerHTML = '<div class="bt-note warn">战绩请求超时或网络异常。 <button class="link-btn" type="button" onclick="loadBacktestPanel()">重试</button></div>';
+  }
 }
 function renderBacktestPanel(s){
   var c = document.getElementById('historyContainer');
@@ -2511,22 +2826,23 @@ function renderBacktestPanel(s){
     var pid = 'btDg' + di;
     groupHtml += '<div class="bt-group"><div class="bt-group-head bt-collapsible" onclick="toggleBtGroup(\''+pid+'\')"><span class="gh-name"><span class="bt-arrow" id="'+pid+'_a">&#9654;</span> '+d+'</span><span class="gh-meta">'+list.length+' 条 ｜ 中'+w+'/失'+l+'/待'+p+'</span></div><div class="bt-group-body" id="'+pid+'" style="display:none">'+list.map(rElemFn).join('')+'</div></div>';
   });
-  var estNote = estTotal>0 ? '<div class="bt-note" style="color:var(--amber)">&#9432; 另有 '+estTotal+' 条「比分/半全场」为模型估算赔率（非真实市场盘口），已从上方ROI统计中剔除，仅供参考命中率。</div>' : '';
+  var estNote = estTotal>0 ? '<div class="bt-note" style="color:var(--amber)">&#9432; 另有 '+estTotal+' 条「比分/半全场」为模型估算赔率（非真实市场盘口），不可投注，已从上方 ROI 统计中剔除，仅供参考命中率。</div>' : '';
+  var rateMo = moE(rate, s.total_bets||0);
   c.innerHTML = `
     <div class="backtest-card">
       <div class="bt-stats">
-        <div class="bt-stat"><div class="num" style="color:${roiColor}">${roi>0?'+':''}${roi}%</div><div class="lab">ROI 盈利率(真实赔率)</div></div>
-        <div class="bt-stat"><div class="num" style="color:var(--text)">${s.total_bets||0}</div><div class="lab">样本(结算)</div></div>
-        <div class="bt-stat"><div class="num" style="color:${rateColor}">${rate}%</div><div class="lab">命中率(真实赔率)</div></div>
-        <div class="bt-stat"><div class="num" style="color:var(--text)">${s.wins||0}/${s.losses||0}</div><div class="lab">胜/负</div></div>
-        <div class="bt-stat"><div class="num" style="color:${pnl>0?'var(--high)':pnl<0?'var(--low)':'var(--text)'}">${pnl>0?'+':''}${pnl}</div><div class="lab">累计盈亏(元)</div></div>
+        <div class="bt-stat"><div class="num" style="color:${roiColor}">${roi>0?'+':''}${roi}%</div><div class="lab">ROI（投入回报率）</div></div>
+        <div class="bt-stat"><div class="num" style="color:var(--text)">${s.total_bets||0}</div><div class="lab">已结算样本</div></div>
+        <div class="bt-stat"><div class="num" style="color:${rateColor}">${rate}%${rateMo!=null?'<span class="num-sub">±'+rateMo+'pp</span>':''}</div><div class="lab">命中率（真实赔率）</div></div>
+        <div class="bt-stat"><div class="num" style="color:var(--text)">${s.wins||0}/${s.losses||0}</div><div class="lab">命中/未中</div></div>
+        <div class="bt-stat"><div class="num" style="color:${pnl>0?'var(--high)':pnl<0?'var(--low)':'var(--text)'}">${pnl>0?'+':''}${pnl}</div><div class="lab">累计盈亏（元）</div></div>
         <div class="bt-stat"><div class="num" style="font-size:1rem;font-weight:700;color:var(--text-muted)">${s.avg_odds||0}</div><div class="lab">平均赔率</div></div>
       </div>
       ${estNote}
       <div class="bt-note">预测记录（${records.length}条，待结算 ${s.pending||0}）：</div>
       ${groupHtml}
       <div class="bt-note">模型 ${s.model_name||'—'} ｜ 更新 ${s.computed_at||'—'}</div>
-      <div class="bt-note">命中率≠盈利：只看命中率可能亏，ROI=总盈亏/总投入，&gt;0 才长期为正期望</div>
+      <div class="bt-note">命中率不等于盈利：只看命中率仍可能亏损；ROI（投入回报率）= 总盈亏 ÷ 总投入，&gt;0 才说明长期正期望。</div>
     </div>`;
 }
 
@@ -2536,10 +2852,15 @@ async function loadParlayPanel(){
   if(!c) return;
   try{
     var resp = await fetch('/api/parlay-stats');
-    if(!resp.ok){ c.innerHTML='<div class="loading">加载串关战绩…</div>'; return; }
+    if(!resp.ok){
+      c.innerHTML = '<div class="bt-note warn">串关战绩接口返回异常（HTTP ' + resp.status + '）。 <button class="link-btn" type="button" onclick="loadParlayPanel()">重试</button></div>';
+      return;
+    }
     var s = await resp.json();
     renderParlayPanel(s);
-  }catch(e){}
+  }catch(e){
+    c.innerHTML = '<div class="bt-note warn">串关战绩请求超时或网络异常。 <button class="link-btn" type="button" onclick="loadParlayPanel()">重试</button></div>';
+  }
 }
 function renderParlayPanel(s){
   var c = document.getElementById('parlayStatsContainer');
@@ -2558,14 +2879,15 @@ function renderParlayPanel(s){
       return esc(l.home_team || '?') + 'vs' + esc(l.away_team || '?') + ' ' + esc(l.option || '') + '@' + (l.odds || '—');
     }).join(' | ');
     var st = r.outcome === 'win' ? '✓ 命中 +' + (r.pnl || 0) : r.outcome === 'lose' ? '✗ 未中 ' + (r.pnl || 0) : r.outcome === 'void' ? '— 作废' : '⏳ 待结算';
-    return '<div class="bt-item ' + cls + '"><span class="bt-team">' + esc(r.name || r.plan_type || '串关') + ' ×' + (r.combo_odds || '—') + '</span><span style="margin-left:auto">' + st + '</span></div>' +
+    return '<div class="bt-item ' + cls + '"><span class="bt-team">' + esc(nicePlanType(r.name || r.plan_type || '串关')) + ' ×' + esc(r.combo_odds || '—') + '</span><span style="margin-left:auto">' + st + '</span></div>' +
       '<div class="bt-note" style="margin:-2px 0 6px 4px">' + legs + '</div>';
   }).join('');
+  var rateMo2 = moE(rate, s.wins!=null && s.losses!=null ? (s.wins+s.losses) : total);
   c.innerHTML = `
     <div class="backtest-card">
       <div class="bt-stats">
-        <div class="bt-stat"><div class="num" style="color:${rateColor}">${rate}%</div><div class="lab">串关命中率</div></div>
-        <div class="bt-stat"><div class="num" style="color:${roiColor}">${roi>0?'+':''}${roi}%</div><div class="lab">串关 ROI</div></div>
+        <div class="bt-stat"><div class="num" style="color:${rateColor}">${rate}%${rateMo2!=null?'<span class="num-sub">±'+rateMo2+'pp</span>':''}</div><div class="lab">串关命中率</div></div>
+        <div class="bt-stat"><div class="num" style="color:${roiColor}">${roi>0?'+':''}${roi}%</div><div class="lab">ROI（投入回报率）</div></div>
         <div class="bt-stat"><div class="num">${s.wins||0}/${s.losses||0}</div><div class="lab">中/未中</div></div>
         <div class="bt-stat"><div class="num" style="color:${pnl>0?'var(--high)':pnl<0?'var(--low)':'var(--text)'}">${pnl>0?'+':''}${pnl}</div><div class="lab">累计盈亏</div></div>
         <div class="bt-stat"><div class="num">${s.pending||0}</div><div class="lab">待结算</div></div>
