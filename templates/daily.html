@@ -22,7 +22,11 @@
   --high:#22c55e;--high-bg:#064e3b;--medium:#f59e0b;--medium-bg:#451a03;--low:#ef4444;--low-bg:#450a0a;
   --card-stripe:#0f1a2e;--btn-bg:#1e2940;--btn-hover:#233049;--shadow:0 1px 2px rgba(0,0,0,.4);--shadow-lg:0 6px 24px rgba(0,0,0,.5);
 }
-body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Microsoft YaHei',sans-serif;min-height:100vh}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Microsoft YaHei',sans-serif;min-height:100vh;min-height:100dvh;font-size:16px;line-height:1.5;-webkit-text-size-adjust:100%;overflow-wrap:break-word;padding-bottom:env(safe-area-inset-bottom)}
+html{-webkit-tap-highlight-color:transparent}
+button,a,select,label,.nav-link,.gloss,.btn-refresh{touch-action:manipulation}
+img,svg,table,pre{max-width:100%}
+pre{overflow-wrap:anywhere;word-break:break-word;white-space:pre-wrap}
 a{text-decoration:none;color:inherit}
 .warn-bar{background:var(--amber-soft);border-bottom:1px solid var(--amber-border);padding:7px 16px;display:flex;align-items:center;justify-content:center;gap:8px;font-size:0.78rem;color:var(--amber-text);font-weight:500;text-align:center}
 .header{position:sticky;top:0;z-index:100;background:var(--card-bg);border-bottom:1px solid var(--border);padding:10px 24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;box-shadow:var(--shadow)}
@@ -36,7 +40,7 @@ a{text-decoration:none;color:inherit}
 .nav-link:hover{color:var(--text)}
 .nav-link.active{background:var(--primary);color:#fff}
 .btn-ghost{background:var(--btn-bg);color:var(--text);border:1px solid var(--border);padding:5px 10px;border-radius:8px;cursor:pointer;font-size:0.78rem}
-.container{max-width:1000px;margin:0 auto;padding:24px}
+.container{max-width:1260px;margin:0 auto;padding:24px;box-sizing:border-box;min-width:0}
 .page-title{font-size:1.4rem;font-weight:800;margin-bottom:6px;display:flex;align-items:center;gap:8px}
 .page-sub{font-size:0.74rem;color:var(--text-muted);margin-bottom:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .btn-refresh{background:var(--primary);color:#fff;border:none;padding:7px 14px;border-radius:8px;cursor:pointer;font-size:0.78rem;font-weight:700}
@@ -58,7 +62,45 @@ a{text-decoration:none;color:inherit}
 .loading{text-align:center;padding:50px;color:var(--text-muted)}
 .footer{text-align:center;padding:20px 24px;color:var(--text-muted);font-size:0.72rem;border-top:1px solid var(--border);margin-top:30px;background:var(--card-bg)}
 .footer .disclaimer{color:var(--low);font-weight:600;margin-bottom:5px}
-@media(max-width:900px){.header{padding:8px 12px}.nav-links{width:100%;justify-content:center}.container{padding:16px}}
+/* ===== 口径说明 / 徽章 / 重试（沿用现有配色变量，未新增配色体系） ===== */
+.dr-why{font-size:0.7rem;line-height:1.75;color:var(--text-muted);background:var(--card-stripe);border:1px solid var(--border-light);border-radius:10px;padding:10px 12px;margin-top:10px;overflow-wrap:anywhere;min-width:0}
+.dr-why b{color:var(--text)}
+.dr-badge{display:inline-flex;align-items:center;gap:4px;font-size:0.64rem;font-weight:700;padding:2px 7px;border-radius:999px;background:var(--primary-soft);color:var(--primary-dark);border:1px solid var(--primary-border);white-space:nowrap}
+.dr-badge.est{background:var(--amber-soft);color:var(--amber-text);border-color:var(--amber-border)}
+.num-sub{font-size:0.62rem;color:var(--text-light);margin-left:4px;white-space:nowrap}
+.link-btn{background:none;border:none;color:var(--primary-dark);font-size:0.76rem;font-weight:700;cursor:pointer;padding:8px 10px;border-radius:8px;touch-action:manipulation}
+.link-btn:hover{background:var(--btn-bg)}
+.dr-retry{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:12px}
+@media(max-width:480px){.link-btn{min-height:44px}}
+@media(min-width:481px) and (max-width:900px){
+  .header{padding:8px 12px}
+  .nav-links{width:100%;justify-content:center;order:3}
+  .container{padding:16px}
+  .dr-stats{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@media(max-width:480px){
+  body{font-size:15px}
+  .warn-bar{font-size:0.7rem;padding:6px 10px;padding-left:calc(10px + env(safe-area-inset-left));padding-right:calc(10px + env(safe-area-inset-right))}
+  .header{padding:8px 10px;padding-top:calc(8px + env(safe-area-inset-top))}
+  .nav-links{padding:3px;gap:4px}
+  .nav-link{min-height:44px;display:inline-flex;align-items:center;padding:8px 10px;font-size:0.78rem}
+  .container{padding:10px 10px 90px;padding-left:calc(10px + env(safe-area-inset-left));padding-right:calc(10px + env(safe-area-inset-right))}
+  .page-title{font-size:1.2rem;flex-wrap:wrap;gap:6px}
+  .page-sub{gap:8px}
+  .btn-refresh,.btn-ghost{min-height:44px;padding:10px 14px;font-size:0.8rem}
+  .dr-card{padding:12px;border-radius:12px}
+  .dr-stats{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .dr-stat{padding:8px;min-width:0}
+  .dr-stat .num{font-size:1.05rem}
+  .dr-item{font-size:0.74rem}
+  .dr-text{font-size:0.78rem;padding:10px 11px}
+  .dr-note{font-size:0.74rem}
+  #glossTip{max-width:calc(100vw - 24px)}
+}
+@media(min-width:1200px){
+  .dr-card{padding:20px 22px}
+  .dr-stats{grid-template-columns:repeat(5,minmax(0,1fr))}
+}
 </style>
 </head>
 <body>
@@ -80,12 +122,16 @@ a{text-decoration:none;color:inherit}
 </div>
 
 <div class="container">
-  <h2 class="page-title">&#128202; 每日分析 · 实时综述</h2>
+  <h2 class="page-title">&#128202; 每日分析 · 实时综述 <span class="dr-badge">模型输出</span></h2>
   <div class="page-sub">
-    <span id="drMeta">加载中…</span>
+    <span id="drMeta">正在加载今日综述…</span>
     <span id="drCountdown"></span>
     <button class="btn-refresh" id="refreshBtn" onclick="refresh()">立即刷新</button>
     <span style="font-size:0.66rem;color:var(--text-light)">每 60 秒自动刷新（页面隐藏时暂停）</span>
+  </div>
+  <div class="dr-why">
+    <b>口径说明：</b>信心等级只有 高 / 中 / 低 三档（依据模型概率与赔率隐含概率的相对关系）；<b>盈亏线（break-even）</b>= 1 ÷ 平均赔率，命中率低于它长期不盈利；<b>ROI（投入回报率）</b>= 总盈亏 ÷ 总投入，>0 才算长期正期望；命中率常附<b>样本 n</b> 与 <b>±Ypp（抽样误差）</b>，样本越小波动越大。<br>
+    <b>赔率口径：</b>竞彩官方盘口为真实可投注赔率；凡标注「估算赔率（不可投注，仅供参考）」的，均为模型按概率反推，不能下注，也不计入 ROI。以下内容均为模型输出与历史统计，仅供参考，不构成投注建议。
   </div>
   <div class="dr-card" style="margin-bottom:14px;padding:12px 14px">
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:0.76rem">
@@ -94,9 +140,9 @@ a{text-decoration:none;color:inherit}
       <button class="btn-ghost" onclick="testNotify()">测试通知</button>
       <span id="notifyStatus" style="color:var(--text-muted);font-size:0.7rem"></span>
     </div>
-    <div class="dr-note" style="margin-top:6px">需在 05:30 时保持本页面打开（可放后台，勿关标签页）。通知需浏览器授权；部分手机浏览器不支持网页通知。</div>
+    <div class="dr-note" style="margin-top:6px">需在 05:30 时保持本页面打开（可放后台，勿关标签页）。通知需浏览器授权；部分手机浏览器不支持网页通知（iOS 需把本站加到主屏幕，且站点须为 HTTPS）。</div>
   </div>
-  <div id="dailyReport"><div class="loading">生成今日分析…</div></div>
+  <div id="dailyReport"><div class="loading">正在生成今日综述（首次约 3–10 秒）…</div></div>
 </div>
 
 <div class="footer">
@@ -110,6 +156,10 @@ var autoTimer = null, countTimer = null, countSec = 60, refreshing = false;
 var coldRetryDone = false;   // 首屏后补刷一次，消除国际盘/价值盘的冷启动空窗
 
 /* ===== 通用 ===== */
+function esc(s){
+  if(s==null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
 function toggleTheme(){
   var html=document.documentElement;
   var next=html.getAttribute('data-theme')==='dark'?'light':'dark';
@@ -120,15 +170,19 @@ function toggleTheme(){
 document.querySelectorAll('.copyYear').forEach(function(e){ e.textContent = new Date().getFullYear(); });
 
 var GLOSSARY = {
-  kelly:'凯利公式：按“估算胜率×赔率-1”算最优下注比例；分数凯利=凯利÷4，更保守。',
-  juice:'抽水（overround）：庄家抽的手续费；返奖率≈1÷(1+抽水)，越低越不划算。',
-  value:'价值/溢价：竞彩赔率相对国际锐盘去水概率的正期望差；正值=更划算。',
-  edge:'正期望：估算概率×赔率-1；>0 才长期有利。',
+  kelly:'凯利公式：按「估算胜率×赔率-1」算最优下注比例；分数凯利=凯利÷4，更保守。',
+  juice:'抽水（overround）：庄家在赔率里抽走的手续费；返奖率≈1÷(1+抽水)，越低越不划算。',
+  value:'价值/溢价：竞彩赔率相对国际锐盘去水概率的正期望差；正值=相对更划算。',
+  edge:'期望值（Edge）：估算概率×赔率-1；>0 才长期有利。',
   fair:'公平赔率：按去水真实概率换算的赔率；竞彩赔率高于它=有正期望。',
-  imp:'隐含概率：1÷赔率（含抽水）。',
-  breakeven:'盈亏平衡命中率=1÷平均赔率；低于它长期亏损。',
+  imp:'赔率隐含概率：1÷赔率（含抽水）。',
+  breakeven:'盈亏线（break-even）：=1÷平均赔率，即平均赔率隐含的必中率；命中率低于它长期不盈利。',
+  roi:'ROI（投入回报率）：=（累计返奖−累计投入）÷累计投入，>0 才算长期正期望。',
+  sample:'样本 n：参与统计的已结算场次数；样本越小结论越不可靠。',
+  moe:'抽样误差：按 95% 置信度估算的命中率波动范围，记为 ±Ypp（pp=百分点）。',
+  est:'估算赔率：模型按概率反推的赔率，不可投注，也不计入 ROI。',
   over25:'大2.5=总进球≥3；小2.5=≤2。',
-  parlay:'串关：多场组合、赔率相乘，任一腿未中即全中失败。'
+  parlay:'串关：多场组合、赔率相乘，任一腿未中即整套未中。'
 };
 function tip(key,label){ return '<span class="gloss" data-tip="'+GLOSSARY[key]+'">'+(label||key)+'</span>'; }
 var _tipEl=null;
@@ -224,31 +278,38 @@ async function fetchJingcaiList(){
 
 /* ===== 渲染 ===== */
 function renderEmpty(msg){
-  document.getElementById('dailyReport').innerHTML='<div class="dr-card"><div class="dr-note">'+msg+'<br>本页只展示竞彩官方开售场次；第三方/模拟数据不展示、也不计入回测。</div></div>';
-  document.getElementById('drMeta').textContent = msg;
+  msg = msg || '今日暂无竞彩官方开售场次';
+  var box = document.getElementById('dailyReport');
+  if(box){
+    box.innerHTML = '<div class="dr-card"><div style="font-size:0.92rem;font-weight:800;margin-bottom:6px">' + esc(msg) + '</div>'
+      + '<div class="dr-note">本页只展示 <b>竞彩官方</b> 开售场次；第三方 / 模拟数据不展示，也不计入回测。<br>若刚打开页面，可稍等数秒或点下方按钮重试；重试后仍为空，说明官方今日确无开售。</div>'
+      + '<div class="dr-retry"><button class="btn-refresh" onclick="refresh()">点击重试</button><button class="link-btn" onclick="location.reload()">重新载入页面</button></div></div>';
+  }
+  var meta = document.getElementById('drMeta'); if(meta) meta.textContent = msg;
 }
 function renderDailyReport(rep, stats){
   var c=document.getElementById('dailyReport');
-  if(!rep||!rep.total){ renderEmpty('当前暂无竞彩官方场次'); return; }
+  if(!rep||!rep.total){ renderEmpty('今日暂无竞彩官方开售场次'); return; }
   var cnt=rep.counts||{};
-  document.getElementById('drMeta').textContent = (rep.date||'')+' 更新 '+(rep.updated||'')+' ｜ '+(rep.source||'')+' ｜ 共 '+rep.total+' 场';
+  document.getElementById('drMeta').textContent = (rep.date||'')+' 更新 '+(rep.updated||'')+' ｜ '+(rep.source||'竞彩官方')+' ｜ 共 '+rep.total+' 场';
   window._dailyText = rep.text || '';
   var h='<div class="dr-card">';
   h+='<div class="dr-stats">'
-   + '<div class="dr-stat"><div class="num">'+(cnt.high||0)+'/'+(cnt.mid||0)+'/'+(cnt.low||0)+'</div><div class="lab">高/中/低信心</div></div>'
-   + '<div class="dr-stat"><div class="num" style="color:var(--amber)">'+(cnt.extreme_fav||0)+'</div><div class="lab">极端热门(&lt;1.4)</div></div>'
-   + '<div class="dr-stat"><div class="num" style="color:var(--high)">'+((rep.steady||[]).length)+'</div><div class="lab">稳健方案</div></div>'
-   + '<div class="dr-stat"><div class="num" style="color:var(--high)">'+(rep.value_valid_count!=null?rep.value_valid_count:(rep.value||[]).length)+'</div><div class="lab">价值机会</div></div>'
-   + '<div class="dr-stat"><div class="num" style="color:var(--low)">'+((rep.avoid||[]).length)+'</div><div class="lab">需回避</div></div>'
+   + '<div class="dr-stat"><div class="num">'+(cnt.high||0)+'/'+(cnt.mid||0)+'/'+(cnt.low||0)+'</div><div class="lab">信心等级 高/中/低</div></div>'
+   + '<div class="dr-stat"><div class="num" style="color:var(--amber)">'+(cnt.extreme_fav||0)+'</div><div class="lab">极端热门（赔率&lt;1.4）</div></div>'
+   + '<div class="dr-stat"><div class="num" style="color:var(--high)">'+((rep.steady||[]).length)+'</div><div class="lab">稳健单注方案</div></div>'
+   + '<div class="dr-stat"><div class="num" style="color:var(--high)">'+(rep.value_valid_count!=null?rep.value_valid_count:(rep.value||[]).length)+'</div><div class="lab">正期望机会</div></div>'
+   + '<div class="dr-stat"><div class="num" style="color:var(--low)">'+((rep.avoid||[]).length)+'</div><div class="lab">建议回避</div></div>'
    + '</div>';
-  if(rep.headline && rep.headline.length) h+='<div class="dr-note">'+rep.headline.join('<br>')+'</div>';
+  if(rep.headline && rep.headline.length) h+='<div class="dr-note">'+rep.headline.map(esc).join('<br>')+'</div>';
   if(rep.text){
-    h+='<div class="dr-sec">分析总结</div>';
+    h+='<div class="dr-sec">分析总结 <span class="dr-badge">模型输出</span></div>';
     h+='<pre class="dr-text" id="drText"></pre>';
     h+='<div style="margin-top:8px"><button class="btn-refresh" onclick="copyReport()">&#128203; 复制总结文本</button></div>';
   } else {
-    h+='<div class="dr-note">（暂无文本总结）</div>';
+    h+='<div class="dr-note">本次没有生成文本总结：可点上方「立即刷新」重试；若仍为空，多为当日无场次。</div>';
   }
+  h+='<div class="dr-why" style="margin-top:12px">判断口径：信心等级只分 高/中/低；命中率请结合'+tip('sample','样本 n')+'与'+tip('moe','抽样误差')+'一起看，并与'+tip('breakeven','盈亏线')+'比较；是否长期有效应看'+tip('roi','ROI（投入回报率）')+'。<br>以上为模型输出与历史统计，仅供参考，不构成投注建议。</div>';
   h+='</div>';
   c.innerHTML=h;
   var pre=document.getElementById('drText'); if(pre) pre.textContent = rep.text || '';
@@ -256,9 +317,9 @@ function renderDailyReport(rep, stats){
 
 function copyReport(){
   var t = window._dailyText || '';
-  if(!t) return;
+  if(!t){ alert('本次没有可复制的总结文本：可能今日无场次，或总结尚未生成。请先点「立即刷新」再试。'); return; }
   if(navigator.clipboard && navigator.clipboard.writeText){
-    navigator.clipboard.writeText(t).then(function(){ alert('已复制总结文本'); }, function(){ alert('复制失败，请手动选择'); });
+    navigator.clipboard.writeText(t).then(function(){ alert('已复制总结文本'); }, function(){ alert('复制失败（浏览器权限限制），请手动选择文本复制'); });
   } else {
     alert('当前浏览器不支持自动复制，请手动选择文本复制');
   }
@@ -342,18 +403,18 @@ async function refresh(){
   refreshing=true;
   var btn=document.getElementById('refreshBtn'); if(btn) btn.disabled=true;
   var box=document.getElementById('dailyReport');
-  if(!box || box.innerHTML.indexOf('dr-card')<0){ if(box) box.innerHTML='<div class="loading">生成今日分析…</div>'; }
+  if(!box || box.innerHTML.indexOf('dr-card')<0){ if(box) box.innerHTML='<div class="loading">正在生成今日综述…</div>'; }
   try{
     var jc=await fetchJingcaiList();
-    if(!jc || jc.length<1){ renderEmpty('当前暂无竞彩官方场次'); return; }
-    document.getElementById('drMeta').textContent='分析中…（'+jc.length+' 场）';
+    if(!jc || jc.length<1){ renderEmpty('今日暂无竞彩官方开售场次'); return; }
+    document.getElementById('drMeta').textContent='正在分析今日 '+jc.length+' 场…';
     var r=await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({jingcai_matches:jc,client_time:new Date().toISOString(),odds_time:JINGCAI_ODDS_TIME})});
-    if(!r.ok){ renderEmpty('分析接口异常（'+r.status+'）'); return; }
+    if(!r.ok){ renderEmpty('分析接口返回异常（HTTP '+r.status+'）：请稍后点「点击重试」'); return; }
     var d=await r.json();
     renderDailyReport(d.daily_report, d.stats);
   }catch(e){
-    renderEmpty('加载失败：'+e.message);
+    renderEmpty('数据加载失败：'+(e && e.message ? e.message : '网络异常')+'。请检查网络后点「点击重试」');
   }finally{
     refreshing=false; if(btn) btn.disabled=false;
     // 首次加载后 8 秒补刷一次（此时 Bzzoiro 国际盘/预测通常已预热，价值盘不再是空）
