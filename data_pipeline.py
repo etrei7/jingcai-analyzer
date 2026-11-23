@@ -612,6 +612,55 @@ def resettle_recent(days=14, limit=300):
                 b.home_score_ht, b.away_score_ht = hht, aht
             except Exception:
                 pass
+        # 名称兜底：注单用的是竞彩编号（非事件ID）时，用队名+日期在已完赛事件里找真实赛果。
+        # 只接受唯一候选或 ±3 天内最近的一场，宁可漏算也不猜错。
+        name_matched = 0
+        try:
+            from bizzoiro_client import fetch_finished_events
+            _now = datetime.now()
+            _evs = fetch_finished_events(
+                date_from=(_now - timedelta(days=int(days))).strftime('%Y-%m-%d'),
+                date_to=_now.strftime('%Y-%m-%d'), limit=2000) or []
+        except Exception:
+            _evs = []
+        _idx = {}
+        for _e in _evs:
+            _k = (_norm(_cn(_e.get('home_team') or '')), _norm(_cn(_e.get('away_team') or '')))
+            if _k[0] and _k[1]:
+                _idx.setdefault(_k, []).append(_e)
+        stats['name_index'] = len(_idx)
+        for b in rows:
+            if b.home_score is not None or b.outcome is None:
+                continue
+            _k = (_norm(_cn(b.home_team or '')), _norm(_cn(b.away_team or '')))
+            _cands = _idx.get(_k)
+            if not _cands:
+                continue
+            _ev = _cands[0] if len(_cands) == 1 else _pick_by_date(_cands, b.created_at)
+            if not _ev:
+                continue
+            hs, aw = _ev.get('home_score'), _ev.get('away_score')
+            if hs is None or aw is None:
+                continue
+            actual = 'H' if hs > aw else 'A' if hs < aw else 'D'
+            hht, aht = _ht_scores(_ev)
+            try:
+                outcome, pnl = bt._eval_play(b, actual, hs, aw, hht, aht, b.stake or 1.0)
+            except Exception:
+                continue
+            name_matched += 1
+            stats['checked'] += 1
+            if outcome != b.outcome or abs(float(b.pnl or 0) - float(pnl)) > 1e-6:
+                stats['changed'] += 1
+            b.outcome = outcome
+            b.pnl = pnl
+            try:
+                b.home_score, b.away_score = hs, aw
+                b.home_score_ht, b.away_score_ht = hht, aht
+                b.settled_at = b.settled_at or datetime.now()
+            except Exception:
+                pass
+        stats['name_matched'] = name_matched
         if stats['checked']:
             db.session.commit()
         logger.info('[pipeline] resettle %s', stats)
