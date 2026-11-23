@@ -451,8 +451,10 @@ def _model_1x2_probs(home_exp, away_exp, max_goal=12):
     }
 
 
-def _kelly(p, odds):
-    """凯利指数：f = (p*b - (1-p)) / b，b=赔率-1。返回小数（可为负=无价值）。"""
+def _kelly_index(p, odds):
+    """凯利指数（仅用于展示）：f = (p*b - (1-p)) / b，b=赔率-1。返回小数（可为负=无价值）。
+    注意：与上方 _kelly 区分——_kelly 返回 0~0.25 的建议仓位（负数归零），
+    本函数保留负值语义用于前端「凯利」指标展示。重名会覆盖仓位函数，务必保持独立。"""
     try:
         p = float(p)
         odds = float(odds)
@@ -1214,9 +1216,9 @@ def analyze_single_match(match, standings=None, prediction=None):
             'lose': round(model_probs['lose'] - ml, 1),
         }
         result['kelly'] = {
-            'win': _kelly(model_probs['win'] / 100.0, match['win_odds']),
-            'draw': _kelly(model_probs['draw'] / 100.0, match['draw_odds']),
-            'lose': _kelly(model_probs['lose'] / 100.0, match['lose_odds']),
+            'win': _kelly_index(model_probs['win'] / 100.0, match['win_odds']),
+            'draw': _kelly_index(model_probs['draw'] / 100.0, match['draw_odds']),
+            'lose': _kelly_index(model_probs['lose'] / 100.0, match['lose_odds']),
         }
         # 让球盘一致性校验：平手盘时，让胜概率应与模型主胜概率接近
         hcp_warn = None
