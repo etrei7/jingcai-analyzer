@@ -14,6 +14,34 @@ def run_pipeline():
     return 0
 
 
+def _week_stamp(match_id, when=None):
+    """给竞彩编号（周一001…周日014）换算它所属那周的日期。
+
+    竞彩编号每周从 001 重排，去重键只用 (编号, 玩法) 会把下一周同编号的场次当成
+    "已记录"静默吞掉——表现为某些天战绩凭空少一批。这里按"该编号星期X 离 when 最近
+    的那天"折算成日期（前后 3 天窗口：周一凌晨补跑周一场次、周二补看周一晚场都不会跳周），
+    同一天内多次刷新仍得到同一 stamp，不会重复入库。
+    """
+    s = str(match_id or '')
+    if len(s) < 2 or not s.startswith('周'):
+        return ''
+    idx = '一二三四五六日'.find(s[1])
+    if idx < 0:
+        return ''
+    now = when if isinstance(when, datetime) else datetime.now()
+    delta = (idx - now.weekday()) % 7
+    if delta > 3:
+        delta -= 7
+    return (now + timedelta(days=delta)).strftime('%Y-%m-%d')
+
+
+def _dedupe_key(match_id, play_type, when=None):
+    """回测去重键：有 Bzzoiro 事件ID 就按 ID；竞彩编号则带周日期，避免跨周串号。"""
+    mid = str(match_id or '')
+    stamp = _week_stamp(mid, when)
+    return (('%s|%s' % (stamp, mid)) if stamp else mid, play_type)
+
+
 def record_jingcai_plays(matches):
     """把竞彩官方场次写入回测（仅匹配到 Bzzoiro 事件ID的场次，便于赛后按ID精确结算）。
     - 只记真实赔率玩法(1X2/AH)，估算玩法(比分/半全场)不记，避免噪声；
@@ -25,12 +53,19 @@ def record_jingcai_plays(matches):
         import backtest as bt
         from backtest_models import BtBet
         try:
-            existing = {(b.match_id, b.play_type)
+            existing = {_dedupe_key(b.match_id, b.play_type, b.created_at)
                         for b in BtBet.query.filter_by(jingcai=True).all()}
         except Exception:
             existing = set()
         n = 0
+        skipped_started = 0
         for m in matches:
+            # 前视防护：已开赛/已完赛的场次不得再写"预测"。否则用户赛后刷新页面、
+            # 或定时任务补跑时，会用赛后已知的首发/伤停/赔率占位，命中率接近 100%，
+            # 把回测基线整体抬高（属于最致命的样本污染）。
+            if m.get('started') or m.get('status') in ('live', 'finished'):
+                skipped_started += 1
+                continue
             # 优先 Bzzoiro 事件ID（可精确结算）；无匹配时用竞彩编号，结算走队名兜底，
             # 保证每场竞彩推荐都能进入回测闭环（提高结算覆盖率）。
             eid = str(m.get('bz_event_id') or '') or str(m.get('match_id') or '')
@@ -40,11 +75,13 @@ def record_jingcai_plays(matches):
                 _record_match_plays(bt, m, eid, jingcai=True,
                                     include_estimated=True, existing_keys=existing)
                 for _pt in ('1X2', 'AH', 'TG', 'HTFT', 'CS'):
-                    existing.add((eid, _pt))
+                    existing.add(_dedupe_key(eid, _pt))
                 n += 1
             except Exception as e:
                 logger.warning('[pipeline] jingcai play record error: %s', e)
                 continue
+        if skipped_started:
+            logger.info('[pipeline] 跳过已开赛场次 %d 场（前视防护）', skipped_started)
         logger.info('[pipeline] 竞彩回测记录 %d 场', n)
         return n
     except Exception as e:
@@ -56,7 +93,7 @@ def _record_match_plays(bt, m, mid, jingcai=False, include_estimated=True, exist
     """为单场比赛记录赔率快照 + 多玩法预测（1X2/AH/CS/HTFT）。单场异常不影响他场。
     jingcai=True 标记为竞彩官方场次；include_estimated=False 只记真实赔率玩法(1X2/AH)。"""
     # 已记录过则跳过快照，避免每次刷新重复写入
-    if not (existing_keys is not None and (mid, '1X2') in existing_keys):
+    if not (existing_keys is not None and _dedupe_key(mid, '1X2') in existing_keys):
         bt.record_odds_snapshot(
             match_id=mid, market='1X2',
             home=m.get('win_odds'), draw=m.get('draw_odds'), away=m.get('lose_odds'),
@@ -66,7 +103,9 @@ def _record_match_plays(bt, m, mid, jingcai=False, include_estimated=True, exist
     _lg = m.get('league')
     _nf = bool(m.get('news'))       # 记录时是否已有资讯信号（A/B 对比）
     _lf = bool(m.get('lineup'))     # 记录时是否已有官方首发
-    conf_level = m.get('confidence_level', '')
+    # 入库只用原始信心等级：calibration 的降级只影响展示，若把降级后的标签写库，
+    # 下一轮校准又会拿被处理过的标签当训练集，形成反馈环。
+    conf_level = m.get('confidence_level_raw') or m.get('confidence_level', '')
     conf = 0.8 if conf_level == '高' else 0.6 if conf_level == '中' else 0.4
     win, draw, loss = m.get('win_odds'), m.get('draw_odds'), m.get('lose_odds')
 
@@ -232,6 +271,46 @@ def _predict_htft(m, conf, max_goals=5):
         return None
 
 
+def _parse_ev_dt(ev):
+    """Bzzoiro 事件的开赛时间：优先 commence_utc，其次 commence_cst / kickoff / date。"""
+    for k in ('commence_utc', 'commence_cst', 'kickoff', 'date'):
+        v = (ev or {}).get(k)
+        if not v:
+            continue
+        s = str(v).strip().replace('T', ' ')[:19]
+        for fmt in ('%Y-%m-%d %H:%M:%S', '%Y-%m-%d %H:%M', '%Y-%m-%d'):
+            try:
+                return datetime.strptime(s, fmt)
+            except ValueError:
+                continue
+    return None
+
+
+def _pick_by_date(cands, created_at, max_days=3):
+    """队名兜底匹配时，必须再用日期消歧：同一对球队 7 天内可能踢两场（联赛+杯赛），
+    只按队名取"第一个赛果"会把今天的注单按上一场比分结算——这正是命中率异常的可疑来源。
+    唯一候选且无日期信息时才允许直接采用；多候选无日期信息则放弃结算（宁缺毋滥）。"""
+    cands = [c for c in (cands or []) if c]
+    if not cands:
+        return None
+    if len(cands) == 1:
+        return cands[0]
+    base = created_at if isinstance(created_at, datetime) else None
+    if base is None:
+        return None
+    best, best_gap = None, None
+    for c in cands:
+        dt = _parse_ev_dt(c)
+        if dt is None:
+            continue
+        gap = abs((dt - base).total_seconds())
+        if gap > max_days * 86400:
+            continue
+        if best_gap is None or gap < best_gap:
+            best, best_gap = c, gap
+    return best
+
+
 def settle_finished():
     """赛后结算（高覆盖）：构建「事件ID + 队名」双索引的赛果表，按ID优先、队名兜底回填。
     - 已完赛列表 fetch_finished_events（近7天）覆盖大多数场次；
@@ -271,7 +350,7 @@ def settle_finished():
                 results[eid] = ev
             h, a = _norm(_cn(ev.get('home_team'))), _norm(_cn(ev.get('away_team')))
             if h and a:
-                name_idx.setdefault((h, a), ev)
+                name_idx.setdefault((h, a), []).append(ev)
 
         # 1) 已完赛列表
         for _ev in fetch_finished_events():
@@ -327,7 +406,8 @@ def settle_finished():
             eid = str(b.match_id)
             ev = results.get(eid)
             if ev is None:
-                ev = name_idx.get((_norm(_cn(b.home_team)), _norm(_cn(b.away_team))))
+                cands = name_idx.get((_norm(_cn(b.home_team)), _norm(_cn(b.away_team)))) or []
+                ev = _pick_by_date(cands, b.created_at)
             if ev is None:
                 continue
             # 学习别名：命中同一场比赛时，记录名(竞彩中文) 与 事件名(Bzzoiro英文) 可能不同
@@ -350,6 +430,13 @@ def settle_finished():
             b.outcome = outcome
             b.pnl = pnl
             b.settled_at = bt._now_str()
+            try:
+                b.home_score = hs
+                b.away_score = aw
+                b.home_score_ht = ev.get('home_score_ht')
+                b.away_score_ht = ev.get('away_score_ht')
+            except Exception:
+                pass
             settled += 1
         if settled:
             db.session.commit()
