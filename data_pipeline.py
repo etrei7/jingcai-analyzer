@@ -538,6 +538,7 @@ def resettle_recent(days=14, limit=300):
         rows = BtBet.query.filter(BtBet.settled_at >= cutoff).all()
         ids = sorted({str(b.match_id) for b in rows if str(b.match_id).isdigit()})
         events = {}
+        not_played = set()
 
         def _fetch_one(eid):
             try:
@@ -545,8 +546,7 @@ def resettle_recent(days=14, limit=300):
                                     headers={'Authorization': f'Token {API_KEY}'}, timeout=10)
                 if resp.status_code == 200:
                     ev = resp.json()
-                    if is_finished_event(ev):
-                        return eid, ev
+                    return eid, ev
             except Exception:
                 pass
             return eid, None
@@ -557,17 +557,39 @@ def resettle_recent(days=14, limit=300):
                 from concurrent.futures import ThreadPoolExecutor
                 with ThreadPoolExecutor(max_workers=8) as ex:
                     for eid, ev in ex.map(_fetch_one, todo):
-                        if ev:
+                        if not ev:
+                            continue
+                        if is_finished_event(ev):
                             events[eid] = ev
+                        else:
+                            not_played.add(eid)
             except Exception:
                 for eid in todo:
                     _e, _ev = _fetch_one(eid)
-                    if _ev:
+                    if not _ev:
+                        continue
+                    if is_finished_event(_ev):
                         events[_e] = _ev
+                    else:
+                        not_played.add(_e)
         stats = {'days': days, 'bet_rows': len(rows), 'event_ids': len(ids),
-                 'finished_events': len(events), 'checked': 0, 'changed': 0, 'no_score': 0}
+                 'finished_events': len(events), 'checked': 0, 'changed': 0, 'no_score': 0,
+                 'reset_pending': 0}
         for b in rows:
-            ev = events.get(str(b.match_id))
+            eid = str(b.match_id)
+            if eid in not_played:
+                # 还没踢的比赛被当成 0-0 平局结算过：退回到待结算，等真实赛果
+                if b.outcome is not None:
+                    stats['reset_pending'] += 1
+                b.outcome = None
+                b.pnl = 0.0
+                b.settled_at = None
+                b.home_score = None
+                b.away_score = None
+                b.home_score_ht = None
+                b.away_score_ht = None
+                continue
+            ev = events.get(eid)
             if not ev:
                 continue
             hs, aw = ev.get('home_score'), ev.get('away_score')
