@@ -311,6 +311,42 @@ def _pick_by_date(cands, created_at, max_days=3):
     return best
 
 
+def _ht_scores(ev):
+    """从已完赛事件里取半场比分，兼容几种常见字段形态。
+
+    为什么单独写：半全场（HTFT）的 269 条记录全部作废，就是因为这里只认
+    home_score_ht / away_score_ht 两个字段，而数据源可能把它们放在
+    score.halftime、ht_home 等位置。取不到就返回 (None, None)，结算按作废处理。
+    """
+    if not isinstance(ev, dict):
+        return (None, None)
+    for hk, ak in (('home_score_ht', 'away_score_ht'), ('ht_home', 'ht_away'),
+                   ('home_ht', 'away_ht'), ('home_score_half', 'away_score_half'),
+                   ('score_ht_home', 'score_ht_away')):
+        try:
+            if ev.get(hk) is not None and ev.get(ak) is not None:
+                return (int(ev[hk]), int(ev[ak]))
+        except (TypeError, ValueError):
+            continue
+    for key in ('score', 'scores', 'scoreboard'):
+        blk = ev.get(key)
+        if not isinstance(blk, dict):
+            continue
+        for sub in ('halftime', 'half_time', 'ht', 'period1', 'first_half'):
+            v = blk.get(sub)
+            if isinstance(v, dict) and v.get('home') is not None and v.get('away') is not None:
+                try:
+                    return (int(v['home']), int(v['away']))
+                except (TypeError, ValueError):
+                    pass
+            if isinstance(v, (list, tuple)) and len(v) == 2:
+                try:
+                    return (int(v[0]), int(v[1]))
+                except (TypeError, ValueError):
+                    pass
+    return (None, None)
+
+
 def settle_finished():
     """赛后结算（高覆盖）：构建「事件ID + 队名」双索引的赛果表，按ID优先、队名兜底回填。
     - 已完赛列表 fetch_finished_events（近7天）覆盖大多数场次；
@@ -421,10 +457,9 @@ def settle_finished():
             if hs is None or aw is None:
                 continue
             actual = 'H' if hs > aw else 'A' if hs < aw else 'D'
+            hht, aht = _ht_scores(ev)
             try:
-                outcome, pnl = bt._eval_play(b, actual, hs, aw,
-                                             ev.get('home_score_ht'), ev.get('away_score_ht'),
-                                             b.stake or 1.0)
+                outcome, pnl = bt._eval_play(b, actual, hs, aw, hht, aht, b.stake or 1.0)
             except Exception:
                 continue
             b.outcome = outcome
@@ -433,8 +468,8 @@ def settle_finished():
             try:
                 b.home_score = hs
                 b.away_score = aw
-                b.home_score_ht = ev.get('home_score_ht')
-                b.away_score_ht = ev.get('away_score_ht')
+                b.home_score_ht = hht
+                b.away_score_ht = aht
             except Exception:
                 pass
             settled += 1
