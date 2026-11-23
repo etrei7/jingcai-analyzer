@@ -1043,7 +1043,7 @@ def calibration_stats():
         return jsonify(get_calibration())
     except Exception as e:
         logging.warning('[API] calibration: %s', e)
-        return jsonify({'buckets': {}, 'total': 0, 'min_n': 50})
+        return jsonify({'buckets': {}, 'total': 0, 'min_n': 50, 'error': str(e)[:200]})
 
 
 @app.route('/api/ab-test')
