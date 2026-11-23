@@ -152,6 +152,8 @@ def main():
     check('含低档腿封顶 2%', lv_low['pct'] == 2.0, lv_low['pct'])
     lv_high = an._stake_plan(2.9, 0.66, '', ['高', '高'])
     check('全高档仍允许稳健可多投', '稳健可多投' in lv_high['note'], lv_high['note'])
+    lv_jackpot = an._stake_plan(245.0, 0.66, '', ['高', '高', '中', '中'])
+    check('超高赔必须提示高风险', '高风险' in lv_jackpot['note'], lv_jackpot['note'])
 
     print('RESULT:', 'FAIL' if FAIL else 'ALL OK')
     return 1 if FAIL else 0
