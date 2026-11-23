@@ -1677,6 +1677,9 @@ def _stake_plan(combo_odds, avg_conf, risk_level='', leg_levels=None):
             lv_cap, lv_tag = 6.0, tag_low
         if lv_cap <= cap:
             cap, tag = lv_cap, lv_tag
+    # 高赔方案无论信心等级都必须保留风险提示（4 串1 组合 245 倍不能叫"常规仓位"）
+    if co > 8:
+        tag = tag_low
     pct = round(max(0.2, min(pct, cap)), 2)
     amount = max(1, round(pct * 10))         # 按 1000 元本金折算单注额（元）
     return {
