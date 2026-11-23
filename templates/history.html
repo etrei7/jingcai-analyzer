@@ -288,7 +288,7 @@ function renderBacktestPanel(s){
     var l = list.filter(x=>x.outcome==='lose').length;
     var p = list.filter(x=>!x.outcome).length;
     var pnl2 = 0; list.forEach(x=>{ if(x.pnl) pnl2 += x.pnl; });
-    var stake = 0; list.forEach(x=>{ if(x.outcome==='win'||x.outcome==='lose'&&x.stake) stake += x.stake; });
+    var stake = 0; list.forEach(x=>{ if((x.outcome==='win'||x.outcome==='lose') && x.stake) stake += (x.stake||0); });
     var roll = stake? Math.round(pnl2/stake*1000)/10 : 0;
     var metatxt = isEst ? '命中 '+w+'/'+l+'（'+p+'待结算）｜ 模型估算，不计入ROI' : '命中 '+w+'/'+l+'（'+p+'待结算）｜ 盈亏 '+(pnl2>0?'+':'')+pnl2+' ｜ ROI '+roll+'%';
     groupHtml += '<div class="bt-group"><div class="bt-group-head"><span class="gh-name">'+pt+(isEst?' (估算)':'')+'</span><span class="gh-meta">'+metatxt+'</span></div>' + list.map(rElemFn).join('') + '</div>';
