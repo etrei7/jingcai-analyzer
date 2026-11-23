@@ -170,8 +170,18 @@ def refresh():
 
     data = {'ts': time.time(), 'items': items}
     try:
-        with open(_FILE, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False)
+        if not items:
+            # 抓取失败/全空时不能覆盖上一次的好缓存（否则资讯区会被刷成空白）
+            try:
+                with open(_FILE, 'r', encoding='utf-8') as f:
+                    old = json.load(f) or {}
+                if old.get('items'):
+                    logger.info('[news] 本次抓取为空，保留旧缓存 %d 条', len(old['items']))
+                    return 0
+            except Exception:
+                pass
+        from atomic_json import dump as _atomic_dump
+        _atomic_dump(_FILE, data)
     except Exception as e:
         logger.warning('[news] 落盘失败: %s', e)
     logger.info('[news] 刷新完成：%d 条有效资讯（原始 %d）', len(items), len(raw))
