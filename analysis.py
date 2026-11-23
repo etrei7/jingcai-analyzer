@@ -1487,7 +1487,9 @@ def generate_parlay_recommendations(matches):
         r.update(_parlay_meta(mds))
         confs = [d.get('confidence_score') or 0 for d in mds]
         avg_conf = (sum(confs) / len(confs)) if confs else 0.5
-        stake = _stake_plan(r.get('combo_odds'), avg_conf, r.get('risk_level', ''))
+        leg_levels = [str(d.get('confidence_level') or '') for d in mds]
+        stake = _stake_plan(r.get('combo_odds'), avg_conf, r.get('risk_level', ''), leg_levels)
+        r['leg_levels'] = leg_levels
         r['avg_confidence'] = round(avg_conf, 3)
         r['stake_pct'] = stake['pct']
         r['stake_note'] = stake['note']
@@ -1630,9 +1632,12 @@ def _infer_leg_meta(m, option):
     return None, None
 
 
-def _stake_plan(combo_odds, avg_conf, risk_level=''):
+def _stake_plan(combo_odds, avg_conf, risk_level='', leg_levels=None):
     """资金管理建议：按组合赔率 + 平均信心给出建议投入本金比例与金额。
-    avg_conf 为 0~1 的平均信心分（缺失按 0.5）。返回 dict。
+    avg_conf 为 0~1 的平均信心分（缺失按 0.5）。leg_levels 为各腿校准后的
+    信心等级（高/中/低）；任一腿为低/中时按等级再压一档，因为"平均信心"会把
+    一两场高赔热门拉高，而校准后的等级才反映该场历史命中率是否过盈亏线。
+    返回 dict。
     原则：低赔稳健可多投、高赔高风险小额；信心越高比例越高。
     信心闸门：历史实测命中率低于盈亏线时，"低赔=稳"是错觉——低信心日必须压小仓位，
     且不允许出现"稳健可多投"字样，避免用措辞把长期负期望包装成稳健。
@@ -1661,6 +1666,17 @@ def _stake_plan(combo_odds, avg_conf, risk_level=''):
         cap, tag = 3.5, '信心中等·常规仓位'
     else:
         cap, tag = 6.0, tag_low
+    # 等级闸门：任一腿校准为低/中都按等级压档（取与信心闸门更严者）
+    levels = [str(x) for x in (leg_levels or [])]
+    if levels:
+        if '低' in levels:
+            lv_cap, lv_tag = 2.0, '低信心·小注试探'
+        elif '中' in levels:
+            lv_cap, lv_tag = 3.5, '信心中等·常规仓位'
+        else:
+            lv_cap, lv_tag = 6.0, tag_low
+        if lv_cap <= cap:
+            cap, tag = lv_cap, lv_tag
     pct = round(max(0.2, min(pct, cap)), 2)
     amount = max(1, round(pct * 10))         # 按 1000 元本金折算单注额（元）
     return {
@@ -1731,5 +1747,6 @@ def _make_rec_detail(item):
         'market_tendency': m.get('market_tendency', ''),
         'injury_impact': m.get('injury_impact', ''),
         'confidence_score': m.get('confidence_score', 0),
+        'confidence_level': m.get('confidence_level', ''),
         'intl_edge': _intl_edge_for(m, item.get('option', '')),
     }
