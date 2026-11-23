@@ -73,15 +73,21 @@ def _devig(win_odds, draw_odds, lose_odds):
     return iw / total, idr / total, il / total
 
 
-def _kelly(prob, odds):
-    """凯利公式建议仓位：f = (b*p - q)/b，b=赔率-1，p=模型概率，q=1-p。
-    返回建议资金占比（0~1，负数表示不建议）。"""
+# 分数凯利：全凯利对概率误差极不稳健（模型差 3-5pp 时最优仓位只剩全凯利的 1/3-1/2），
+# 故统一使用 1/4 凯利 + 单注 5% 本金上限，与 value_engine 的口径保持一致。
+KELLY_FRACTION = 0.25
+KELLY_CAP = 0.05
+
+
+def _kelly(prob, odds, fraction=KELLY_FRACTION, cap=KELLY_CAP):
+    """分数凯利建议仓位：f = (b*p - q)/b * fraction，b=赔率-1，p=模型概率，q=1-p。
+    返回建议资金占比（0~cap，负期望归零）。"""
     if not odds or odds <= 1 or prob is None or prob <= 0:
         return 0.0
     b = odds - 1.0
     q = 1.0 - prob
     f = (b * prob - q) / b
-    return round(max(0.0, min(f, 0.25)), 4)  # 上限 25% 防止过度下注
+    return round(max(0.0, min(f * fraction, cap)), 4)
 
 
 def _value_analysis(win_odds, draw_odds, lose_odds, lam_h, lam_a):
@@ -99,14 +105,30 @@ def _value_analysis(win_odds, draw_odds, lose_odds, lam_h, lam_a):
     edge_a = round((mp_a - ip_a) * 100, 1)
     edges = [('主胜', edge_h, win_odds, mp_h), ('平', edge_d, draw_odds, mp_d), ('客胜', edge_a, lose_odds, mp_a)]
     best = max(edges, key=lambda x: x[1])
+    # 百分点差 ≠ 正期望：竞彩赔率含抽水，只有 EV = p*odds-1 > 0 才真有价值。
+    def _ev(p, o):
+        try:
+            return round(p * float(o) - 1, 4) if o else 0.0
+        except (TypeError, ValueError):
+            return 0.0
+    ev_h, ev_d, ev_a = _ev(mp_h, win_odds), _ev(mp_d, draw_odds), _ev(mp_a, lose_odds)
+    best_ev = max(ev_h, ev_d, ev_a)
+    ev_labels = {'主胜': ev_h, '平': ev_d, '客胜': ev_a}
+    best_ev_option = max(ev_labels, key=lambda k: ev_labels[k])
     return {
-        'value_available': True,
+        # 只有正期望才算"有价值"；edge 为正但 EV 为负是抽水造成的假价值
+        'value_available': best_ev > 0,
         'model_home_pct': round(mp_h * 100, 1),
         'model_draw_pct': round(mp_d * 100, 1),
         'model_away_pct': round(mp_a * 100, 1),
         'edge_home': edge_h,
         'edge_draw': edge_d,
         'edge_away': edge_a,
+        'ev_home': ev_h,
+        'ev_draw': ev_d,
+        'ev_away': ev_a,
+        'best_ev': best_ev,
+        'best_ev_option': best_ev_option,
         'best_value': best[0],
         'best_edge': best[1],
         'kelly_home': _kelly(mp_h, win_odds),
@@ -114,6 +136,9 @@ def _value_analysis(win_odds, draw_odds, lose_odds, lam_h, lam_a):
         'kelly_away': _kelly(mp_a, lose_odds),
         'kelly_best': _kelly(best[3], best[2]),
         'model_name': 'Dixon-Coles (泊松修正)',
+        # λ 由同一组竞彩赔率推导时，本模型概率只是赔率的单调变换，边际仅作形态参考，
+        # 不能当作独立 alpha；前端必须据此弱化展示，不得标"必买"。
+        'value_source': 'market_implied',
         'disclaimer': '模型估算，仅供参考',
     }
 
@@ -1306,11 +1331,12 @@ def generate_parlay_recommendations(matches):
                 'expected_return': f"投2元返{round(co * 2, 2)}元"
             })
 
-    # 方案二：让球2串1
+    # 方案二：让球2串1（只用官方 hhad 让球赔率；模型推算的公平赔率不可下注）
     hcp_bets = []
     for m in matches:
         hl = m.get('handicap_line', 0)
-        if hl != 0:
+        _pick_src = (m.get('hcp_pick') or {}).get('source') if isinstance(m.get('hcp_pick'), dict) else None
+        if hl != 0 and _pick_src == '官方盘口':
             hwo = m.get('handicap_win_odds', 0)
             hdo = m.get('handicap_draw_odds', 0)
             hlo = m.get('handicap_lose_odds', 0)
@@ -1328,7 +1354,7 @@ def generate_parlay_recommendations(matches):
             recommendations.append({
                 'name': f"让球2串1-{a['match']['match_id']}+{b['match']['match_id']}",
                 'plan_type': '让球胜平负2串1', 'combo_odds': co, 'risk_level': '中风险',
-                'logic': '基于泊松球差模型估算让球赔率，筛选让球盘口最佳选项组合',
+                'logic': '只用竞彩官方 hhad 让球赔率，筛选让球盘口最优选项组合',
                 'matches_detail': [_make_rec_detail(a), _make_rec_detail(b)],
                 'expected_return': f"投2元返{round(co * 2, 2)}元"
             })
@@ -1432,7 +1458,11 @@ def generate_parlay_recommendations(matches):
         return {
             'name': name, 'plan_type': ptype, 'combo_odds': co, 'risk_level': risk,
             'logic': logic, 'matches_detail': details,
-            'expected_return': f"投2元返{round(co * 2, 2)}元",
+            # 含模型估算赔率的腿无法实际下注（实盘赔率不同），因此该方案只作参考，
+            # 不得展示"投2元返X元"的返奖金额，也不得作为可执行方案记账。
+            'actionable': (not est_any),
+            'expected_return': (f"投2元返{round(co * 2, 2)}元" if not est_any
+                                else '含模型估算赔率，实盘不可下注（仅供参考）'),
             'stake_note': _stake_note(co),
             'has_estimated_legs': est_any,
         }
@@ -1527,22 +1557,24 @@ def _match_play_options(m):
     """
     out = []
 
-    def add(play, opts):
+    def add(play, opts, estimated=False):
         opts = [o for o in opts if o[1] and o[1] > 0]
         if not opts:
             return
         b = min(opts, key=lambda x: x[1])
         out.append({'play': play, 'option': b[0], 'odds': round(float(b[1]), 2),
-                    'prob': round(100.0 / b[1], 1), 'estimated': False})
+                    'prob': round(100.0 / b[1], 1), 'estimated': estimated})
 
     # 1. 胜平负（真实竞彩赔率）
     add('胜平负', [('胜', m.get('win_odds')), ('平', m.get('draw_odds')), ('负', m.get('lose_odds'))])
-    # 2. 让球胜平负（真实竞彩赔率）
+    # 2. 让球胜平负：只有官方 hhad 赔率才是真盘，模型推算的「公平赔率」不可下注
+    _hcp_src = (m.get('hcp_pick') or {}).get('source') if isinstance(m.get('hcp_pick'), dict) else None
     if m.get('handicap_line', 0):
         add('让球' + str(m.get('handicap', '') or ''), [
             ('让胜', m.get('handicap_win_odds')),
             ('让平', m.get('handicap_draw_odds')),
-            ('让负', m.get('handicap_lose_odds'))])
+            ('让负', m.get('handicap_lose_odds'))],
+            estimated=(_hcp_src != '官方盘口'))
     # 3. 总进球（模型估算赔率，非实盘 → estimated）
     top3 = m.get('top3_goals') or []
     if top3 and top3[0].get('prob', 0) > 0:
@@ -1601,9 +1633,7 @@ def _infer_leg_meta(m, option):
 def _stake_plan(combo_odds, avg_conf, risk_level=''):
     """资金管理建议：按组合赔率 + 平均信心给出建议投入本金比例与金额。
     avg_conf 为 0~1 的平均信心分（缺失按 0.5）。返回 dict。
-    原则：低赔稳、高赔小；信心越高比例越高；上限 10% 防过度下注。
-    信心闸门（2026-11）：avg_conf <0.45（低信心）时仓位封顶 2%，
-    <0.6（中信心）封顶 3.5%，避免「全低信心日」仍给出 5%+ 的"稳健可多投"仓位。
+    原则：低赔稳健可多投、高赔高风险小额；信心越高比例越高；上限 10% 防过度下注。
     """
     try:
         co = float(combo_odds)
@@ -1623,15 +1653,9 @@ def _stake_plan(combo_odds, avg_conf, risk_level=''):
     else:
         base = 0.5
     pct = base * (0.6 + ac)                  # 信心 0.2→×0.8；0.95→×1.55
-    odds_tag = '稳健可多投' if co <= 3 else '中等仓位' if co <= 8 else '高风险小额试探'
-    if ac < 0.45:
-        cap, tag = 2.0, '低信心·小注试探'
-    elif ac < 0.60:
-        cap, tag = 3.5, odds_tag
-    else:
-        cap, tag = 10.0, odds_tag
-    pct = round(max(0.2, min(pct, cap)), 2)
+    pct = round(max(0.2, min(pct, 10.0)), 2)
     amount = max(1, round(pct * 10))         # 按 1000 元本金折算单注额（元）
+    tag = '稳健可多投' if co <= 3 else '中等仓位' if co <= 8 else '高风险小额试探'
     return {
         'pct': pct,
         'amount': amount,
