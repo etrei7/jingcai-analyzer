@@ -106,6 +106,12 @@ class BtBet(db.Model):
     # 记录时是否已有资讯 / 官方首发（用于「有资讯 vs 无资讯」A/B 回测对比）
     news_flag = db.Column(db.Boolean, default=False)
     lineup_flag = db.Column(db.Boolean, default=False)
+    # 结算时把比分快照写进来：没有比分的 bt_bets 事后无法复核"到底是模型差还是结算错"，
+    # 线上 1X2 低赔段命中率异常就卡在这里。
+    home_score = db.Column(db.Integer, nullable=True)
+    away_score = db.Column(db.Integer, nullable=True)
+    home_score_ht = db.Column(db.Integer, nullable=True)
+    away_score_ht = db.Column(db.Integer, nullable=True)
 
 
 class BtBacktestSummary(db.Model):
