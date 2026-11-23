@@ -94,6 +94,14 @@ $env:PORT='5057'; $env:DATABASE_URL='sqlite:///<workspace>/tmp_test.db'   # 用�
 线上定时任务不要再依赖进程内 APScheduler（PA 免费版会卸载 worker），改用
 `tools/daily_job.py --task pipeline|news|settle`，在 PA **Tasks** 页配 cron 触发。
 
+**免费账户没有 Tasks 功能**（PA API 实测返回 403
+`Scheduled tasks are not available on free accounts`），因此线上默认走
+`maintenance.py` 的「请求驱动维护」：访问 `/` 或 `/api/data` 且距上次维护超过
+`MAINT_INTERVAL_HOURS`（默认 6 小时）时，后台线程补跑一次
+`settle_finished()` + `news_ingest.refresh()`；`/health` 的 `maintenance` 字段
+展示 `enabled/interval_hours/last_run/running`，可用 `MAINT_ENABLED=0` 关闭。
+升级付费账户后可在 Tasks 页添加 `tools/daily_job.py`，两者可共存（幂等，靠去重键）。
+
 ## 数据源
 
 - **Bzzoiro**（后端可访问）：赛事、赔率、伤病、裁判、天气、AI 预览、积分榜等。
