@@ -104,6 +104,22 @@ def api_probe(max_age=600):
         ok = resp.status_code < 300
         _PROBE.update({'ts': now, 'ok': ok, 'code': resp.status_code,
                        'error': None if ok else resp.text[:160]})
+        # 样本字段：结算需要判断"这场到底踢完没有"，而按 ID 单查会返回未开赛事件
+        # （比分字段是 0-0 默认值），所以这里把字段名和状态值摊出来，便于线上核对。
+        try:
+            js = resp.json()
+            items = js.get('results') if isinstance(js, dict) else js
+            ev = (items or [None])[0]
+            if isinstance(ev, dict):
+                _PROBE['sample'] = {
+                    'keys': sorted(ev.keys())[:24],
+                    'status': ev.get('status'),
+                    'home_score': ev.get('home_score'),
+                    'away_score': ev.get('away_score'),
+                    'commence': ev.get('commence_utc') or ev.get('commence_cst') or ev.get('kickoff'),
+                }
+        except Exception:
+            pass
     except Exception as e:
         _PROBE.update({'ts': now, 'ok': False, 'code': None, 'error': str(e)[:160]})
     return dict(_PROBE)
