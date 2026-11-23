@@ -310,7 +310,8 @@ def compute_summary(period='all', model_name=None, play_type=None, jingcai_only=
         est_wins = sum(1 for b in est_settled if b.outcome == 'win')
 
         # 按玩法拆分：各玩法的样本/命中/盈亏/ROI（区分真实/估算赔率）
-        _play_cn = {'1X2': '胜平负', 'AH': '让胜平负', 'CS': '比分', 'HTFT': '半全场', 'OU': '大小球'}
+        _play_cn = {'1X2': '胜平负', 'AH': '让胜平负', 'TG': '总进球', 'CS': '比分',
+                    'HTFT': '半全场', 'OU': '大小球', 'VAL': '价值盘'}
         _pb = {}
         for b in settled:
             pt = _play_cn.get(b.play_type, b.play_type or '其他')
