@@ -1104,7 +1104,7 @@ function renderOddsMove(m) {
 var oddsMovementLoaded = false;
 async function loadOddsMovement(matches){
   if(oddsMovementLoaded) return;
-  var ids = (matches||[]).map(function(m){ return m.raw_event_id; }).filter(Boolean).slice(0,12);
+  var ids = (matches||[]).map(function(m){ return m.bz_event_id || m.raw_event_id; }).filter(Boolean).slice(0,12);
   if(!ids.length) return;
   oddsMovementLoaded = true;
   try{
@@ -1114,7 +1114,7 @@ async function loadOddsMovement(matches){
     if(!j || !j.success || !j.data) return;
     var map = j.data, changed = false;
     (allMatches||[]).forEach(function(m){
-      var v = map[String(m.raw_event_id)];
+      var v = map[String(m.bz_event_id || m.raw_event_id)];
       if(v){ m.odds_movement = v; changed = true; }
     });
     if(changed) applyFilters();
