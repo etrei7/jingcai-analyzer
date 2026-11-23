@@ -217,4 +217,24 @@ $env:PORT='5057'; $env:DATABASE_URL='sqlite:///<workspace>/tmp_test.db'   # 用�
 
 > 注意：`data_generator.generate_matches` 经 `from data_generator import generate_matches as generate_mock_matches` **别名导入**使用，**不可删**（静态分析会误报为未引用）。
 
+## 玩法级专业评估 + 推荐闸门（2026-11-23 新增）
+
+- `play_review.py::review(period)`：每种玩法单独评估——命中率 + **Wilson 95% 置信区间**、
+  盈亏线 `mean(1/赔率)`（不是 `1/平均赔率`）、`edge = 命中率 − 盈亏线`、二项 z 检验 p 值、
+  按投注额加权的 ROI 及近似置信区间、月度序列、近 30 天 vs 之前对比、样本量分级（A≥300/B≥100/C≥30/D）。
+  结论只有三档：`usable` / `watch` / `pause`，另有 `reference`（估算赔率玩法）与 `insufficient`（样本不足）。
+  接口 `/api/play-review?period=all|30d|90d|7d`；前端在「历史战绩 → 历史预测回测 → 玩法专业评估」。
+- `reco_policy.py::apply_policy(parlays, tg_recs, val_recs)`：读 `play_review`（缓存 30 分钟），
+  `pause`/`reference` 的玩法**不进推荐列表**，被移除的记进 `suppressed` 供前端解释；
+  `insufficient` 保留但附「样本不足、仅小注观察」提示。`/api/data`、`/api/analyze`、`/api/daily`
+  三处返回体都带 `policy` 字段；`daily_report.build_report(..., policy=...)` 会把移除原因写进 risk_notes。
+  **顺序约束**：必须先记录回测（保留证据）再过滤展示，否则被过滤的推荐会从证据里消失。
+- 信心口径修复：`analysis.py` 的「语义一致性」段现在按**被推荐选项**的赔率封顶
+  （`confidence_score ≤ 1/该选项赔率`），并把 >2.2 赔率的高信心降为中——避免「推荐 2.6 的冷门却标高信心」。
+- 半全场结算：`data_pipeline._ht_scores(ev)` 兼容 `home_score_ht`、`ht_home`、`score.halftime` 等形态；
+  取不到半场比分时仍是 `void`（历史 269 条全 void 即此原因，不要用"全场比分"冒充半场）。
+- 回归测试：`tools/test_play_review.py`（26 条断言，覆盖 Wilson 边界、盈亏线、判定三档、估算玩法）。
+  跑法同 `tools/test_settle_offline.py`（用 venv 解释器 + `PYTHONDONTWRITEBYTECODE=1`）。
+
+
 
