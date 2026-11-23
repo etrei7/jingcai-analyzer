@@ -36,6 +36,20 @@ if not os.environ.get('FLASK_DEBUG', '0') == '1':
 db.init_app(app)
 
 
+@app.before_request
+def _lazy_maintenance():
+    """免费版 PA 没有 Scheduled Tasks：借访问触发补跑结算/资讯（见 maintenance.py）。
+    只挂在只读页面入口上，POST 写入路径不受影响，且内部有间隔与并发保护。"""
+    if request.method != 'GET' or request.path not in ('/', '/api/data'):
+        return None
+    try:
+        import maintenance
+        maintenance.maybe_run(app)
+    except Exception as e:  # 维护失败绝不影响正常请求
+        logging.warning('[维护] 触发失败: %s', e)
+    return None
+
+
 def _migrate_bt_bets():
     """轻量迁移：为已有数据库的 bt_bets 补充 estimated 列（区分真实/估算赔率），
     避免表结构变更后查询报 "no such column"。并对历史估算赔率玩法（HTFT/CS）回填标记。"""
@@ -901,6 +915,11 @@ def health():
         info['instance_writable'] = _os.access(app.instance_path, _os.W_OK)
     except Exception:
         info['instance_writable'] = None
+    try:
+        import maintenance
+        info['maintenance'] = maintenance.status()
+    except Exception:
+        pass
     return jsonify(info)
 
 
