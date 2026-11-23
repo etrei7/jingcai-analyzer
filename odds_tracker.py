@@ -36,8 +36,8 @@ def _save(data):
                            key=lambda kv: kv[1].get('last', {}).get('time', ''),
                            reverse=True)
             data = dict(items[:_MAX_ENTRIES])
-        with open(_FILE, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False)
+        from atomic_json import dump as _atomic_dump
+        _atomic_dump(_FILE, data)
     except Exception as e:
         logger.warning('[odds] save failed: %s', e)
 
