@@ -640,11 +640,35 @@ def resettle_recent(days=14, limit=300):
             if _k[0] and _k[1]:
                 _idx.setdefault(_k, []).append(_e)
         stats['name_index'] = len(_idx)
+        _date_cache = {}
+
+        def _load_date(d):
+            """按日期小窗口拉已完赛事件（整段窗口一次拉会被接口截断，只能按天补）。"""
+            key = d.strftime('%Y-%m-%d')
+            if key in _date_cache:
+                return
+            _date_cache[key] = 0
+            try:
+                evs = fetch_finished_events(
+                    date_from=(d - timedelta(days=1)).strftime('%Y-%m-%d'),
+                    date_to=(d + timedelta(days=1)).strftime('%Y-%m-%d'), limit=400) or []
+            except Exception:
+                evs = []
+            for _e in evs:
+                _k = (_norm(_cn(_e.get('home_team') or '')), _norm(_cn(_e.get('away_team') or '')))
+                if _k[0] and _k[1]:
+                    _idx.setdefault(_k, []).append(_e)
+            _date_cache[key] = len(evs)
+
         for b in rows:
             if b.home_score is not None or b.outcome is None:
                 continue
             _k = (_norm(_cn(b.home_team or '')), _norm(_cn(b.away_team or '')))
             _cands = _idx.get(_k)
+            if not _cands and len(_date_cache) < 60:
+                _d = (b.created_at or datetime.now())
+                _load_date(_d if isinstance(_d, datetime) else datetime.now())
+                _cands = _idx.get(_k)
             if not _cands:
                 continue
             _ev = _cands[0] if len(_cands) == 1 else _pick_by_date(_cands, b.created_at)
@@ -672,6 +696,7 @@ def resettle_recent(days=14, limit=300):
             except Exception:
                 pass
         stats['name_matched'] = name_matched
+        stats['dates_fetched'] = len(_date_cache)
         if stats['checked']:
             db.session.commit()
         logger.info('[pipeline] resettle %s', stats)
