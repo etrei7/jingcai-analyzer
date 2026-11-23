@@ -5,7 +5,7 @@
 import logging
 import time
 import threading
-from datetime import datetime
+from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -104,7 +104,14 @@ def record_prediction(match_id, play_type, pick, predicted_prob, odds,
     # 去重：同一场比赛同一玩法只记一条；若本次带更完整信号，则补写 news/lineup 标记
     try:
         from backtest_models import BtBet as _BB, db as _db
-        ex = _BB.query.filter_by(match_id=match_id, play_type=play_type, jingcai=jingcai).first()
+        _q = _BB.query.filter_by(match_id=match_id, play_type=play_type, jingcai=jingcai)
+        # 竞彩编号（周一001…）每周从 001 重排：若只按编号去重，下一周同编号场次会被
+        # 判成"已记录"而静默丢弃（战绩凭空少一批）。这里对编号类 ID 加上时间窗
+        # （近 3 天），既挡住同日重复刷新，又不会跨周串号。
+        if str(match_id).startswith('周'):
+            from datetime import datetime as _dt, timedelta as _td
+            _q = _q.filter(_BB.created_at >= _dt.now() - _td(days=3))
+        ex = _q.first()
         if ex:
             _upd = False
             if news_flag and not getattr(ex, 'news_flag', False):
@@ -185,6 +192,14 @@ def settle_bet(match_id, home_score, away_score, home_team=None, away_team=None,
             b.outcome = outcome
             b.pnl = pnl
             b.settled_at = _now_str()
+            # 比分快照：事后复核结算是否正确（历史行没有比分，导致 1X2 低赔段异常无法定性）
+            try:
+                b.home_score = home_score
+                b.away_score = away_score
+                b.home_score_ht = home_score_ht
+                b.away_score_ht = away_score_ht
+            except Exception:
+                pass
             settled += 1
         if settled:
             db.session.commit()
@@ -254,14 +269,15 @@ def _eval_play(b, actual, hs, aw, hht, awt, stake):
         if pt == 'OU':
             total = (hs or 0) + (aw or 0)
             try:
-                if pick.startswith('O'):
-                    line = float(pick[1:]) / 10.0
-                    return ('win', round((b.odds - 1) * stake, 4)) if total > line else ('lose', round(-stake, 4))
-                elif pick.startswith('U'):
-                    line = float(pick[1:]) / 10.0
-                    return ('win', round((b.odds - 1) * stake, 4)) if total < line else ('lose', round(-stake, 4))
+                line = float(pick[1:]) / 10.0
             except Exception:
                 return 'void', 0.0
+            if total == line:
+                return 'void', 0.0   # 走盘：退本金，不算输
+            if pick.startswith('O'):
+                return ('win', round((b.odds - 1) * stake, 4)) if total > line else ('lose', round(-stake, 4))
+            if pick.startswith('U'):
+                return ('win', round((b.odds - 1) * stake, 4)) if total < line else ('lose', round(-stake, 4))
             return 'void', 0.0
 
         # TG 总进球（精确进球数；'7+' 表示 7 球及以上）
@@ -279,9 +295,35 @@ def _eval_play(b, actual, hs, aw, hht, awt, stake):
         return 'void', 0.0
 
 
+def _to_dt(v):
+    """settled_at 可能是 datetime 或 'YYYY-MM-DD HH:MM:SS' 字符串，统一成 datetime。"""
+    if not v:
+        return None
+    if isinstance(v, datetime):
+        return v
+    s = str(v).strip().replace('T', ' ')[:19]
+    for fmt in ('%Y-%m-%d %H:%M:%S', '%Y-%m-%d %H:%M', '%Y-%m-%d'):
+        try:
+            return datetime.strptime(s, fmt)
+        except ValueError:
+            continue
+    return None
+
+
+def _period_cutoff(period):
+    """'7d'/'30d'/'90d' → 起始时间；'all'/无法解析 → None（不过滤）。"""
+    p = (period or 'all').lower().strip()
+    if p.endswith('d') and p[:-1].isdigit():
+        days = int(p[:-1])
+        if days > 0:
+            return datetime.now() - timedelta(days=days)
+    return None
+
+
 def compute_summary(period='all', model_name=None, play_type=None, jingcai_only=True):
     """聚合战绩：命中率、ROI、累计盈亏。供面板读取。
-    jingcai_only=True 时只统计竞彩官方开售场次（过滤体彩不开的 Bzzoiro 场次）。"""
+    jingcai_only=True 时只统计竞彩官方开售场次（过滤体彩不开的 Bzzoiro 场次）。
+    period 落到 settled_at 上做真实过滤（此前只回显不过滤，导致"近 7 天"与"全部"同数）。"""
     try:
         from backtest_models import BtBet, db
         q = BtBet.query
@@ -289,16 +331,25 @@ def compute_summary(period='all', model_name=None, play_type=None, jingcai_only=
             q = q.filter_by(jingcai=True)
         if play_type and play_type != 'all':
             q = q.filter_by(play_type=play_type)
-        bets = q.all()
+        all_bets = q.all()
+        pending = sum(1 for b in all_bets if not b.settled_at)
+        bets = all_bets
+        cutoff = _period_cutoff(period)
+        if cutoff:
+            bets = []
+            for b in all_bets:
+                dt = _to_dt(b.settled_at)
+                if dt and dt >= cutoff:
+                    bets.append(b)
         settled = [b for b in bets if b.settled_at]
         # 区分"可投注价值"（真实赔率）与"模型估算赔率"（比分/半全场）
         market_settled = [b for b in settled if not getattr(b, 'estimated', False)]
         est_settled = [b for b in settled if getattr(b, 'estimated', False)]
-        total = len(settled)
+        total = len(market_settled)
         # 整体命中率：基于真实赔率玩法（可投注），估算玩法仅作参考看板
         wins = sum(1 for b in market_settled if b.outcome == 'win')
         losses = sum(1 for b in market_settled if b.outcome == 'lose')
-        voids = sum(1 for b in settled if b.outcome == 'void')
+        voids = sum(1 for b in market_settled if b.outcome == 'void')
         total_stake = sum((b.stake or 1.0) for b in market_settled if b.outcome in ('win', 'lose'))
         total_pnl = sum((b.pnl or 0.0) for b in market_settled)
         hit_rate = round(wins / (wins + losses) * 100, 1) if (wins + losses) else 0.0
@@ -405,7 +456,7 @@ def compute_summary(period='all', model_name=None, play_type=None, jingcai_only=
             'roi': roi,
             'avg_odds': avg_odds,
             'computed_at': _now_str(),
-            'pending': len(bets) - total,
+            'pending': pending,
             # 估算赔率玩法（比分/半全场）不计入 ROI，仅作参考
             'estimated_total': est_total,
             'estimated_wins': est_wins,
@@ -418,13 +469,15 @@ def compute_summary(period='all', model_name=None, play_type=None, jingcai_only=
 
 
 def _group_stat(sel):
+    """分组统计：void（作废/退款）不计入胜负与投注额，避免把作废当成输。"""
     n = len(sel)
-    wins = sum(1 for b in sel if b.outcome == 'win')
-    stake = sum((b.stake or 1.0) for b in sel)
-    pnl = sum((b.pnl or 0.0) for b in sel)
+    decided = [b for b in sel if b.outcome in ('win', 'lose')]
+    wins = sum(1 for b in decided if b.outcome == 'win')
+    stake = sum((b.stake or 1.0) for b in decided)
+    pnl = sum((b.pnl or 0.0) for b in decided)
     return {
-        'n': n, 'wins': wins, 'losses': n - wins,
-        'hit_rate': round(wins / n * 100, 1) if n else 0.0,
+        'n': n, 'wins': wins, 'losses': len(decided) - wins, 'voids': n - len(decided),
+        'hit_rate': round(wins / len(decided) * 100, 1) if decided else 0.0,
         'roi': round(pnl / stake * 100, 1) if stake else 0.0,
         'pnl': round(pnl, 2),
     }
