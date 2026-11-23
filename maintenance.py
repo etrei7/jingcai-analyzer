@@ -30,9 +30,52 @@ def status():
     }
 
 
+_FLAG_NAME = 'RESETTLE'
+
+
+def _flag_path(app):
+    return os.path.join(app.instance_path, _FLAG_NAME)
+
+
+def _consume_resettle(app):
+    """如果 instance/RESETTLE 存在，按其内容的天数重算历史结算，然后删掉标记。
+
+    为什么用文件标记：重算必须跑在有 BZZOIRO_API_KEY 的 webapp 进程里，而控制台
+    （PA console）的 env 是另一套、没有这个 key。用共享文件系统传信号最省事，
+    也避免为一次性维护开一个公网可写的接口。
+    """
+    path = _flag_path(app)
+    if not os.path.exists(path):
+        return None
+    try:
+        with open(path, 'r', encoding='utf-8') as fh:
+            days = int((fh.read() or '14').strip() or 14)
+    except Exception:
+        days = 14
+    try:
+        os.remove(path)
+    except Exception:
+        pass
+    try:
+        from data_pipeline import resettle_recent
+        stats = resettle_recent(days=days)
+        logger.info('[维护] 重算历史结算: %s', stats)
+        try:
+            import json
+            with open(os.path.join(app.instance_path, 'resettle_report.json'), 'w', encoding='utf-8') as fh:
+                json.dump({'days': days, 'stats': stats}, fh, ensure_ascii=False)
+        except Exception:
+            pass
+        return stats
+    except Exception as e:
+        logger.warning('[维护] 重算失败: %s', e)
+        return {'error': str(e)[:200]}
+
+
 def _work(app):
     try:
         with app.app_context():
+            _consume_resettle(app)
             from data_pipeline import settle_finished
             res = settle_finished()
             logger.info('[维护] 结算完成: %s', res)
@@ -50,10 +93,12 @@ def _work(app):
 
 def maybe_run(app):
     """满足条件时启动一次后台维护；返回是否真的启动。"""
-    if not _ENABLED or _INTERVAL_HOURS <= 0:
+    forced = os.path.exists(_flag_path(app))
+    if not _ENABLED or (_INTERVAL_HOURS <= 0 and not forced):
         return False
     now = time.time()
-    if now - _STATE['ts'] < _INTERVAL_HOURS * 3600:
+    forced = os.path.exists(_flag_path(app))
+    if not forced and now - _STATE['ts'] < _INTERVAL_HOURS * 3600:
         return False
     if not _LOCK.acquire(blocking=False):
         return False
