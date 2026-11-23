@@ -61,8 +61,9 @@ python tools/test_logic.py
 - **API-Football**（`API_FOOTBALL_KEY`）：积分榜排名/状态/主客场/净胜球（免费版 100 次/天，已做内存缓存与限流降级）。
 - **国际博彩公司赔率**（Bzzoiro `/odds/`，`market=1x2|asian_handicap|double_chance|draw_no_bet`）：用于"国际盘口对比/价值差"。注意单次返回**硬上限 50 条**。
 - **赔率变动懒加载**（`bizzoiro_client.fetch_odds_movement_for_matches` → `/api/odds-movement?ids=`）：
-  前端**首屏后**按 `raw_event_id` 批量取「初赔→即赔」趋势（最多 12 场），只返回轻量字段
-  `{trend, total, pressure_side}`；每场 120s 缓存 + 空值负缓存，避免页面 60s 自动刷新时重复打上游。
+  前端**首屏后**按 `bz_event_id`（没有时退回 `raw_event_id`）批量取「初赔→即赔」趋势（最多 12 场），
+  只返回轻量字段 `{trend, total, pressure_side}`；每场 120s 缓存 + 空值负缓存，避免页面 60s 自动刷新时重复打上游。
+  注意：Bzzoiro 只认数字事件 ID，竞彩编号（如「周一001」）查不到数据，必须用 `bz_event_id`。
   ⚠️ 该函数名被 `app.py` 按名导入——改名必须同步 `app.py`，否则接口会静默返回 `success:false`。
 - **官方首发（Phase 2）**：`lineup_client.py` 用 API-Football `/fixtures/lineups`，**仅开赛前 120 分钟**内、
   **严格匹配**（联赛 + 日期 + 主客双队名）才展示；后台线程拉取 + 10 分钟缓存；受额度/限流保护。
