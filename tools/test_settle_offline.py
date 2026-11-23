@@ -65,18 +65,23 @@ def main():
     print('[2] settle_finished 端到端')
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     today_ev = {
-        'id': '9001', 'home_team': '甲队', 'away_team': '乙队',
+        'id': '9001', 'home_team': '甲队', 'away_team': '乙队', 'status': 'finished',
         'home_score': 2, 'away_score': 1, 'home_score_ht': 1, 'away_score_ht': 0,
         'commence_utc': _utc(now - timedelta(hours=1)),
     }
     old_ev = {
-        'id': '9002', 'home_team': '甲队', 'away_team': '乙队',
+        'id': '9002', 'home_team': '甲队', 'away_team': '乙队', 'status': 'finished',
         'home_score': 0, 'away_score': 3,
         'commence_utc': _utc(now - timedelta(days=6)),
     }
     # 同名对阵、都没有日期字段 → 无法消歧，必须放弃结算
-    amb_a = {'id': '9101', 'home_team': '丙队', 'away_team': '丁队', 'home_score': 1, 'away_score': 0}
-    amb_b = {'id': '9102', 'home_team': '丙队', 'away_team': '丁队', 'home_score': 0, 'away_score': 1}
+    amb_a = {'id': '9101', 'home_team': '丙队', 'away_team': '丁队', 'status': 'finished',
+             'home_score': 1, 'away_score': 0}
+    amb_b = {'id': '9102', 'home_team': '丙队', 'away_team': '丁队', 'status': 'finished',
+             'home_score': 0, 'away_score': 1}
+    # 未开赛事件：接口同样返回 200，比分是 0-0 默认值 —— 绝不能按平局结算
+    upcoming_ev = {'id': '9201', 'home_team': '戊队', 'away_team': '己队', 'status': 'notstarted',
+                   'home_score': 0, 'away_score': 0}
 
     with app.app_context():
         db.create_all()
@@ -89,11 +94,14 @@ def main():
         amb_bet = BtBet(match_id='周一203', home_team='丙队', away_team='丁队',
                         play_type='1X2', pick='H', odds=1.9, stake=1.0,
                         jingcai=True, created_at=now)
-        db.session.add_all([today_bet, old_bet, amb_bet])
+        up_bet = BtBet(match_id='9201', home_team='戊队', away_team='己队',
+                       play_type='1X2', pick='H', odds=2.0, stake=1.0,
+                       jingcai=True, created_at=now)
+        db.session.add_all([today_bet, old_bet, amb_bet, up_bet])
         db.session.commit()
 
         bz.API_KEY = 'offline-test'
-        bz.fetch_finished_events = lambda: [today_ev, old_ev, amb_a, amb_b]
+        bz.fetch_finished_events = lambda: [today_ev, old_ev, amb_a, amb_b, upcoming_ev]
         n = dp.settle_finished()
         db.session.expire_all()
 
@@ -110,6 +118,13 @@ def main():
               (t.home_score, t.away_score, t.home_score_ht, t.away_score_ht))
         check('歧义场次保持未结算', a.outcome is None and a.settled_at is None,
               '%s/%s' % (a.outcome, a.settled_at))
+        u = BtBet.query.filter_by(match_id='9201').first()
+        check('未开赛的 0-0 事件不结算（不做"踢完没有"判断会误判平局）',
+              u.outcome is None and u.settled_at is None, '%s/%s' % (u.outcome, u.settled_at))
+        check('is_finished_event 认得 finished', dp.is_finished_event({'status': 'finished'}))
+        check('is_finished_event 拒绝 notstarted 与 0-0',
+              not dp.is_finished_event({'status': 'notstarted', 'home_score': 0, 'away_score': 0}))
+        check('is_finished_event 无状态字段时不放行', not dp.is_finished_event({'home_score': 1, 'away_score': 0}))
 
         print('[3] _eval_play 边界')
         ou = BtBet(match_id='T1', play_type='OU', pick='O30', odds=1.95, stake=1.0, jingcai=True)
@@ -152,7 +167,7 @@ def main():
         check('命中率只按胜负计算', s_all['hit_rate'] == 66.7, s_all['hit_rate'])
         check('ROI 只按已决注单本金', abs(s_all['roi'] - 33.3) < 1e-6, s_all['roi'])
         check('估算玩法单独计数', s_all['estimated_total'] == 1, s_all['estimated_total'])
-        check('待结算数量', s_all['pending'] == 1, s_all['pending'])
+        check('待结算数量（含未开赛被拒结算的那条）', s_all['pending'] == 2, s_all['pending'])
 
         s7 = bt.compute_summary('7d')
         check('period=7d 真正过滤掉 30 天前的注单', s7['total_bets'] == 3, s7['total_bets'])
