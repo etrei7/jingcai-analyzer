@@ -296,14 +296,25 @@ def get_data():
         except Exception as e:
             logging.warning('[API] value record failed: %s', e)
     history_stats = get_stats()
+    # 推荐闸门：历史评估已否定（pause）或不可投注（估算赔率）的玩法不进推荐列表。
+    # 顺序先记录回测（保留证据）再过滤展示，避免"过滤后不记录"导致证据丢失。
+    policy_info = None
+    try:
+        from reco_policy import apply_policy
+        recommendations, total_goals_recs, value_recs, policy_info = apply_policy(
+            recommendations, total_goals_recs, value_recs)
+    except Exception as e:
+        logging.warning('[API] 推荐闸门失败（按原样展示）: %s', e)
     try:
         from daily_report import build_report
-        daily_report = build_report(analyzed, recommendations, value_recs, {'source': source})
+        daily_report = build_report(analyzed, recommendations, value_recs,
+                                    {'source': source}, policy=policy_info)
     except Exception as e:
         logging.warning('[API] daily_report failed: %s', e)
         daily_report = None
 
     return jsonify({
+        'policy': policy_info,
         'matches': analyzed,
         'recommendations': recommendations,
         'total_goals_recs': total_goals_recs,
@@ -701,13 +712,22 @@ def analyze_data():
         except Exception as e:
             logging.warning('[API] value record failed: %s', e)
             value_recs = []
+        policy_info = None
+        try:
+            from reco_policy import apply_policy
+            recommendations, total_goals_recs, value_recs, policy_info = apply_policy(
+                recommendations, total_goals_recs, value_recs)
+        except Exception as e:
+            logging.warning('[API] 推荐闸门失败（按原样展示）: %s', e)
         try:
             from daily_report import build_report
-            daily_report = build_report(analyzed, recommendations, value_recs, {'source': source})
+            daily_report = build_report(analyzed, recommendations, value_recs,
+                                        {'source': source}, policy=policy_info)
         except Exception as e:
             logging.warning('[API] daily_report failed: %s', e)
             daily_report = None
         return jsonify({
+            'policy': policy_info,
             'matches': analyzed, 'recommendations': recommendations,
             'total_goals_recs': total_goals_recs, 'value_recs': value_recs,
             'daily_report': daily_report,
@@ -791,14 +811,23 @@ def analyze_data():
         except Exception:
             pass
     history_stats = get_stats()
+    policy_info = None
+    try:
+        from reco_policy import apply_policy
+        recommendations, total_goals_recs, value_recs, policy_info = apply_policy(
+            recommendations, total_goals_recs, value_recs)
+    except Exception as e:
+        logging.warning('[API] 推荐闸门失败（按原样展示）: %s', e)
     try:
         from daily_report import build_report
-        daily_report = build_report(analyzed, recommendations, value_recs, {'source': source})
+        daily_report = build_report(analyzed, recommendations, value_recs,
+                                    {'source': source}, policy=policy_info)
     except Exception as e:
         logging.warning('[API] daily_report failed: %s', e)
         daily_report = None
 
     return jsonify({
+        'policy': policy_info,
         'matches': analyzed,
         'recommendations': recommendations,
         'total_goals_recs': total_goals_recs,
@@ -920,6 +949,11 @@ def health():
         info['maintenance'] = maintenance.status()
     except Exception:
         pass
+    try:
+        import bizzoiro_client
+        info['bzzoiro'] = bizzoiro_client.api_probe()
+    except Exception:
+        pass
     return jsonify(info)
 
 
@@ -985,6 +1019,22 @@ def backtest_stats():
     except Exception as e:
         logging.warning('[API] backtest: %s', e)
         return jsonify({'total_bets': 0, 'total_pnl': 0, 'roi': 0, 'hit_rate': 0, 'pending': 0})
+
+
+@app.route('/api/play-review')
+def play_review_api():
+    """玩法级专业评估：命中率置信区间、盈亏线、显著性、月度稳定性与三档结论。
+
+    与 /api/backtest 的区别：那个是"整体战绩"，这个是"每个玩法到底能不能用"。
+    """
+    try:
+        import play_review
+        period = request.args.get('period', 'all')
+        data = play_review.review(period=period)
+        return jsonify({'success': True, 'data': data})
+    except Exception as e:
+        logging.warning('[API] play-review: %s', e)
+        return jsonify({'success': False, 'error': str(e)[:200], 'data': {'plays': []}})
 
 
 @app.route('/api/backtest/diag')
