@@ -144,6 +144,14 @@ def main():
     check('高信心才允许稳健可多投', '稳健可多投' in high['note'] and high['pct'] <= 6.0, high['note'])
     risky = an._stake_plan(12.0, 0.70)
     check('高赔仍是高风险小额', '高风险' in risky['note'], risky['note'])
+    # 等级闸门：平均信心被高赔热门拉高时，仍按校准等级压档
+    lv_mid = an._stake_plan(2.9, 0.66, '', ['中', '中'])
+    check('含中档腿封顶 3.5%', lv_mid['pct'] == 3.5, lv_mid['pct'])
+    check('含中档腿措辞为常规仓位', '信心中等' in lv_mid['note'], lv_mid['note'])
+    lv_low = an._stake_plan(2.9, 0.66, '', ['高', '低'])
+    check('含低档腿封顶 2%', lv_low['pct'] == 2.0, lv_low['pct'])
+    lv_high = an._stake_plan(2.9, 0.66, '', ['高', '高'])
+    check('全高档仍允许稳健可多投', '稳健可多投' in lv_high['note'], lv_high['note'])
 
     print('RESULT:', 'FAIL' if FAIL else 'ALL OK')
     return 1 if FAIL else 0
