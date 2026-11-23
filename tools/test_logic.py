@@ -48,6 +48,13 @@ def main():
     check('kelly 期望 0.10', abs(an._kelly(0.4, 3.0) - 0.10) < 1e-9)
     check('kelly 负值→0', an._kelly(0.3, 3.0) == 0.0)
     check('kelly 边界(odds<=1/None)', an._kelly(0.5, 1) == 0.0 and an._kelly(None, 2) == 0.0)
+    # 仓位闸门：低信心日不能给出 5% 级"稳健可多投"
+    _low = an._stake_plan(2.1, 0.40)
+    _mid = an._stake_plan(2.1, 0.55)
+    _high = an._stake_plan(2.1, 0.70)
+    check('仓位 低信心封顶2%', _low['pct'] <= 2.0 and '低信心' in _low['note'])
+    check('仓位 中信心封顶3.5%', _mid['pct'] <= 3.5)
+    check('仓位 高信心高于低信心', _high['pct'] > _low['pct'])
 
     print('[2] 结算（各玩法）')
     check('1X2 命中', ev(_B('1X2', 'H'), 2, 1)[0] == 'win')
