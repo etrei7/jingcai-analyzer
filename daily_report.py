@@ -19,7 +19,7 @@ def _odds_ok(v):
         return False
 
 
-def build_report(matches, recommendations=None, value_recs=None, stats=None):
+def build_report(matches, recommendations=None, value_recs=None, stats=None, policy=None):
     stats = stats or {}
     all_matches = matches or []
     matches = [m for m in all_matches if not m.get('started')]
@@ -219,6 +219,21 @@ def build_report(matches, recommendations=None, value_recs=None, stats=None):
         '稳健方案 %d 个，价值机会 %d 个，需回避 %d 场。' % (
             len(rep['steady']), rep.get('value_valid_count', 0), len(rep['avoid'])),
     ]
+
+    # ===== 推荐闸门说明：被历史评估移除的玩法要写出来，不做黑箱 =====
+    _pol = policy or {}
+    _sup = _pol.get('suppressed') or []
+    if _sup:
+        _names = {'1X2': '胜平负', 'AH': '让胜平负', 'TG': '总进球', 'VAL': '价值盘',
+                  'CS': '比分', 'HTFT': '半全场'}
+        _cnt = {}
+        for _s in _sup:
+            _k = _s.get('play') or '?'
+            _cnt[_k] = _cnt.get(_k, 0) + 1
+        _txt = '、'.join('%s %d 条' % (_names.get(k, k), v) for k, v in _cnt.items())
+        notes.append('推荐闸门：%s 未通过历史评估，已从推荐中移除（各玩法证据见「历史战绩 → 玩法专业评估」）。' % _txt)
+        if not rep['steady'] and not rep.get('value_valid_count'):
+            rep['headline'].append('今日没有通过历史闸门的推荐：被移除的玩法长期低于盈亏线，空仓也是一种结论。')
 
     try:
         rep['text'] = _build_text(rep)
