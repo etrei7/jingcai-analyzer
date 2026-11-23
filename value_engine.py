@@ -272,6 +272,9 @@ def record_value_picks(matches):
             existing = set()
         n = 0
         for m in matches:
+            # 前视防护：开赛后不再写入"预测"，否则赛后刷新会用已知结果污染回测
+            if m.get('started') or m.get('status') in ('live', 'finished'):
+                continue
             eid = str(m.get('bz_event_id') or '')
             sv = m.get('sharp_value') or {}
             if not eid or not sv.get('has_value'):
