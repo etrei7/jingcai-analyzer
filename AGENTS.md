@@ -54,10 +54,45 @@ python tools/test_logic.py
 - 数值展示防呆：赔率/赔率类字段做 `toFixed`/运算前先判空或转数值（`(odds||0)`），避免 `undefined.toFixed()` 报错。
 - `analyze_single_match` 末尾的 cleanup 会 **pop 字段**；前端用到的字段（如 `travel_distance_km`、`ai_preview`）**不要**加入该删除列表。
 - 后台任务/定时任务耗时操作要并发或加缓存，避免阻塞 PythonAnywhere 单 worker。
-- **启动预热**（`app.py::_warm_caches_worker`）：Web Reload 后 worker 内存缓存为空，首个 `/api/analyze`
-  会「富化 0 场」；该后台线程在启动时预热 Bzzoiro 赛事列表/预测/完赛索引。不要删。
-- **仓位闸门**（`analysis._stake_plan`）：`avg_conf<0.45` 仓位封顶 2%（低信心·小注试探），
-  `<0.6` 封顶 3.5%，≥0.6 才走「稳健可多投」；防止全低信心日给出 5%+ 仓位。
+
+## 数据可信度红线（2026-11-23 审计后新增，改动时不得回退）
+
+审计全文见 `docs/AUDIT-2026-11-23.md`。以下四条是"战绩面板能不能信"的底线：
+
+1. **前视防护**：已开赛（`m['started']` 或 `status in ('live','finished')`）的场次**禁止写入** `bt_bets`。
+   入口在 `data_pipeline.record_jingcai_plays`、`value_engine.record_value_picks`（`parlay_tracker` 同理）。
+   否则赛后刷新页面会用已知赛果"预测"，命中率虚高。
+2. **估算赔率不得进串关**：模型推算的赔率（`estimated=True`）只作参考，
+   不得用于 `combo_odds`/返奖展示；方案 `_build` 返回 `actionable=False` 时前端不显示"投X返Y"。
+   官方盘口判定一律用 `hcp_pick['source'] == '官方盘口'`、`tg_pick['source'] == '竞彩官方'`。
+3. **结算必须能消歧**：队名兜底匹配时用 `_pick_by_date()`（±3 天窗口，多候选无日期则放弃结算）；
+   `bt_bets` 结算时写入比分快照（`home_score/away_score/home_score_ht/away_score_ht`），
+   没有比分的事后无法区分"模型错"还是"结算错"。
+4. **统计口径**：`compute_summary` 的 `total` 只算市场口径（非 estimated）、`period` 真正过滤 `settled_at`、
+   void 单独计数不进 loss；`calibration` 的盈亏平衡率用 `mean(1/odds)` 而非 `1/mean(odds)`。
+
+去重键用 `data_pipeline._dedupe_key()`：竞彩编号（`周一001`）带**周日期戳**，避免每周 001 重排后
+把新一周场次静默吞掉；`backtest.record_prediction` 对编号类 ID 只与近 3 天记录比对。
+
+JSON 落盘统一走 `atomic_json.dump()`（临时文件 + fsync + `os.replace`），避免进程被杀留下半截文件。
+
+`/health` 会暴露 db 探活、`bt_bets` 行数、instance 可写性；任一项异常返回 `status='degraded'`。
+
+## 本地跑起来（无 git、无 venv 时的临时办法）
+
+```powershell
+# 依赖装到工作区 venv（不要在项目里留 .venv，PA 也不需要）
+python -m venv <workspace>\venv-jingcai
+<workspace>\venv-jingcai\Scripts\python.exe -m pip install -i https://mirrors.aliyun.com/pypi/simple/ Flask==3.0.0 Flask-SQLAlchemy==3.1.1 APScheduler==3.10.4 requests==2.31.0
+$env:PORT='5057'; $env:DATABASE_URL='sqlite:///<workspace>/tmp_test.db'   # 用临时库，别动 instance/jingcai.db
+<workspace>\venv-jingcai\Scripts\python.exe app.py
+```
+
+注意：`tools/selfcheck.py` 在 venv python 下会因 `__pycache__` 写入被拒而误报 FAIL，
+**自检一律用系统/DASH 自带的 python**（`py_compile` 需要写 pyc）。
+
+线上定时任务不要再依赖进程内 APScheduler（PA 免费版会卸载 worker），改用
+`tools/daily_job.py --task pipeline|news|settle`，在 PA **Tasks** 页配 cron 触发。
 
 ## 数据源
 
