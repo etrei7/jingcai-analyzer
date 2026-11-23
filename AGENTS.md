@@ -13,7 +13,8 @@ python tools/selfcheck.py
 必须输出 `RESULT: ALL OK`（退出码 0）。它检查：
 1. 所有 `*.py` 语法（`py_compile`）
 2. 所有 `*.py` 是否含损坏字符（U+FFFD / 私用区 U+E000–U+F8FF）
-3. `templates/index.html` 最后一个 `<script>` 的圆括号/花括号/反引号是否配平
+3. 所有 `*.py` 顶层是否有**重名函数/类**（同名后者会静默覆盖前者）
+4. `templates/index.html` 最后一个 `<script>` 的圆括号/花括号/反引号是否配平
 
 **改动分析/结算逻辑时，另跑回归测试**（无需数据库/网络）：
 
@@ -59,6 +60,10 @@ python tools/test_logic.py
 - **Bzzoiro**（后端可访问）：赛事、赔率、伤病、裁判、天气、AI 预览、积分榜等。
 - **API-Football**（`API_FOOTBALL_KEY`）：积分榜排名/状态/主客场/净胜球（免费版 100 次/天，已做内存缓存与限流降级）。
 - **国际博彩公司赔率**（Bzzoiro `/odds/`，`market=1x2|asian_handicap|double_chance|draw_no_bet`）：用于"国际盘口对比/价值差"。注意单次返回**硬上限 50 条**。
+- **赔率变动懒加载**（`bizzoiro_client.fetch_odds_movement_for_matches` → `/api/odds-movement?ids=`）：
+  前端**首屏后**按 `raw_event_id` 批量取「初赔→即赔」趋势（最多 12 场），只返回轻量字段
+  `{trend, total, pressure_side}`；每场 120s 缓存 + 空值负缓存，避免页面 60s 自动刷新时重复打上游。
+  ⚠️ 该函数名被 `app.py` 按名导入——改名必须同步 `app.py`，否则接口会静默返回 `success:false`。
 - **官方首发（Phase 2）**：`lineup_client.py` 用 API-Football `/fixtures/lineups`，**仅开赛前 120 分钟**内、
   **严格匹配**（联赛 + 日期 + 主客双队名）才展示；后台线程拉取 + 10 分钟缓存；受额度/限流保护。
   **只读展示**（阵型/首发），不改方向；命中后 AI 预览标注"官方首发已确认"。接口 `/api/lineup`。
