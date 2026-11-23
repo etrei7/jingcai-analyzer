@@ -1,4 +1,5 @@
 import logging
+import os
 import requests
 from apscheduler.schedulers.background import BackgroundScheduler
 
@@ -98,6 +99,11 @@ def daily_settlement():
 
 def init_scheduler(app):
     set_app(app)
+    # 进程内调度在 PythonAnywhere 免费版会随 worker 卸载而停摆；线上改为 PA Tasks
+    # 调用 tools/daily_job.py。本地跑测试/CLI 时也不该拉起后台线程。
+    if str(os.environ.get('SCHEDULER_ENABLED', '1')).lower() in ('0', 'false', 'no', 'off'):
+        logger.info('[定时任务] SCHEDULER_ENABLED=0，跳过后台调度（由 PA Tasks 调 tools/daily_job.py）')
+        return None
     scheduler = BackgroundScheduler()
     scheduler.add_job(
         daily_settlement,
