@@ -18,6 +18,13 @@ logging.basicConfig(level=logging.INFO)
 
 app = Flask(__name__)
 app.config.from_object(Config)
+# 请求体上限：/api/analyze 是唯一写入口且无鉴权，不设上限时一个超大 JSON 就能打满内存
+app.config.setdefault('MAX_CONTENT_LENGTH', 4 * 1024 * 1024)
+
+
+@app.errorhandler(413)
+def _too_large(_e):
+    return jsonify({'success': False, 'error': '请求体过大（上限 4MB）'}), 413
 
 # 安全：生产环境（非 DEBUG）禁止使用默认 SECRET_KEY，改用随机生成的会话密钥，
 # 避免硬编码密钥泄露导致 session 伪造风险。
@@ -73,6 +80,13 @@ def _migrate_bt_bets():
                 conn.execute(text("ALTER TABLE bt_bets ADD COLUMN lineup_flag BOOLEAN DEFAULT 0"))
                 conn.commit()
             logging.info('[迁移] bt_bets 已补充 lineup_flag 列（A/B 对比）')
+        # 比分快照列：让每条已结算记录都能事后复核，否则结算错误与模型错误无法区分
+        for _col in ('home_score', 'away_score', 'home_score_ht', 'away_score_ht'):
+            if _col not in cols:
+                with db.engine.connect() as conn:
+                    conn.execute(text("ALTER TABLE bt_bets ADD COLUMN %s INTEGER" % _col))
+                    conn.commit()
+                logging.info('[迁移] bt_bets 已补充 %s 列（结算比分快照）', _col)
         # 回填历史估算玩法（半全场 HTFT / 比分 CS）为 estimated=1，
         # 修复旧记录被误计入真实赔率 ROI 的问题
         with db.engine.connect() as conn:
@@ -86,36 +100,25 @@ def _migrate_bt_bets():
         logging.warning('[迁移] bt_bets estimated 列检查/回填失败: %s', e)
 
 
-with app.app_context():
-    db.create_all()
-    # 轻量迁移：为已有数据库的 bt_bets 补充 estimated 列（区分真实/估算赔率），
-    # 避免表结构变更后查询报 "no such column"。
-    _migrate_bt_bets()
-
-init_scheduler(app)
-
-
-def _warm_caches_worker(delay=1.0):
-    """启动预热：worker 重启（Web → Reload）后内存缓存为空，此时首个 /api/analyze
-    会因富化赛事列表为空而返回「富化 0 场」。这里在后台先把 Bzzoiro 赛事列表 /
-    预测 / 完赛索引拉一遍，让用户打开页面时场外数据已经就绪。
-    纯网络预热，不碰数据库；任何失败都静默（下一轮请求会自行重试）。"""
-    import time as _time
-    _time.sleep(delay)
-    try:
-        from bizzoiro_client import _cached_bz_events, fetch_predictions, _load_finished_events
-        _cached_bz_events(40)      # 触发富化赛事列表后台刷新（stale-while-revalidate）
-        fetch_predictions()        # 预测（300s 缓存）
-        _load_finished_events()    # 近况/交锋索引（6h 缓存）
-    except Exception as e:
-        logging.warning('[warmup] 预热失败: %s', e)
-
+# instance 目录必须存在：config.py 用绝对路径指向 instance/jingcai.db，而 .gitignore 排除了
+# instance/ 且全仓没有 makedirs，新环境首次 import 会直接建库失败（整站 502）。
+try:
+    import os as _os
+    _os.makedirs(app.instance_path, exist_ok=True)
+except Exception as _e:  # 只读文件系统下也不应阻断启动，仅告警
+    logging.warning('[启动] instance 目录创建失败: %s', _e)
 
 try:
-    import threading as _threading
-    _threading.Thread(target=_warm_caches_worker, daemon=True).start()
-except Exception as e:  # pragma: no cover - 线程启动失败不影响主流程
-    logging.warning('[warmup] 线程启动失败: %s', e)
+    with app.app_context():
+        db.create_all()
+        # 轻量迁移：为已有数据库的 bt_bets 补充 estimated 列（区分真实/估算赔率），
+        # 避免表结构变更后查询报 "no such column"。
+        _migrate_bt_bets()
+except Exception as _e:
+    # 建库失败不再让整个进程起不来：/health 会暴露 db 状态，便于定位
+    logging.error('[启动] 数据库初始化失败: %s', _e)
+
+init_scheduler(app)
 
 
 def _record_parlays_safe(recs, source):
@@ -502,12 +505,37 @@ def save_history():
     return jsonify({'success': True, 'saved': len(records), 'added': added, 'history_stats': get_stats()})
 
 
+_MAX_JC_MATCHES = 200
+_FIELD_MAX = {'match_id': 40, 'home_team': 40, 'away_team': 40, 'league': 40,
+              'ai_preview': 600, 'venue_name': 60, 'venue_city': 40,
+              'home_coach': 40, 'away_coach': 40}
+
+
+def _sanitize_match(m):
+    """入口收口：截断超长字符串、剥离控制字符。
+    这些字段会被原样入库并进入前端 innerHTML，不在这里限长就等于接受任意负载。"""
+    for k, n in _FIELD_MAX.items():
+        v = m.get(k)
+        if isinstance(v, str):
+            v = ''.join(ch for ch in v if ch in ('\n', '\t') or ch >= ' ').strip()
+            m[k] = v[:n]
+    return m
+
+
 @app.route('/api/analyze', methods=['POST'])
 def analyze_data():
     data = request.get_json(silent=True) or {}
 
     # 路径1：竞彩官方数据直接分析
     jc_matches = data.get('jingcai_matches', [])
+    if jc_matches and not isinstance(jc_matches, list):
+        return jsonify({'success': False, 'error': 'jingcai_matches 必须是数组'}), 400
+    if isinstance(jc_matches, list):
+        if len(jc_matches) > _MAX_JC_MATCHES:
+            return jsonify({'success': False,
+                            'error': '场次过多（上限 %d）' % _MAX_JC_MATCHES}), 413
+        # 逐条类型校验：非 dict 元素直接丢弃，避免后续 setdefault 抛 500
+        jc_matches = [_sanitize_match(m) for m in jc_matches if isinstance(m, dict)]
     if jc_matches:
         client_time = data.get('client_time', '')
         odds_time = data.get('odds_time', '')
@@ -851,7 +879,29 @@ Allow: /
 
 @app.route('/health')
 def health():
-    return jsonify({'status': 'ok', 'time': datetime.now().strftime('%Y-%m-%d %H:%M:%S')})
+    """健康检查：除存活外，还要暴露数据库可写性与关键表行数，否则"502 但其实进程活着"无法排查。"""
+    info = {'status': 'ok', 'time': datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+    try:
+        from sqlalchemy import text
+        with db.engine.connect() as conn:
+            conn.execute(text('SELECT 1'))
+        info['db'] = 'ok'
+    except Exception as e:
+        info['status'] = 'degraded'
+        info['db'] = 'error: %s' % str(e)[:200]
+    try:
+        from backtest_models import BtBet
+        info['bt_bets'] = BtBet.query.count()
+        info['bt_bets_settled'] = BtBet.query.filter(BtBet.settled_at.isnot(None)).count()
+    except Exception as e:
+        info['status'] = 'degraded'
+        info['bt_bets'] = 'error: %s' % str(e)[:120]
+    try:
+        import os as _os
+        info['instance_writable'] = _os.access(app.instance_path, _os.W_OK)
+    except Exception:
+        info['instance_writable'] = None
+    return jsonify(info)
 
 
 @app.route('/api/odds-movement')
