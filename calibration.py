@@ -47,9 +47,15 @@ def _now():
 
 
 def _add(d, key, b):
-    r = d.setdefault(key, {'n': 0, 'wins': 0, 'odds_sum': 0.0})
+    r = d.setdefault(key, {'n': 0, 'wins': 0, 'odds_sum': 0.0, 'inv_sum': 0.0, 'inv_n': 0})
     r['n'] += 1
-    r['odds_sum'] += (b.odds or 0)
+    odds = b.odds or 0
+    r['odds_sum'] += odds
+    if odds and odds > 1:
+        # 盈亏平衡率是 mean(1/odds)，不是 1/mean(odds)：赔率 {1.5,3.0} 时前者 50%、后者 44.4%，
+        # 用 1/avg 会系统性低估 break-even，等于高估 edge。
+        r['inv_sum'] += 1.0 / odds
+        r['inv_n'] += 1
     if b.outcome == 'win':
         r['wins'] += 1
 
@@ -58,7 +64,8 @@ def _stat(v):
     n = v['n']
     avg = (v['odds_sum'] / n) if n else 0.0
     hit = (v['wins'] / n) if n else 0.0
-    req = (1.0 / avg) if avg > 0 else 0.0
+    inv_n = v.get('inv_n') or 0
+    req = (v['inv_sum'] / inv_n) if inv_n else 0.0
     return {
         'n': n, 'wins': v['wins'],
         'hit_rate': round(hit * 100, 1),
@@ -66,6 +73,15 @@ def _stat(v):
         'required_rate': round(req * 100, 1),
         'edge': round((hit - req) * 100, 1),
     }
+
+
+def _edge_se(hit_rate, n):
+    """命中率的标准误（百分点）：n=30 时约 9pp，n=140 时约 4pp。
+    降级阈值若小于 1 个标准误，本质上是在对噪声做反应。"""
+    if not n or n <= 0:
+        return 0.0
+    p = min(max(float(hit_rate or 0.0), 0.0), 1.0)
+    return ((p * (1.0 - p) / n) ** 0.5) * 100.0
 
 
 def get_calibration(force=False):
@@ -83,7 +99,8 @@ def _compute():
     try:
         from backtest_models import BtBet
         bets = [b for b in BtBet.query.filter_by(jingcai=True).all()
-                if b.settled_at and b.outcome in ('win', 'lose')]
+                if b.settled_at and b.outcome in ('win', 'lose')
+                and not getattr(b, 'estimated', False)]
         lv_b, seg_b, lg_b = {}, {}, {}
         for b in bets:
             _add(lv_b, b.confidence_level or '未分级', b)
@@ -141,11 +158,12 @@ def apply_calibration(matches):
             m['segment'] = {'play': '1X2', 'bucket': bk, 'n': seg['n'],
                             'hit_rate': seg['hit_rate'], 'required_rate': seg['required_rate'],
                             'edge': seg['edge']}
-            if seg['edge'] < _HARD_DOWN_PP:
+            if seg['edge'] < _HARD_DOWN_PP and seg['edge'] < -_edge_se(seg['hit_rate'] / 100.0, seg['n']):
                 seg_bad = True
         lg = m.get('league')
         lst = lgs.get(lg) if lg else None
-        if lst and lst.get('n', 0) >= n_seg and lst['edge'] < _HARD_DOWN_PP:
+        if (lst and lst.get('n', 0) >= n_seg and lst['edge'] < _HARD_DOWN_PP
+                and lst['edge'] < -_edge_se(lst['hit_rate'] / 100.0, lst['n'])):
             seg_bad = True
             if m['segment'] is None:
                 m['segment'] = {'play': '联赛', 'bucket': lg, 'n': lst['n'],
@@ -153,10 +171,15 @@ def apply_calibration(matches):
                                 'required_rate': lst['required_rate'], 'edge': lst['edge']}
         m['seg_bad'] = seg_bad
 
-        lv_bad = bool(st and st.get('n', 0) >= n_min and st.get('edge', 0) < _HARD_DOWN_PP)
+        lv_bad = bool(st and st.get('n', 0) >= n_min and st.get('edge', 0) < _HARD_DOWN_PP
+                      and st.get('edge', 0) < -_edge_se(st.get('hit_rate', 0) / 100.0, st.get('n', 0)))
         if lv in _ORDER and (lv_bad or seg_bad):
             new_lv = {2: '中', 1: '低', 0: '低'}[_ORDER[lv]]
             if new_lv != lv:
+                # 原始等级单独保留：降级只用于展示，入库训练必须用原始等级，
+                # 否则"校准→入库→再用被校准过的标签训练"会形成反馈环。
+                m['confidence_level_raw'] = lv
+                m['calib_downgraded'] = True
                 m['confidence_level'] = new_lv
                 changed += 1
         if seg_bad:
