@@ -1601,7 +1601,9 @@ def _infer_leg_meta(m, option):
 def _stake_plan(combo_odds, avg_conf, risk_level=''):
     """资金管理建议：按组合赔率 + 平均信心给出建议投入本金比例与金额。
     avg_conf 为 0~1 的平均信心分（缺失按 0.5）。返回 dict。
-    原则：低赔稳健可多投、高赔高风险小额；信心越高比例越高；上限 10% 防过度下注。
+    原则：低赔稳、高赔小；信心越高比例越高；上限 10% 防过度下注。
+    信心闸门（2026-11）：avg_conf <0.45（低信心）时仓位封顶 2%，
+    <0.6（中信心）封顶 3.5%，避免「全低信心日」仍给出 5%+ 的"稳健可多投"仓位。
     """
     try:
         co = float(combo_odds)
@@ -1621,9 +1623,15 @@ def _stake_plan(combo_odds, avg_conf, risk_level=''):
     else:
         base = 0.5
     pct = base * (0.6 + ac)                  # 信心 0.2→×0.8；0.95→×1.55
-    pct = round(max(0.2, min(pct, 10.0)), 2)
+    odds_tag = '稳健可多投' if co <= 3 else '中等仓位' if co <= 8 else '高风险小额试探'
+    if ac < 0.45:
+        cap, tag = 2.0, '低信心·小注试探'
+    elif ac < 0.60:
+        cap, tag = 3.5, odds_tag
+    else:
+        cap, tag = 10.0, odds_tag
+    pct = round(max(0.2, min(pct, cap)), 2)
     amount = max(1, round(pct * 10))         # 按 1000 元本金折算单注额（元）
-    tag = '稳健可多投' if co <= 3 else '中等仓位' if co <= 8 else '高风险小额试探'
     return {
         'pct': pct,
         'amount': amount,
