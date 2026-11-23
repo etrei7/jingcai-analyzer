@@ -81,6 +81,34 @@ def _headers():
     return {'Authorization': f'Token {API_KEY}'} if API_KEY else {}
 
 
+_PROBE = {'ts': 0.0, 'ok': None, 'code': None, 'error': None, 'key': bool(API_KEY)}
+
+
+def api_probe(max_age=600):
+    """数据源健康探测：最多每 10 分钟打一次 /events/（limit=1），供 /health 使用。
+
+    为什么需要：Bzzoiro 的 key 失效或欠费时，接口只返回 401，
+    站点表现是"富化 0 场、信心全低、结算 0 场"，从页面完全看不出是数据源挂了。
+    """
+    import time as _t
+    now = _t.time()
+    if _PROBE['ts'] and now - _PROBE['ts'] < max_age:
+        return dict(_PROBE)
+    _PROBE['key'] = bool(API_KEY)
+    if not API_KEY:
+        _PROBE.update({'ts': now, 'ok': False, 'code': None, 'error': 'BZZOIRO_API_KEY 未配置'})
+        return dict(_PROBE)
+    try:
+        resp = requests.get(f'{BASE_URL}/events/', headers=_headers(),
+                            params={'status': 'finished', 'limit': 1}, timeout=6)
+        ok = resp.status_code < 300
+        _PROBE.update({'ts': now, 'ok': ok, 'code': resp.status_code,
+                       'error': None if ok else resp.text[:160]})
+    except Exception as e:
+        _PROBE.update({'ts': now, 'ok': False, 'code': None, 'error': str(e)[:160]})
+    return dict(_PROBE)
+
+
 def _map_league(name_en):
     return LEAGUE_NAME_MAP.get(name_en, name_en)
 
