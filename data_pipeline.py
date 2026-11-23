@@ -615,6 +615,17 @@ def resettle_recent(days=14, limit=300):
         # 名称兜底：注单用的是竞彩编号（非事件ID）时，用队名+日期在已完赛事件里找真实赛果。
         # 只接受唯一候选或 ±3 天内最近的一场，宁可漏算也不猜错。
         name_matched = 0
+
+        def _norm(s):
+            return (s or '').replace(' ', '').replace('-', '').lower()
+
+        def _cn(s):
+            try:
+                from team_alias import canon
+                return canon(s)
+            except Exception:
+                return s or ''
+
         try:
             from bizzoiro_client import fetch_finished_events
             _now = datetime.now()
