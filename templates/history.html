@@ -110,6 +110,28 @@ a{text-decoration:none;color:inherit}
 .bd-est{opacity:.75}
 .bd-row .good{color:var(--high);font-weight:800}
 .bd-row .bad{color:var(--low);font-weight:800}
+/* 玩法专业评估（play review） */
+.pr-headline{font-size:0.7rem;font-weight:800;color:var(--text);margin:14px 0 6px;display:flex;flex-wrap:wrap;gap:6px;align-items:baseline}
+.pr-method{font-size:0.6rem;color:var(--text-muted);line-height:1.6;margin-bottom:8px}
+.pr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
+.pr-card{border:1px solid var(--border-light);border-radius:12px;padding:10px 12px;background:var(--card-bg);min-width:0}
+.pr-head{display:flex;align-items:center;gap:6px;justify-content:space-between}
+.pr-name{font-weight:800;font-size:0.78rem}
+.pr-badge{font-size:0.58rem;padding:2px 7px;border-radius:999px;font-weight:800;white-space:nowrap}
+.pr-badge.usable{background:var(--high-bg);color:#166534}
+.pr-badge.watch{background:#fef3c7;color:#92400e}
+.pr-badge.pause{background:var(--low-bg);color:#b91c1c}
+.pr-badge.reference,.pr-badge.insufficient{background:var(--btn-bg);color:var(--text-muted)}
+.pr-edge{font-size:1rem;font-weight:800;margin-top:5px}
+.pr-edge .lab{font-size:0.58rem;font-weight:600;color:var(--text-muted);margin-left:4px}
+.pr-rows{font-size:0.62rem;color:var(--text-muted);line-height:1.75;margin-top:4px;overflow-wrap:anywhere}
+.pr-rows b{color:var(--text)}
+.pr-spark{display:flex;gap:3px;align-items:flex-end;height:24px;margin-top:8px}
+.pr-bar{width:7px;border-radius:2px 2px 0 0;min-height:2px;background:var(--text-muted);opacity:.85}
+.pr-bar.pos{background:var(--high)}
+.pr-bar.neg{background:var(--low)}
+.pr-verdict{font-size:0.6rem;margin-top:7px;color:var(--text-muted);border-top:1px dashed var(--border-light);padding-top:6px;line-height:1.6}
+@media(max-width:520px){.pr-grid{grid-template-columns:1fr}}
 .footer{text-align:center;padding:20px 24px;color:var(--text-muted);font-size:0.72rem;border-top:1px solid var(--border);margin-top:36px;background:var(--card-bg);max-width:1100px;margin-left:auto;margin-right:auto}
 .footer .disclaimer{color:var(--low);font-weight:600;margin-bottom:5px}
 @media(max-width:900px){.header{padding:8px 12px}.nav-links{width:100%;justify-content:center}.container{padding:16px}.stat-grid{grid-template-columns:repeat(2,1fr)}}
@@ -273,13 +295,60 @@ async function loadBacktestPanel(){
   var c = document.getElementById('backtestContainer');
   if(!c) return;
   try{
-    var resp = await fetch('/api/backtest');
-    if(!resp.ok){ c.innerHTML='<div class="empty" style="padding:24px">回测数据加载失败</div>'; return; }
-    var s = await resp.json();
-    renderBacktestPanel(s);
+    var res = await Promise.all([
+      fetch('/api/backtest').then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; }),
+      fetch('/api/play-review').then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; })
+    ]);
+    var s = res[0], pr = res[1];
+    if(!s){ c.innerHTML='<div class="empty" style="padding:24px">回测数据加载失败，请刷新页面重试</div>'; return; }
+    renderBacktestPanel(s, (pr && pr.success) ? pr.data : null);
   }catch(e){ c.innerHTML='<div class="empty" style="padding:24px">回测数据加载失败：'+esc(e.message)+'</div>'; }
 }
-function renderBacktestPanel(s){
+/* 玩法专业评估：把「命中率 vs 盈亏线」的差额、置信区间、显著性和月度稳定性摊开，
+   目的不是给个漂亮数字，而是回答"这个玩法到底该不该继续推"。 */
+function reviewVerdictBadge(p){
+  var map = {
+    usable:['可用','usable'], watch:['观察','watch'], pause:['建议暂停','pause'],
+    reference:['仅参考','reference'], insufficient:['样本不足','insufficient']
+  };
+  var m = map[p.verdict_code] || ['观察','watch'];
+  return '<span class="pr-badge '+m[1]+'">'+m[0]+'</span>';
+}
+function reviewCard(p){
+  var edge = p.edge_pp || 0;
+  var edgeCol = edge > 0 ? 'var(--high)' : edge < 0 ? 'var(--low)' : 'var(--text)';
+  var spark = (p.monthly || []).map(function(m){
+    var v = m.edge_pp || 0;
+    var h = Math.min(22, Math.max(2, Math.abs(v) * 1.2));
+    return '<div class="pr-bar '+(v > 0 ? 'pos' : 'neg')+'" style="height:'+h.toFixed(1)+'px" title="'+esc(m.month)+' 样本'+m.n+' 命中'+m.hit_rate+'% 盈亏线'+m.required_rate+'%"></div>';
+  }).join('');
+  var emptyNote = (!p.n && p.voids) ? '<div class="pr-rows" style="color:var(--low)">全部 '+p.voids+' 条作废：缺少半场比分，无法结算</div>' : '';
+  return '<div class="pr-card">' +
+      '<div class="pr-head"><span class="pr-name">'+esc(p.play_cn)+(p.estimated?'（估算）':'')+'</span>'+
+        '<span style="display:flex;gap:4px">'+reviewVerdictBadge(p)+'<span class="pr-badge">'+esc(p.grade)+'级</span></span></div>' +
+      '<div class="pr-edge" style="color:'+edgeCol+'">'+(edge>0?'+':'')+edge+'pp<span class="lab">领先/落后盈亏线</span></div>' +
+      '<div class="pr-rows">' +
+        '样本 <b>'+p.n+'</b>（作废 '+p.voids+' ／ 待结算 '+p.pending+'）<br>' +
+        '命中率 <b>'+p.hit_rate+'%</b>（95%CI '+p.hit_ci[0]+'–'+p.hit_ci[1]+'）<br>' +
+        '盈亏线 <b>'+p.required_rate+'%</b>（同赔率必中率，>无优势=亏损）<br>' +
+        '统计显著性 p=<b>'+p.p_value+'</b>'+(p.p_value<0.10?'（显著）':'（不显著）')+'<br>' +
+        'ROI <b>'+(p.roi>0?'+':'')+p.roi+'%</b>（95%CI '+p.roi_ci[0]+'–'+p.roi_ci[1]+'%）<br>' +
+        '近30天 命中 '+(p.recent30?p.recent30.hit_rate:0)+'% / 盈亏线 '+(p.recent30?p.recent30.required_rate:0)+'%（n='+(p.recent30?p.recent30.n:0)+'）' +
+      '</div>' + emptyNote +
+      (spark ? '<div class="pr-spark">'+spark+'</div><div class="pr-rows" style="font-size:0.55rem">按月 edge 走势（绿=高于盈亏线）</div>' : '') +
+      '<div class="pr-verdict">'+esc(p.verdict)+'</div>' +
+    '</div>';
+}
+function renderPlayReview(review){
+  if(!review || !review.plays || !review.plays.length) return '';
+  var cards = review.plays.map(reviewCard).join('');
+  return '<div class="pr-headline">玩法专业评估' +
+      '<span style="font-weight:600;color:var(--text-muted);font-size:0.62rem">'+esc(review.headline||'')+'</span></div>' +
+    '<div class="pr-method">读法：命中率必须高于「盈亏线」才可能盈利；括号内是 95% 置信区间，样本小则区间宽、结论不可靠。'+
+      'p&lt;0.10 才认为偏离盈亏线不是运气。'+(review.period && review.period!=='all' ? '统计区间：'+esc(review.period) : '')+'</div>' +
+    '<div class="pr-grid">'+cards+'</div>';
+}
+function renderBacktestPanel(s, review){
   var c = document.getElementById('backtestContainer');
   var records = (s && s.records) || [];
   if(!s || (s.total_bets === 0 && records.length === 0)){
@@ -322,6 +391,7 @@ function renderBacktestPanel(s){
     groupHtml += '<div class="bt-group"><div class="bt-group-head"><span class="gh-name">'+esc(pt)+'</span></div>' + groups[pt].map(rElemFn).join('') + '</div>';
   });
   var estNote = estTotal>0 ? '<div class="bt-note" style="color:var(--amber)">&#9432; 另有 '+estTotal+' 条「比分/半全场」为模型估算赔率（非真实市场盘口），已从上方ROI统计中剔除，仅供参考命中率。</div>' : '';
+  var reviewHtml = renderPlayReview(review);
   // 按玩法拆分
   var pb = s.play_breakdown || [];
   var pbHtml = '';
@@ -352,6 +422,7 @@ function renderBacktestPanel(s){
         <div class="bt-stat"><div class="num" style="font-size:1rem;font-weight:700;color:var(--text-muted)">${s.avg_odds||0}</div><div class="lab">平均赔率</div></div>
       </div>
       ${estNote}
+      ${reviewHtml}
       ${pbHtml}
       <div class="bt-note">预测记录（${records.length}条，待结算 ${s.pending||0}）：</div>
       ${groupHtml}
