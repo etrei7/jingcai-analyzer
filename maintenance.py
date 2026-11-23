@@ -79,6 +79,16 @@ def _consume_resettle(app):
         except Exception:
             pass
         return stats
+    except Exception as exc:
+        logger.exception('[维护] 重算历史结算失败')
+        _log('resettle error: %r' % (exc,))
+        try:
+            import json
+            with open(os.path.join(app.instance_path, 'resettle_report.json'), 'w', encoding='utf-8') as fh:
+                json.dump({'days': days, 'stats': {'error': repr(exc)}}, fh, ensure_ascii=False)
+        except Exception:
+            pass
+        return None
     except Exception as e:
         logger.warning('[维护] 重算失败: %s', e)
         return {'error': str(e)[:200]}
