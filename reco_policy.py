@@ -58,7 +58,7 @@ def _check(vmap, play):
         return (True, 'unknown', '暂无该玩法的历史样本，按常规仓位小注观察')
     code = p.get('verdict_code') or 'watch'
     note = p.get('verdict') or ''
-    if code in ('pause', 'reference'):
+    if code in ('pause', 'reference', 'suspect'):
         return (False, code, note)
     if code == 'insufficient':
         return (True, code, '样本不足（%d 注），仅小注观察：%s' % (p.get('n', 0), note))
