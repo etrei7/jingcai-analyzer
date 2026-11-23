@@ -100,7 +100,15 @@ def _stat_block(bets):
         z = (hit - req) / se if se else 0.0
         p_value = two_sided_p(z)
     roi, roi_se, stake = _weighted_roi(decided)
+    # 结算可信度自检：如果注单只是"按赔率随机结算"，胜场数应围绕 sum(1/赔率) 波动。
+    # 实际胜场远低于该期望（z < -3）时，多半不是模型差，而是结算/数据错配——这类战绩不能用来下结论。
+    exp_wins = sum(1.0 / o for o in odds) if odds else 0.0
+    var_wins = sum((1.0 / o) * (1 - 1.0 / o) for o in odds) if odds else 0.0
+    integrity_z = (wins - exp_wins) / math.sqrt(var_wins) if var_wins > 0 else 0.0
     return {
+        'expected_wins': round(exp_wins, 1),
+        'integrity_z': round(integrity_z, 1),
+        'integrity_suspect': bool(n >= 40 and integrity_z < -3),
         'n': n,
         'wins': wins,
         'losses': n - wins,
@@ -158,6 +166,38 @@ def _verdict(st, grade, estimated):
     return ('watch', '与盈亏线无显著差异（edge %.1fpp，p=%.2f），维持观察、控制仓位' % (edge, p))
 
 
+def _settle_audit(bets):
+    """结算自检：对有比分快照的注单，用比分重算胜平负，看是否与库里 outcome 一致。
+    历史行没有比分是常态（2026-11-23 才加列），所以这里同时也报告覆盖率。"""
+    rows = [b for b in bets if b.outcome in ('win', 'lose')]
+    checked = 0
+    mismatch = 0
+    samples = []
+    for b in rows:
+        hs, aw = getattr(b, 'home_score', None), getattr(b, 'away_score', None)
+        if hs is None or aw is None:
+            continue
+        pt = b.play_type or '1X2'
+        if pt not in ('1X2', 'VAL'):
+            continue
+        checked += 1
+        actual = 'H' if hs > aw else 'A' if hs < aw else 'D'
+        expect = 'win' if b.pick == actual else 'lose'
+        if b.outcome != expect:
+            mismatch += 1
+            if len(samples) < 5:
+                samples.append({'match_id': b.match_id, 'play': pt, 'pick': b.pick,
+                                'score': '%s-%s' % (hs, aw), 'actual': actual,
+                                'outcome': b.outcome})
+    return {
+        'decided': len(rows),
+        'checked': checked,
+        'coverage': round(checked / len(rows) * 100, 1) if rows else 0.0,
+        'mismatch': mismatch,
+        'samples': samples,
+    }
+
+
 def review(period='all', min_n=MIN_N):
     """按玩法给出评估结论。period 支持 'all'/'30d'/'90d'/'7d'。"""
     from backtest_models import BtBet
@@ -189,6 +229,13 @@ def review(period='all', min_n=MIN_N):
         st = _stat_block(bets)
         grade = _grade(st['n'], st['p_value'], st['edge_pp'], st['roi'])
         code, text = _verdict(st, grade, estimated)
+        # 可信度优先于一切结论：战绩与赔率不相容时，先怀疑结算而不是模型
+        if st['integrity_suspect'] and not estimated:
+            code = 'suspect'
+            text = ('战绩与赔率不相容（实际 %d 胜 / 按赔率应约 %.0f 胜，z=%.1f）：'
+                    '更可能是历史结算或数据错配，而非模型判断；该玩法战绩暂不可用于决策，'
+                    '已连同比分快照重建样本，待新样本复核' % (
+                        st['wins'], st['expected_wins'], st['integrity_z']))
         # 月度稳定性
         monthly = defaultdict(list)
         for b in bets:
@@ -229,13 +276,20 @@ def review(period='all', min_n=MIN_N):
 
     usable = [p['play_cn'] for p in plays if p['verdict_code'] == 'usable']
     paused = [p['play_cn'] for p in plays if p['verdict_code'] == 'pause']
+    suspect = [p['play_cn'] for p in plays if p['verdict_code'] == 'suspect']
+    audit = _settle_audit(rows)
+    head = '可用玩法：%s；建议暂停：%s' % ('、'.join(usable) or '暂无', '、'.join(paused) or '暂无')
+    if suspect:
+        head += '；战绩存疑待复核：%s' % '、'.join(suspect)
     return {
         'generated_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         'period': period or 'all',
         'min_n': min_n,
         'method': 'Wilson 95% 置信区间 + 盈亏线 mean(1/赔率) + 二项 z 检验；'
-                  'ROI 按投注额加权并给近似置信区间；估算赔率玩法单列参考。',
-        'headline': ('可用玩法：%s；建议暂停：%s' % ('、'.join(usable) or '暂无',
-                                                   '、'.join(paused) or '暂无')),
+                  'ROI 按投注额加权并给近似置信区间；估算赔率玩法单列参考；'
+                  '另做结算可信度自检：实际胜场与按赔率推算的期望胜场偏差超过 3 个标准差时，'
+                  '判定为"战绩存疑"（先查结算与数据匹配，再谈模型好坏）。',
+        'headline': head,
+        'audit': audit,
         'plays': plays,
     }
