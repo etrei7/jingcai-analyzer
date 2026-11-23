@@ -347,6 +347,29 @@ def _ht_scores(ev):
     return (None, None)
 
 
+_FINISHED_STATUSES = {'finished', 'ended', 'ft', 'fulltime', 'full_time', 'complete',
+                      'completed', 'final', 'aet', 'after_extra_time', 'pen',
+                      'after_penalties', 'awarded'}
+
+
+def is_finished_event(ev):
+    """这场到底踢完没有。
+
+    为什么必须判：`GET /events/{id}/` 对未开赛事件同样返回 200，且 home_score/away_score
+    是 0-0 默认值。2026-11-23 之前 settle_finished 直接拿这两个字段结算，等于把"还没踢"
+    的比赛全部按 0-0 平局结算——胜平负/总进球命中率被打到 16%/3.7%，
+    而让球受让方（H+1、A-1 在平局都赢）反而虚高，这正是历史战绩自相矛盾的根源。
+    """
+    if not isinstance(ev, dict):
+        return False
+    st = str(ev.get('status') or '').strip().lower()
+    if st:
+        return st in _FINISHED_STATUSES
+    if ev.get('finished') is True or ev.get('is_finished') is True:
+        return True
+    return False
+
+
 def settle_finished():
     """赛后结算（高覆盖）：构建「事件ID + 队名」双索引的赛果表，按ID优先、队名兜底回填。
     - 已完赛列表 fetch_finished_events（近7天）覆盖大多数场次；
@@ -377,6 +400,8 @@ def settle_finished():
 
         def _add_ev(ev):
             if not isinstance(ev, dict):
+                return
+            if not is_finished_event(ev):
                 return
             hs, aw = ev.get('home_score'), ev.get('away_score')
             if hs is None or aw is None:
@@ -491,6 +516,87 @@ def settle_finished():
 
 
 _STALE_DAYS = 7
+
+
+def resettle_recent(days=14, limit=300):
+    """按事件的真实赛果重算最近一段时间的结算（只处理有数字事件ID的注单）。
+
+    为什么需要：2026-11-23 之前，`/events/{id}/` 对未开赛事件也返回 0-0 默认比分，
+    这些场次被当成平局结算，导致胜平负/总进球命中率虚假偏低、让球受让方虚假偏高。
+    修好入口（is_finished_event）只能保证以后不再错；已经落库的错结论必须重算，
+    否则首页闸门会继续依据错数据永久封杀玩法。返回一份可核对的统计。
+    """
+    try:
+        from bizzoiro_client import API_KEY, BASE_URL
+        if not API_KEY:
+            return {'error': 'BZZOIRO_API_KEY 未配置'}
+        import requests
+        import backtest as bt
+        from backtest_models import BtBet, db
+
+        cutoff = (datetime.now() - timedelta(days=int(days))).strftime('%Y-%m-%d %H:%M:%S')
+        rows = BtBet.query.filter(BtBet.settled_at >= cutoff).all()
+        ids = sorted({str(b.match_id) for b in rows if str(b.match_id).isdigit()})
+        events = {}
+
+        def _fetch_one(eid):
+            try:
+                resp = requests.get(f'{BASE_URL}/events/{eid}/',
+                                    headers={'Authorization': f'Token {API_KEY}'}, timeout=10)
+                if resp.status_code == 200:
+                    ev = resp.json()
+                    if is_finished_event(ev):
+                        return eid, ev
+            except Exception:
+                pass
+            return eid, None
+
+        todo = ids[:int(limit)]
+        if todo:
+            try:
+                from concurrent.futures import ThreadPoolExecutor
+                with ThreadPoolExecutor(max_workers=8) as ex:
+                    for eid, ev in ex.map(_fetch_one, todo):
+                        if ev:
+                            events[eid] = ev
+            except Exception:
+                for eid in todo:
+                    _e, _ev = _fetch_one(eid)
+                    if _ev:
+                        events[_e] = _ev
+        stats = {'days': days, 'bet_rows': len(rows), 'event_ids': len(ids),
+                 'finished_events': len(events), 'checked': 0, 'changed': 0, 'no_score': 0}
+        for b in rows:
+            ev = events.get(str(b.match_id))
+            if not ev:
+                continue
+            hs, aw = ev.get('home_score'), ev.get('away_score')
+            if hs is None or aw is None:
+                stats['no_score'] += 1
+                continue
+            actual = 'H' if hs > aw else 'A' if hs < aw else 'D'
+            hht, aht = _ht_scores(ev)
+            try:
+                outcome, pnl = bt._eval_play(b, actual, hs, aw, hht, aht, b.stake or 1.0)
+            except Exception:
+                continue
+            stats['checked'] += 1
+            if outcome != b.outcome or abs(float(b.pnl or 0) - float(pnl)) > 1e-6:
+                stats['changed'] += 1
+            b.outcome = outcome
+            b.pnl = pnl
+            try:
+                b.home_score, b.away_score = hs, aw
+                b.home_score_ht, b.away_score_ht = hht, aht
+            except Exception:
+                pass
+        if stats['checked']:
+            db.session.commit()
+        logger.info('[pipeline] resettle %s', stats)
+        return stats
+    except Exception as e:
+        logger.warning('[pipeline] resettle error: %s', e)
+        return {'error': str(e)[:200]}
 
 
 def expire_stale(days=_STALE_DAYS):
