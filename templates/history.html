@@ -122,6 +122,7 @@ a{text-decoration:none;color:inherit}
 .pr-badge.watch{background:#fef3c7;color:#92400e}
 .pr-badge.pause{background:var(--low-bg);color:#b91c1c}
 .pr-badge.reference,.pr-badge.insufficient{background:var(--btn-bg);color:var(--text-muted)}
+.pr-badge.suspect{background:#ede9fe;color:#5b21b6;border:1px solid #c4b5fd}
 .pr-edge{font-size:1rem;font-weight:800;margin-top:5px}
 .pr-edge .lab{font-size:0.58rem;font-weight:600;color:var(--text-muted);margin-left:4px}
 .pr-rows{font-size:0.62rem;color:var(--text-muted);line-height:1.75;margin-top:4px;overflow-wrap:anywhere}
@@ -309,7 +310,7 @@ async function loadBacktestPanel(){
 function reviewVerdictBadge(p){
   var map = {
     usable:['可用','usable'], watch:['观察','watch'], pause:['建议暂停','pause'],
-    reference:['仅参考','reference'], insufficient:['样本不足','insufficient']
+    reference:['仅参考','reference'], insufficient:['样本不足','insufficient'], suspect:['存疑·待复核','suspect']
   };
   var m = map[p.verdict_code] || ['观察','watch'];
   return '<span class="pr-badge '+m[1]+'">'+m[0]+'</span>';
@@ -332,6 +333,7 @@ function reviewCard(p){
         '命中率 <b>'+p.hit_rate+'%</b>（95%CI '+p.hit_ci[0]+'–'+p.hit_ci[1]+'）<br>' +
         '盈亏线 <b>'+p.required_rate+'%</b>（同赔率必中率，>无优势=亏损）<br>' +
         '统计显著性 p=<b>'+p.p_value+'</b>'+(p.p_value<0.10?'（显著）':'（不显著）')+'<br>' +
+        '按赔率应约 <b>'+p.expected_wins+'</b> 胜（实际 '+p.wins+'，偏差 z='+p.integrity_z+'）<br>' +
         'ROI <b>'+(p.roi>0?'+':'')+p.roi+'%</b>（95%CI '+p.roi_ci[0]+'–'+p.roi_ci[1]+'%）<br>' +
         '近30天 命中 '+(p.recent30?p.recent30.hit_rate:0)+'% / 盈亏线 '+(p.recent30?p.recent30.required_rate:0)+'%（n='+(p.recent30?p.recent30.n:0)+'）' +
       '</div>' + emptyNote +
@@ -342,10 +344,20 @@ function reviewCard(p){
 function renderPlayReview(review){
   if(!review || !review.plays || !review.plays.length) return '';
   var cards = review.plays.map(reviewCard).join('');
+  var au = review.audit || {};
+  var auditNote = '';
+  if(au.decided){
+    var cov = au.coverage || 0;
+    auditNote = '结算自检：已结算 '+au.decided+' 条，其中 '+au.checked+' 条有比分快照（覆盖 '+cov+'%）' +
+      (au.mismatch ? '，<b style="color:var(--low)">'+au.mismatch+' 条与比分不符</b>' : '，0 条与比分不符') +
+      (cov < 30 ? '。覆盖率低说明历史结算无法回溯核对，只能等新样本累积后复核。' : '。');
+  }
   return '<div class="pr-headline">玩法专业评估' +
       '<span style="font-weight:600;color:var(--text-muted);font-size:0.62rem">'+esc(review.headline||'')+'</span></div>' +
     '<div class="pr-method">读法：命中率必须高于「盈亏线」才可能盈利；括号内是 95% 置信区间，样本小则区间宽、结论不可靠。'+
-      'p&lt;0.10 才认为偏离盈亏线不是运气。'+(review.period && review.period!=='all' ? '统计区间：'+esc(review.period) : '')+'</div>' +
+      'p&lt;0.10 才认为偏离盈亏线不是运气；「按赔率应约 X 胜」是结算可信度自检——实际胜场远低于它时，先查结算与数据匹配，而不是怪模型。'+
+      (review.period && review.period!=='all' ? '统计区间：'+esc(review.period) : '')+'</div>' +
+    (auditNote ? '<div class="pr-method" style="padding-top:0">'+auditNote+'</div>' : '') +
     '<div class="pr-grid">'+cards+'</div>';
 }
 function renderBacktestPanel(s, review){
