@@ -827,3 +827,57 @@ def fetch_intl_odds_for_matches(matches, max_matches=6):
 
     logger.info(f'[Bzzoiro] {len(intl)} 场国际赔率对比')
     return intl
+
+
+# ===== 赔率变动懒加载（/api/odds-movement 使用） =====
+# 前端首屏后按 raw_event_id 懒加载「初赔→即赔」变动；每场单独缓存 120s，
+# 避免页面 60s 自动刷新时反复打上游（Bzzoiro /odds/ 单场一次，成本不低）。
+_odds_move_cache = {}
+_odds_move_lock = threading.Lock()
+_ODDS_MOVE_TTL = 120
+_ODDS_MOVE_MAX = 500
+
+
+def fetch_odds_movement_for_matches(matches, max_matches=12):
+    """返回 {event_id: {'trend': {...}, 'total': 公司数, 'pressure_side': '...'}}。
+
+    数据复用 fetch_intl_odds_for_matches 的解析结果，只保留前端渲染所需字段。
+    拉不到/无数据的场次同样写入缓存（空值），避免重复请求。
+    """
+    if not API_KEY or not matches:
+        return {}
+    now = time.time()
+    out, missing = {}, []
+    with _odds_move_lock:
+        for m in matches:
+            eid = str(m.get('bz_event_id') or m.get('raw_event_id') or '')
+            if not eid:
+                continue
+            hit = _odds_move_cache.get(eid)
+            if hit and (now - hit[0] < _ODDS_MOVE_TTL):
+                if hit[1]:
+                    out[eid] = hit[1]
+            else:
+                missing.append(m)
+    if missing:
+        intl = fetch_intl_odds_for_matches(missing, max_matches=max_matches)
+        for eid, v in intl.items():
+            mv = v.get('movement') or {}
+            payload = {
+                'trend': mv.get('trend') or {'home': 0, 'draw': 0, 'away': 0, 'total': 0},
+                'total': v.get('count') or 0,
+                'pressure_side': mv.get('pressure_side') or '',
+            }
+            out[str(eid)] = payload
+            with _odds_move_lock:
+                _odds_move_cache[str(eid)] = (now, payload)
+        # 负缓存：本场没拉到数据时同样缓存，避免刷新时反复请求
+        with _odds_move_lock:
+            for m in missing:
+                eid = str(m.get('bz_event_id') or m.get('raw_event_id') or '')
+                if eid and eid not in out and eid not in _odds_move_cache:
+                    _odds_move_cache[eid] = (now, {})
+            if len(_odds_move_cache) > _ODDS_MOVE_MAX:
+                for k in list(_odds_move_cache)[:-_ODDS_MOVE_MAX]:
+                    _odds_move_cache.pop(k, None)
+    return {k: v for k, v in out.items() if v}
