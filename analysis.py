@@ -829,8 +829,26 @@ def analyze_single_match(match, standings=None, prediction=None):
     implied_prob = 1.0 / min_odds if min_odds > 0 else 0.33
     confidence_score = min(0.95, max(0.05, implied_prob))
 
+    # 0) 独立实力模型：λ 来自历史比分（Dixon-Coles），赔率只作先验融合。
+    #    有参数就用模型概率覆盖"1/最低赔率"这个循环口径；没有就退回旧逻辑。
+    _mc = None
+    _model_used = False
+    try:
+        import model_core
+        _mc = model_core.predict_match(
+            match.get('home_team', ''), match.get('away_team', ''), league,
+            match.get('win_odds'), match.get('draw_odds'), match.get('lose_odds'))
+    except Exception:
+        _mc = None
+
     predicted_option = None
-    if prediction:
+    if _mc and _has_1x2:
+        _best = max((('胜', _mc['p_home']), ('平', _mc['p_draw']), ('负', _mc['p_away'])), key=lambda x: x[1])
+        predicted_option = _best[0]
+        confidence_score = max(0.05, min(0.95, float(_best[1])))
+        _model_used = True
+
+    if prediction and not _model_used:
         pred_conf = prediction.get('confidence', 0) or 0
         if pred_conf > 0:
             confidence_score = (confidence_score + pred_conf) / 2
@@ -840,7 +858,8 @@ def analyze_single_match(match, standings=None, prediction=None):
     if not predicted_option:
         predicted_option = min_option[0] if (min_option and _has_1x2) else None
 
-    confidence_score *= league_quality
+    if not _model_used:
+        confidence_score *= league_quality
 
     # 2. 热度标签
     if min_odds < 1.4:
@@ -952,7 +971,7 @@ def analyze_single_match(match, standings=None, prediction=None):
                 _fund_odds = float(match.get('win_odds') or 0)
             elif fund_pick == 'A':
                 _fund_odds = float(match.get('lose_odds') or 0)
-            if fund['score'] >= 0.5 and fund_pick != 'D' and 0 < _fund_odds <= 2.8:
+            if fund['score'] >= 0.5 and fund_pick != 'D' and 0 < _fund_odds <= 2.8 and not _model_used:
                 predicted_option = '胜' if fund_pick == 'H' else '负'
                 cross_signal = f'基本面上风→改判'
                 confidence_score = min(0.9, confidence_score * 0.9)
@@ -1045,11 +1064,25 @@ def analyze_single_match(match, standings=None, prediction=None):
     except Exception:
         pass
 
+    # 模型路径：赔率驱动的加减分一律不参与（否则等于把市场概率又揉回模型概率）。
+    # 信心直接取"被推荐那一注"的模型概率，高/中/低按固定阈值，便于回测校准。
+    if _model_used:
+        _mp = {'胜': _mc['p_home'], '平': _mc['p_draw'], '负': _mc['p_away']}.get(predicted_option, confidence_score)
+        confidence_score = max(0.05, min(0.95, float(_mp)))
+        conf_level = '高' if confidence_score >= 0.55 else ('中' if confidence_score >= 0.42 else '低')
+        cross_signal = '模型主导' + ('·未知球队用联赛均值' if not _mc.get('covered') else '')
+
     confidence_level = conf_level
     result_extra = {'cross_signal': cross_signal, 'fund_signals': fund_sig, 'fund_strength': fund['score']}
 
     # 6. 总进球分析（盘口+球队状态驱动）
-    tg = _compute_total_goals(match, prediction, home_confidence / 10.0, away_confidence / 10.0, h_inj, a_inj)
+    # 模型可用时，λ 取模型值（来自历史比分），否则沿用赔率反推——这是"价值盘是否循环"的分水岭。
+    _pred_tg = prediction
+    if _model_used:
+        _pred_tg = dict(prediction or {})
+        _pred_tg['expected_home_goals'] = _mc['lam_h']
+        _pred_tg['expected_away_goals'] = _mc['lam_a']
+    tg = _compute_total_goals(match, _pred_tg, home_confidence / 10.0, away_confidence / 10.0, h_inj, a_inj)
     expected = tg['expected']
     goal_range = tg['goal_range']
     tendency = tg['tendency']
@@ -1196,6 +1229,18 @@ def analyze_single_match(match, standings=None, prediction=None):
     result['home_xgd'] = home_xgd
     result['away_xgd'] = away_xgd
     result['predicted_option'] = predicted_option
+    # 模型溯源：让前端/复盘能看到这场是模型算的还是赔率兜底，以及参数版本与训练截止日
+    result['model'] = {
+        'used': bool(_model_used),
+        'version': (_mc or {}).get('version'),
+        'trained_at': (_mc or {}).get('trained_at'),
+        'n_matches': (_mc or {}).get('n_matches'),
+        'weight': (_mc or {}).get('weight'),
+        'covered': (_mc or {}).get('covered'),
+        'probs': {'home': (_mc or {}).get('p_home'), 'draw': (_mc or {}).get('p_draw'),
+                  'away': (_mc or {}).get('p_away')},
+        'lambdas': {'home': (_mc or {}).get('lam_h'), 'away': (_mc or {}).get('lam_a')},
+    }
     result['goal_distribution'] = goal_dist
     result['over25_prob'] = over25_prob
     result['injury_impact'] = injury_impact
