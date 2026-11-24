@@ -276,6 +276,14 @@ def predict_match(home, away, league='', win_odds=0, draw_odds=0, lose_odds=0, i
 
 
 # ---------------------------------------------------------------- 数据与刷新
+def _league_name(ev):
+    """联赛字段在不同接口里有 str / dict 两种形态，统一成字符串键。"""
+    lg = ev.get('league') or ev.get('league_name') or ''
+    if isinstance(lg, dict):
+        lg = lg.get('name') or lg.get('title') or lg.get('id') or ''
+    return str(lg or '')
+
+
 def _ev_team(ev, side):
     obj = ev.get(side + '_team_obj') or {}
     if isinstance(obj, dict) and obj.get('name'):
@@ -321,7 +329,7 @@ def build_dataset(days=150, max_days=120):
             records.append({
                 'id': str(eid), 'date': ds, 'home': home, 'away': away,
                 'hg': hs, 'ag': aw,
-                'league': ev.get('league') or ev.get('league_name') or '',
+                'league': _league_name(ev),
                 'weight': round(0.5 ** (age / _TIME_DECAY_DAYS), 4),
             })
             seen.add(eid)
