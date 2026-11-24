@@ -242,5 +242,10 @@ $env:PORT='5057'; $env:DATABASE_URL='sqlite:///<workspace>/tmp_test.db'   # 用�
 - 回归测试：`tools/test_play_review.py`（26 条断言，覆盖 Wilson 边界、盈亏线、判定三档、估算玩法）。
   跑法同 `tools/test_settle_offline.py`（用 venv 解释器 + `PYTHONDONTWRITEBYTECODE=1`）。
 
+## 模型内核（2026-11-24 起）
 
-
+- `model_core.py` 是唯一的 1X2 与 λ 来源：Dixon-Coles 泊松，λ 来自历史比分，赔率只按 weight 融合（默认 0.20）。
+- 参数文件在 `instance/model_params.json`，由 `maintenance.py` 的 `MODEL_REFRESH` 标志触发重建；重建要联网拉比分，只能在 webapp 进程里跑（PA console 没有 BZZOIRO key）。
+- `MODEL_EVAL` 标志跑时间切分验证（`holdout_eval`），用验证选出的 reg 与 league_effects 重建线上参数，结果写 `instance/model_eval.json`。
+- 选题在 `analysis._pick_by_ev()`：按凯利分数排序，赔率 ≤8、概率 ≥10%、f>1% 才算正期望；不满足标 `no_bet`，只展示不推荐。
+- 不要退回"信心 = 1/最低赔率"：那是循环口径，已被审计否掉。
