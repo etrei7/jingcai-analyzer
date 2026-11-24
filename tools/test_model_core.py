@@ -126,7 +126,19 @@ check('模型优于基率（合成数据应有信号）', bool(ev.get('beat_base
       '%s vs %s' % (ev.get('logloss_model'), ev.get('logloss_base')))
 check('平局概率质量合理（不是恒 0）', ev.get('mean_draw_prob', 0) >= 10, ev.get('mean_draw_prob'))
 
-print('[5] 边界')
+print('[5] 滚动起点验证（walk-forward）')
+teams2, _str2, recs2 = synthetic(n_teams=12, n_rounds=80, seed=11)
+wf = mc.walk_forward_eval(recs2, folds=4)
+check('滚动验证可用', wf.get('ok') is True, wf.get('reason', ''))
+check('至少 2 折', (wf.get('folds') or 0) >= 2, wf.get('folds'))
+check('每折都有训练/测试段',
+      all(f.get('train', 0) >= f.get('test', 0) > 0 for f in wf.get('folds_detail') or []))
+check('至少一半的折优于基率', (wf.get('folds_beat_logloss') or 0) * 2 >= (wf.get('folds') or 1),
+      '%s/%s' % (wf.get('folds_beat_logloss'), wf.get('folds')))
+check('平均 logloss 优于基率', wf.get('mean_logloss_model', 9) < wf.get('mean_logloss_base', 0),
+      '%s vs %s' % (wf.get('mean_logloss_model'), wf.get('mean_logloss_base')))
+
+print('[6] 边界')
 try:
     mc.fit(recs[:20])
     check('样本不足应报错', False)
