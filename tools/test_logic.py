@@ -155,6 +155,24 @@ def main():
     lv_jackpot = an._stake_plan(245.0, 0.66, '', ['高', '高', '中', '中'])
     check('超高赔必须提示高风险', '高风险' in lv_jackpot['note'], lv_jackpot['note'])
 
+    print('[9] 期望值选题：选 EV 最高的选项，而不是概率最高的热门')
+    # 主胜概率最高（47%）但赔率 1.6 已经吃掉价值；客胜 24% 配 5.2 的赔率 EV 更高
+    opt, edge, evs, no_bet = an._pick_by_ev(
+        {'胜': 0.47, '平': 0.29, '负': 0.24}, {'胜': 1.60, '平': 3.80, '负': 5.20})
+    check('EV 选客胜而不是主胜', opt == '负', opt)
+    check('EV 值可复现', abs(edge - (0.24 * 5.2 - 1)) < 1e-6, edge)
+    check('有正期望不算 no_bet', no_bet is False)
+    # 全负期望：一律 no_bet，但仍给出期望值最高的那个选项用于展示
+    opt2, edge2, _ev2, no_bet2 = an._pick_by_ev(
+        {'胜': 0.50, '平': 0.28, '负': 0.22}, {'胜': 1.70, '平': 3.20, '负': 4.60})
+    check('全负期望标 no_bet', no_bet2 is True, edge2)
+    check('no_bet 仍返回最优选项', opt2 in ('胜', '平', '负'), opt2)
+    # 赔率缺失的选项不得被选中
+    opt3, edge3, evs3, _ = an._pick_by_ev(
+        {'胜': 0.40, '平': 0.30, '负': 0.30}, {'胜': None, '平': 3.6, '负': 0.0})
+    check('缺赔率的选项不参选', opt3 == '平', (opt3, edge3))
+    check('缺赔率记为 -9', evs3['胜'] == -9.0 and evs3['负'] == -9.0, evs3)
+
     print('RESULT:', 'FAIL' if FAIL else 'ALL OK')
     return 1 if FAIL else 0
 
