@@ -90,14 +90,14 @@ def _kelly(prob, odds, fraction=KELLY_FRACTION, cap=KELLY_CAP):
     return round(max(0.0, min(f * fraction, cap)), 4)
 
 
-def _pick_by_ev(p_map, o_map, min_kelly=0.008, max_odds=8.0, min_prob=0.15):
+def _pick_by_ev(p_map, o_map, min_kelly=0.01, max_odds=8.0, min_prob=0.10):
     """按"单位风险的期望收益"（凯利分数）选题，而不是按概率或裸 EV 选题。
 
     三个约束缺一不可：
     - 裸 EV 会被高赔冷门支配：赔率 10 时 2pp 的概率误差就值 20% 的 EV，
       而 2pp 恰好是这类模型的典型误差量级，所以必须换成凯利分数（edge/(o-1)）排序；
     - 赔率上限 8：再往上，模型与市场的分歧无法用"实力"解释，多半是信息差或状态突变；
-    - 概率下限 15%：低于这个数的选项即使 EV 为正也无法长期验证（样本太稀）。
+    - 概率下限 10%：低于这个数的选项即使 EV 为正也无法长期验证（样本太稀）。
     返回 (option, edge, evs, no_bet)；无合格选项时退回概率最高者，并标 no_bet。
     """
     evs = {}
