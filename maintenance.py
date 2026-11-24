@@ -95,6 +95,35 @@ def _consume_resettle(app):
 
 
 _MODEL_FLAG = 'MODEL_REFRESH'
+_MODEL_EVAL_FLAG = 'MODEL_EVAL'
+
+
+def _consume_model_eval(app):
+    """instance/MODEL_EVAL 存在时做一次时间切分验证，写 instance/model_eval.json。"""
+    path = os.path.join(app.instance_path, _MODEL_EVAL_FLAG)
+    if not os.path.exists(path):
+        return None
+    try:
+        os.remove(path)
+    except Exception:
+        pass
+    try:
+        import json as _json
+        import model_core
+        records = model_core.build_dataset(days=150)
+        stats = model_core.holdout_eval(records)
+        if stats.get('ok'):
+            # 顺带把这份"训练集整体"的模型参数也刷新掉，避免验证与实际参数脱节
+            model_core.refresh(days=150, instance_path=app.instance_path)
+        logger.info('[维护] 模型验证: %s', stats)
+        _log('model eval: %s' % (stats,))
+        with open(os.path.join(app.instance_path, 'model_eval.json'), 'w', encoding='utf-8') as fh:
+            _json.dump(stats, fh, ensure_ascii=False)
+        return stats
+    except Exception as exc:
+        logger.exception('[维护] 模型验证失败')
+        _log('model eval error: %r' % (exc,))
+        return None
 
 
 def _consume_model_refresh(app):
@@ -137,6 +166,7 @@ def _consume_model_refresh(app):
 def _work(app):
     try:
         with app.app_context():
+            _consume_model_eval(app)
             _consume_model_refresh(app)
             _consume_resettle(app)
             from data_pipeline import settle_finished
@@ -156,7 +186,9 @@ def _work(app):
 
 def maybe_run(app):
     """满足条件时启动一次后台维护；返回是否真的启动。"""
-    forced = os.path.exists(_flag_path(app)) or os.path.exists(os.path.join(app.instance_path, _MODEL_FLAG))
+    forced = (os.path.exists(_flag_path(app))
+              or os.path.exists(os.path.join(app.instance_path, _MODEL_FLAG))
+              or os.path.exists(os.path.join(app.instance_path, _MODEL_EVAL_FLAG)))
     if not _ENABLED:
         return False
     if _INTERVAL_HOURS <= 0 and not forced:
