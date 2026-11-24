@@ -338,3 +338,65 @@ def refresh(days=150, instance_path=None):
         'path': path,
         'elapsed_sec': round(time.time() - t0, 1),
     }
+
+
+def holdout_eval(records, split=0.8):
+    """时间切分验证：用前 80% 的日期拟合，预测后 20%，与"训练集基率"基线对比。
+
+    基线不是"随便猜"，而是用训练集里主/平/客的实际比例做常数预测——一个模型如果
+    连"永远按先验分布下注"都赢不了，就不该上线。
+    """
+    rows = [r for r in records if r.get('hg') is not None and r.get('ag') is not None]
+    rows.sort(key=lambda r: (r.get('date') or '', r.get('id') or ''))
+    cut = max(_MIN_MATCHES, int(len(rows) * split))
+    train, test = rows[:cut], rows[cut:]
+    if len(test) < 30:
+        return {'ok': False, 'reason': '测试集太小', 'n_test': len(test)}
+    params = fit(train)
+    # 基线：训练集里的结果分布
+    cnt = {'H': 0, 'D': 0, 'A': 0}
+    for r in train:
+        cnt['H' if r['hg'] > r['ag'] else 'D' if r['hg'] == r['ag'] else 'A'] += 1
+    tot = sum(cnt.values()) or 1
+    base = [cnt['H'] / tot, cnt['D'] / tot, cnt['A'] / tot]
+
+    def _ll(p, y):
+        return -math.log(max(1e-9, p[y]))
+
+    ll_m = ll_b = br_m = br_b = 0.0
+    acc_m = acc_b = 0
+    picks = {'H': 0, 'D': 0, 'A': 0}
+    draw_mass = 0.0
+    for r in test:
+        lam_h, lam_a, covered = _lambdas(params, r['home'], r['away'])
+        mp = outcome_probs(lam_h, lam_a)
+        p = [mp['home'], mp['draw'], mp['away']]
+        y = 0 if r['hg'] > r['ag'] else 1 if r['hg'] == r['ag'] else 2
+        best = max(range(3), key=lambda i: p[i])
+        picks[('H', 'D', 'A')[best]] += 1
+        draw_mass += p[1]
+        acc_m += 1 if best == y else 0
+        acc_b += 1 if max(range(3), key=lambda i: base[i]) == y else 0
+        ll_m += _ll(p, y)
+        ll_b += _ll(base, y)
+        for i in range(3):
+            one = 1.0 if i == y else 0.0
+            br_m += (p[i] - one) ** 2
+            br_b += (base[i] - one) ** 2
+    n = len(test)
+    return {
+        'ok': True,
+        'trained_on': len(train),
+        'n_test': n,
+        'logloss_model': round(ll_m / n, 4),
+        'logloss_base': round(ll_b / n, 4),
+        'brier_model': round(br_m / n, 4),
+        'brier_base': round(br_b / n, 4),
+        'acc_model': round(100.0 * acc_m / n, 1),
+        'acc_base': round(100.0 * acc_b / n, 1),
+        'picks': picks,
+        'draw_pick_share': round(100.0 * picks['D'] / n, 1),
+        'mean_draw_prob': round(100.0 * draw_mass / n, 1),
+        'beat_base_logloss': ll_m < ll_b,
+        'beat_base_brier': br_m < br_b,
+    }
