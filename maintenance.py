@@ -113,8 +113,10 @@ def _consume_model_eval(app):
         records = model_core.build_dataset(days=150)
         stats = model_core.holdout_eval(records)
         if stats.get('ok'):
-            # 顺带把这份"训练集整体"的模型参数也刷新掉，避免验证与实际参数脱节
-            model_core.refresh(days=150, instance_path=app.instance_path)
+            # 用 holdout 选出的超参重建线上参数，避免"验证一套、上线另一套"
+            model_core.refresh(days=150, instance_path=app.instance_path,
+                               reg=stats.get('best_reg'),
+                               league_effects=stats.get('best_league_effects'))
         logger.info('[维护] 模型验证: %s', stats)
         _log('model eval: %s' % (stats,))
         with open(os.path.join(app.instance_path, 'model_eval.json'), 'w', encoding='utf-8') as fh:
