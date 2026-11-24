@@ -90,24 +90,40 @@ def _kelly(prob, odds, fraction=KELLY_FRACTION, cap=KELLY_CAP):
     return round(max(0.0, min(f * fraction, cap)), 4)
 
 
-def _pick_by_ev(p_map, o_map, min_edge=0.02):
-    """按期望值选题，而不是按概率选题。
+def _pick_by_ev(p_map, o_map, min_kelly=0.01, max_odds=6.0, min_prob=0.18):
+    """按"单位风险的期望收益"（凯利分数）选题，而不是按概率或裸 EV 选题。
 
-    概率最高的选项几乎永远是热门，扣掉抽水后长期是负期望；
-    只有"模型概率 × 赔率 - 1"为正时才可能存在下注价值。
-    返回 (option, edge, evs, no_bet)。赔率缺失/异常的选项按 -9 处理，不会被选中。
+    三个约束缺一不可：
+    - 裸 EV 会被高赔冷门支配：赔率 10 时 2pp 的概率误差就值 20% 的 EV，
+      而 2pp 恰好是这类模型的典型误差量级，所以必须换成凯利分数（edge/(o-1)）排序；
+    - 赔率上限 6：再往上，模型与市场的分歧无法用"实力"解释，多半是信息差或状态突变；
+    - 概率下限 18%：低于这个数的选项即使 EV 为正也无法长期验证（样本太稀）。
+    返回 (option, edge, evs, no_bet)；无合格选项时退回概率最高者，并标 no_bet。
     """
     evs = {}
+    probs = {}
+    odds = {}
     for k in ('胜', '平', '负'):
         try:
             o = float(o_map.get(k) or 0)
         except (TypeError, ValueError):
             o = 0.0
         p = float(p_map.get(k) or 0.0)
+        probs[k] = p
+        odds[k] = o
         evs[k] = round(p * o - 1.0, 4) if o > 1.01 else -9.0
-    best = max(evs, key=lambda k: evs[k])
-    edge = evs[best]
-    return best, edge, evs, bool(edge <= min_edge)
+    # 凯利分数：f = (p*o - 1) / (o - 1)，与"下注后资金增长率"同序
+    kelly = {}
+    for k in ('胜', '平', '负'):
+        o = odds[k]
+        kelly[k] = (evs[k] / (o - 1.0)) if (o > 1.01 and evs[k] > -9.0) else -9.0
+    eligible = [k for k in ('胜', '平', '负')
+                if 1.01 < odds[k] <= max_odds and probs[k] >= min_prob and kelly[k] > min_kelly]
+    if eligible:
+        best = max(eligible, key=lambda k: kelly[k])
+        return best, evs[best], evs, False
+    best = max(('胜', '平', '负'), key=lambda k: probs[k])
+    return best, evs[best], evs, True
 
 
 def _value_analysis(win_odds, draw_odds, lose_odds, lam_h, lam_a):
@@ -864,11 +880,12 @@ def analyze_single_match(match, standings=None, prediction=None):
     predicted_option = None
     _model_edge = None
     _model_evs = None
+    _model_no_bet = False
     if _mc and _has_1x2:
         _odds_map = {'胜': match.get('win_odds'), '平': match.get('draw_odds'), '负': match.get('lose_odds')}
         _p_map = {'胜': _mc['p_home'], '平': _mc['p_draw'], '负': _mc['p_away']}
-        # 选"期望值最高"的选项，而不是"概率最高"的选项（见 _pick_by_ev 的说明）
-        predicted_option, _model_edge, _model_evs, _ = _pick_by_ev(_p_map, _odds_map)
+        # 选"单位风险期望收益最高"的选项，而不是"概率最高"的选项（见 _pick_by_ev）
+        predicted_option, _model_edge, _model_evs, _model_no_bet = _pick_by_ev(_p_map, _odds_map)
         confidence_score = max(0.05, min(0.95, float(_p_map[predicted_option])))
         _model_used = True
 
@@ -1097,7 +1114,7 @@ def analyze_single_match(match, standings=None, prediction=None):
         cross_signal = '模型主导' + ('·未知球队用联赛均值' if not _mc.get('covered') else '')
         if _model_edge is not None:
             cross_signal += '·期望%+.1f%%' % (_model_edge * 100)
-            if _model_edge <= 0.02:
+            if _model_no_bet:
                 # 模型与市场没有明显分歧：这一注没有正期望，降级为"只看不下"
                 conf_level = '低'
                 confidence_score = min(confidence_score, 0.4)
@@ -1273,8 +1290,8 @@ def analyze_single_match(match, standings=None, prediction=None):
         'lambdas': {'home': (_mc or {}).get('lam_h'), 'away': (_mc or {}).get('lam_a')},
         'edge': _model_edge,
         'evs': _model_evs,
-        # 期望值不足 2% 视为"没有可下注的正期望"，只展示不给推荐
-        'no_bet': bool(_model_edge is not None and _model_edge <= 0.02),
+        # 没有合格选项（赔率、概率、凯利分数三关都过不了）时不推荐，只展示
+        'no_bet': bool(_model_no_bet),
     }
     result['goal_distribution'] = goal_dist
     result['over25_prob'] = over25_prob
