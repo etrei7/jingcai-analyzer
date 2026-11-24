@@ -613,15 +613,38 @@ def analyze_data():
             m.pop('hhad_draw', None); m.pop('hhad_lose', None)
 
         # Bzzoiro 富化：伤病/裁判/天气/球队状态（不改编号赔率）
+        # 外网接口在 PA 上可能长时间不返回（每个字段都是独立请求）。整段富化给一个总预算，
+        # 超时就先用未富化的数据出结论——分析本身不依赖富化，富化只影响展示与少量先验，
+        # 不能因为它让首页一直转圈。
+        _enrich_budget = float(os.environ.get('ENRICH_BUDGET_SEC', '20') or 20)
         try:
-            from bizzoiro_client import enrich_jingcai_matches
-            matches, _ = enrich_jingcai_matches(matches)
-        except Exception:
-            pass
-        # 真实历史交锋 + 近况
-        try:
-            from bizzoiro_client import fetch_h2h_and_form
-            fetch_h2h_and_form(matches)
+            import copy as _copy
+            from concurrent.futures import ThreadPoolExecutor
+            _plain = [_copy.deepcopy(m) for m in matches]
+
+            def _enrich_all(_ms):
+                try:
+                    from bizzoiro_client import enrich_jingcai_matches
+                    _ms, _ = enrich_jingcai_matches(_ms)
+                except Exception:
+                    pass
+                try:
+                    from bizzoiro_client import fetch_h2h_and_form
+                    fetch_h2h_and_form(_ms)
+                except Exception:
+                    pass
+                return _ms
+
+            _ex = ThreadPoolExecutor(max_workers=1)
+            try:
+                _fut = _ex.submit(_enrich_all, _plain)
+                try:
+                    matches = _fut.result(timeout=_enrich_budget)
+                except Exception:
+                    logging.warning('[analyze] 富化超过 %.0fs，先返回未富化结果', _enrich_budget)
+                    matches = _plain
+            finally:
+                _ex.shutdown(wait=False)
         except Exception:
             pass
 
