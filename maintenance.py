@@ -94,9 +94,50 @@ def _consume_resettle(app):
         return {'error': str(e)[:200]}
 
 
+_MODEL_FLAG = 'MODEL_REFRESH'
+
+
+def _consume_model_refresh(app):
+    """instance/MODEL_REFRESH 存在时重建球队实力模型参数（需要 bzzoiro key）。
+
+    和 RESETTLE 同一种做法：模型拟合要联网拉历史比分，而 console 的 env 没有 key，
+    只能让 webapp 进程自己跑。
+    """
+    path = os.path.join(app.instance_path, _MODEL_FLAG)
+    if not os.path.exists(path):
+        return None
+    try:
+        os.remove(path)
+    except Exception:
+        pass
+    try:
+        import model_core
+        stats = model_core.refresh(days=150, instance_path=app.instance_path)
+        logger.info('[维护] 模型刷新: %s', stats)
+        _log('model refresh: %s' % (stats,))
+        try:
+            import json as _json
+            with open(os.path.join(app.instance_path, 'model_report.json'), 'w', encoding='utf-8') as fh:
+                _json.dump(stats, fh, ensure_ascii=False)
+        except Exception:
+            pass
+        return stats
+    except Exception as exc:
+        logger.exception('[维护] 模型刷新失败')
+        _log('model refresh error: %r' % (exc,))
+        try:
+            import json as _json
+            with open(os.path.join(app.instance_path, 'model_report.json'), 'w', encoding='utf-8') as fh:
+                _json.dump({'ok': False, 'error': repr(exc)}, fh, ensure_ascii=False)
+        except Exception:
+            pass
+        return None
+
+
 def _work(app):
     try:
         with app.app_context():
+            _consume_model_refresh(app)
             _consume_resettle(app)
             from data_pipeline import settle_finished
             res = settle_finished()
@@ -115,11 +156,12 @@ def _work(app):
 
 def maybe_run(app):
     """满足条件时启动一次后台维护；返回是否真的启动。"""
-    forced = os.path.exists(_flag_path(app))
-    if not _ENABLED or (_INTERVAL_HOURS <= 0 and not forced):
+    forced = os.path.exists(_flag_path(app)) or os.path.exists(os.path.join(app.instance_path, _MODEL_FLAG))
+    if not _ENABLED:
+        return False
+    if _INTERVAL_HOURS <= 0 and not forced:
         return False
     now = time.time()
-    forced = os.path.exists(_flag_path(app))
     if not forced and now - _STATE['ts'] < _INTERVAL_HOURS * 3600:
         return False
     if not _LOCK.acquire(blocking=False):
