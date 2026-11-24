@@ -930,12 +930,20 @@ document.addEventListener('scroll', function(){ _hideTip(); });
 // 带重试的 fetch：遇 403/429/5xx 或网络错误时指数退避重试。
 // 注意：浏览器禁止 JS 设置 User-Agent/Origin/Accept-Language（forbidden headers），
 // 这些由浏览器自动携带真实值，无需（也无法）手动模拟。故此处仅做重试增强。
-async function fetchWithRetry(url, opts, retries) {
+async function fetchWithRetry(url, opts, retries, timeoutMs) {
   retries = (retries == null) ? 2 : retries;
+  timeoutMs = timeoutMs || 12000;   /* 单次请求上限：不设超时的话 fetch 可能永远不返回 */
   var lastErr = null;
   for (var i = 0; i <= retries; i++) {
+    var ctrl = null, timer = null, o = opts || {};
     try {
-      var resp = await fetch(url, opts);
+      if (typeof AbortController !== 'undefined') {
+        ctrl = new AbortController();
+        o = Object.assign({}, opts, { signal: ctrl.signal });
+        timer = setTimeout(function(){ if (ctrl) ctrl.abort(); }, timeoutMs);
+      }
+      var resp = await fetch(url, o);
+      if (timer) { clearTimeout(timer); timer = null; }
       if (resp.ok) return resp;
       var s = resp.status;
       if ((s === 403 || s === 429 || s >= 500) && i < retries) {
@@ -944,6 +952,7 @@ async function fetchWithRetry(url, opts, retries) {
       }
       return resp;
     } catch (e) {
+      if (timer) { clearTimeout(timer); timer = null; }
       lastErr = e;
       if (i < retries) {
         await new Promise(function(r){ setTimeout(r, 500 * Math.pow(2, i)); });
@@ -2636,10 +2645,16 @@ async function refreshData(force){
     // 无竞彩场次时仅提示，绝不回退到第三方(Bzzoiro)/模拟场次。
     var jcResp = fetchJingcaiList().then(async function(jc){
       if(jc && jc.length >= 1){
-        var r = await fetch('/api/analyze', {
-          method:'POST', headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({jingcai_matches: jc, client_time: new Date().toISOString(), odds_time: JINGCAI_ODDS_TIME})
-        });
+        var ac = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+        var tm = ac ? setTimeout(function(){ ac.abort(); }, 75000) : null;
+        var r;
+        try{
+          r = await fetch('/api/analyze', {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({jingcai_matches: jc, client_time: new Date().toISOString(), odds_time: JINGCAI_ODDS_TIME}),
+            signal: ac ? ac.signal : undefined
+          });
+        } finally { if(tm) clearTimeout(tm); }
         return r.ok ? r.json() : null;
       }
       return null;
