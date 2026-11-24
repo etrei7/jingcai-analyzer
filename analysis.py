@@ -90,6 +90,26 @@ def _kelly(prob, odds, fraction=KELLY_FRACTION, cap=KELLY_CAP):
     return round(max(0.0, min(f * fraction, cap)), 4)
 
 
+def _pick_by_ev(p_map, o_map, min_edge=0.02):
+    """按期望值选题，而不是按概率选题。
+
+    概率最高的选项几乎永远是热门，扣掉抽水后长期是负期望；
+    只有"模型概率 × 赔率 - 1"为正时才可能存在下注价值。
+    返回 (option, edge, evs, no_bet)。赔率缺失/异常的选项按 -9 处理，不会被选中。
+    """
+    evs = {}
+    for k in ('胜', '平', '负'):
+        try:
+            o = float(o_map.get(k) or 0)
+        except (TypeError, ValueError):
+            o = 0.0
+        p = float(p_map.get(k) or 0.0)
+        evs[k] = round(p * o - 1.0, 4) if o > 1.01 else -9.0
+    best = max(evs, key=lambda k: evs[k])
+    edge = evs[best]
+    return best, edge, evs, bool(edge <= min_edge)
+
+
 def _value_analysis(win_odds, draw_odds, lose_odds, lam_h, lam_a):
     """价值盘分析：模型概率(Dixon-Coles) vs 市场隐含概率(去水)，并给出凯利仓位。
     返回 dict，供前端展示"哪一项存在价值偏差"。
@@ -842,10 +862,14 @@ def analyze_single_match(match, standings=None, prediction=None):
         _mc = None
 
     predicted_option = None
+    _model_edge = None
+    _model_evs = None
     if _mc and _has_1x2:
-        _best = max((('胜', _mc['p_home']), ('平', _mc['p_draw']), ('负', _mc['p_away'])), key=lambda x: x[1])
-        predicted_option = _best[0]
-        confidence_score = max(0.05, min(0.95, float(_best[1])))
+        _odds_map = {'胜': match.get('win_odds'), '平': match.get('draw_odds'), '负': match.get('lose_odds')}
+        _p_map = {'胜': _mc['p_home'], '平': _mc['p_draw'], '负': _mc['p_away']}
+        # 选"期望值最高"的选项，而不是"概率最高"的选项（见 _pick_by_ev 的说明）
+        predicted_option, _model_edge, _model_evs, _ = _pick_by_ev(_p_map, _odds_map)
+        confidence_score = max(0.05, min(0.95, float(_p_map[predicted_option])))
         _model_used = True
 
     if prediction and not _model_used:
@@ -1071,6 +1095,13 @@ def analyze_single_match(match, standings=None, prediction=None):
         confidence_score = max(0.05, min(0.95, float(_mp)))
         conf_level = '高' if confidence_score >= 0.55 else ('中' if confidence_score >= 0.42 else '低')
         cross_signal = '模型主导' + ('·未知球队用联赛均值' if not _mc.get('covered') else '')
+        if _model_edge is not None:
+            cross_signal += '·期望%+.1f%%' % (_model_edge * 100)
+            if _model_edge <= 0.02:
+                # 模型与市场没有明显分歧：这一注没有正期望，降级为"只看不下"
+                conf_level = '低'
+                confidence_score = min(confidence_score, 0.4)
+                cross_signal += '·无正期望待观望'
 
     confidence_level = conf_level
     result_extra = {'cross_signal': cross_signal, 'fund_signals': fund_sig, 'fund_strength': fund['score']}
@@ -1240,6 +1271,10 @@ def analyze_single_match(match, standings=None, prediction=None):
         'probs': {'home': (_mc or {}).get('p_home'), 'draw': (_mc or {}).get('p_draw'),
                   'away': (_mc or {}).get('p_away')},
         'lambdas': {'home': (_mc or {}).get('lam_h'), 'away': (_mc or {}).get('lam_a')},
+        'edge': _model_edge,
+        'evs': _model_evs,
+        # 期望值不足 2% 视为"没有可下注的正期望"，只展示不给推荐
+        'no_bet': bool(_model_edge is not None and _model_edge <= 0.02),
     }
     result['goal_distribution'] = goal_dist
     result['over25_prob'] = over25_prob
