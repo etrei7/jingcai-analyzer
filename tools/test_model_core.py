@@ -117,7 +117,16 @@ check('两次调用一致', p['p_home'] == p2['p_home'])
 check('未知球队仍能出概率（att/def=0）',
       bool(mc.predict_match('NOT_A_TEAM', 'T00', instance_path=tmpdir)))
 
-print('[4] 边界')
+print('[4] 时间切分验证')
+ev = mc.holdout_eval(recs, split=0.7)
+check('评估可用', ev.get('ok') is True, ev.get('reason', ''))
+check('测试集非空', (ev.get('n_test') or 0) >= 30, ev.get('n_test'))
+check('概率指标有值', isinstance(ev.get('logloss_model'), float) and isinstance(ev.get('brier_model'), float))
+check('模型优于基率（合成数据应有信号）', bool(ev.get('beat_base_logloss')) or bool(ev.get('beat_base_brier')),
+      '%s vs %s' % (ev.get('logloss_model'), ev.get('logloss_base')))
+check('平局概率质量合理（不是恒 0）', ev.get('mean_draw_prob', 0) >= 10, ev.get('mean_draw_prob'))
+
+print('[5] 边界')
 try:
     mc.fit(recs[:20])
     check('样本不足应报错', False)
