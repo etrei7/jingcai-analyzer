@@ -2367,6 +2367,19 @@ function renderSkeleton(){
   document.getElementById('recContainer').innerHTML = rec;
   var hint = document.getElementById('loadHint');
   if (hint) setTimeout(function(){ if (hint) { hint.textContent = '加载较慢，正在重试数据源；若持续无数据请点顶部「刷新数据」'; hint.className = 'loading-hint loading-slow'; } }, 6000);
+  /* 兜底：20 秒还没渲染出卡片，就把「刷新」做成可点的按钮，避免页面看起来永远在转圈 */
+  setTimeout(function(){
+    var mc = document.getElementById('matchesContainer');
+    var stillLoading = mc && mc.innerHTML && mc.innerHTML.indexOf('match-card') < 0 && mc.innerHTML.indexOf('spinner') >= 0;
+    if (!stillLoading) return;
+    var h = document.getElementById('loadHint');
+    if (h) {
+      h.innerHTML = '这次加载超过了 20 秒。可能是数据源慢或网络抖动，'
+        + '<a href="javascript:void(0)" onclick="refreshData(true)" style="color:var(--green);text-decoration:underline">点这里重试</a>'
+        + '；若多次失败，稍后再试即可，不影响已有数据。';
+      h.className = 'loading-hint loading-slow';
+    }
+  }, 20000);
 }
 
 /* ===== 今日决策条（首屏）：状态灯 + 单注/价值盘/回避摘要 + 串关条数 =====
