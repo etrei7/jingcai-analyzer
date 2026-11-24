@@ -435,6 +435,85 @@ def holdout_eval(records, split=0.8, tune=True):
     }
 
 
+def walk_forward_eval(records, folds=4, reg=None, league_effects=None):
+    """滚动起点（walk-forward）验证：每次只用"过去"训练，预测下一段时间。
+
+    和单次 80/20 切分相比，这里能看出"优势是不是只在某一段时间成立"。
+    做法：把按日期排序的样本切成 folds+1 段，第 k 段作训练（cumulative），
+    第 k+1 段作测试；基线同样用训练段的联赛基率。
+    """
+    rows = [r for r in records if r.get('hg') is not None and r.get('ag') is not None]
+    rows.sort(key=lambda r: (r.get('date') or '', r.get('id') or ''))
+    n = len(rows)
+    if n < 240:
+        return {'ok': False, 'reason': '样本不足以做滚动验证', 'n': n}
+    step = n // (folds + 1)
+    if step < 48:
+        return {'ok': False, 'reason': '每段样本太少', 'step': step}
+    use_reg = _REG if reg is None else reg
+    use_le = True if league_effects is None else bool(league_effects)
+    out = []
+    for k in range(folds):
+        cut = step * (k + 1)
+        cut2 = step * (k + 2) if k + 1 < folds else n
+        train, test = rows[:cut], rows[cut:cut2]
+        if len(test) < 50:
+            continue
+        try:
+            p = fit(train, reg=use_reg, league_effects=use_le)
+        except Exception:
+            continue
+        m = _score_set(p, test)
+        ll_b = br_b = 0.0
+        acc_b = 0
+        by_league = {}
+        for r in test:
+            lg = r.get('league') or ''
+            if lg not in by_league:
+                by_league[lg] = _base_rates(train, lg)
+            bp = by_league[lg]
+            y = 0 if r['hg'] > r['ag'] else 1 if r['hg'] == r['ag'] else 2
+            ll_b += -math.log(max(1e-9, bp[y]))
+            acc_b += 1 if max(range(3), key=lambda i: bp[i]) == y else 0
+            for i in range(3):
+                one = 1.0 if i == y else 0.0
+                br_b += (bp[i] - one) ** 2
+        nn = len(test)
+        out.append({
+            'fold': k + 1,
+            'train': len(train),
+            'test': nn,
+            'test_from': test[0].get('date'),
+            'test_to': test[-1].get('date'),
+            'logloss_model': round(m['logloss'], 4),
+            'logloss_base': round(ll_b / nn, 4),
+            'brier_model': round(m['brier'], 4),
+            'brier_base': round(br_b / nn, 4),
+            'acc_model': round(m['acc'], 1),
+            'acc_base': round(100.0 * acc_b / nn, 1),
+            'beat_logloss': bool(m['logloss'] < ll_b / nn),
+            'beat_brier': bool(m['brier'] < br_b / nn),
+        })
+    if not out:
+        return {'ok': False, 'reason': '没有可评估的折'}
+    beats = sum(1 for f in out if f['beat_logloss'])
+    beats_b = sum(1 for f in out if f['beat_brier'])
+    mean_ll = sum(f['logloss_model'] for f in out) / len(out)
+    mean_llb = sum(f['logloss_base'] for f in out) / len(out)
+    return {
+        'ok': True,
+        'folds': len(out),
+        'reg': use_reg,
+        'league_effects': use_le,
+        'folds_detail': out,
+        'mean_logloss_model': round(mean_ll, 4),
+        'mean_logloss_base': round(mean_llb, 4),
+        'folds_beat_logloss': beats,
+        'folds_beat_brier': beats_b,
+        'robust': bool(beats == len(out) and mean_ll < mean_llb),
+    }
+
+
 def refresh(days=150, instance_path=None, reg=None, league_effects=None):
     """重建训练集并拟合参数，落盘。"""
     t0 = time.time()
