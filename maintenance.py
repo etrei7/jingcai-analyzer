@@ -96,6 +96,38 @@ def _consume_resettle(app):
 
 _MODEL_FLAG = 'MODEL_REFRESH'
 _MODEL_EVAL_FLAG = 'MODEL_EVAL'
+_MODEL_WF_FLAG = 'MODEL_WF'
+
+
+def _consume_model_wf(app):
+    """instance/MODEL_WF 存在时做滚动起点（walk-forward）验证，写 instance/model_wf.json。
+
+    单次切分只能说明"那一段赢了"，滚动验证才能说明"每段都赢"。
+    """
+    path = os.path.join(app.instance_path, _MODEL_WF_FLAG)
+    if not os.path.exists(path):
+        return None
+    try:
+        os.remove(path)
+    except Exception:
+        pass
+    try:
+        import json as _json
+        import model_core
+        cur = model_core.load_params(app.instance_path) or {}
+        records = model_core.build_dataset(days=150)
+        stats = model_core.walk_forward_eval(
+            records, folds=4,
+            reg=cur.get('reg'), league_effects=cur.get('league_effects'))
+        logger.info('[维护] 滚动验证: %s', stats)
+        _log('model wf: %s' % (stats,))
+        with open(os.path.join(app.instance_path, 'model_wf.json'), 'w', encoding='utf-8') as fh:
+            _json.dump(stats, fh, ensure_ascii=False)
+        return stats
+    except Exception as exc:
+        logger.exception('[维护] 滚动验证失败')
+        _log('model wf error: %r' % (exc,))
+        return None
 
 
 def _consume_model_eval(app):
@@ -168,6 +200,7 @@ def _consume_model_refresh(app):
 def _work(app):
     try:
         with app.app_context():
+            _consume_model_wf(app)
             _consume_model_eval(app)
             _consume_model_refresh(app)
             _consume_resettle(app)
@@ -190,7 +223,8 @@ def maybe_run(app):
     """满足条件时启动一次后台维护；返回是否真的启动。"""
     forced = (os.path.exists(_flag_path(app))
               or os.path.exists(os.path.join(app.instance_path, _MODEL_FLAG))
-              or os.path.exists(os.path.join(app.instance_path, _MODEL_EVAL_FLAG)))
+              or os.path.exists(os.path.join(app.instance_path, _MODEL_EVAL_FLAG))
+              or os.path.exists(os.path.join(app.instance_path, _MODEL_WF_FLAG)))
     if not _ENABLED:
         return False
     if _INTERVAL_HOURS <= 0 and not forced:
