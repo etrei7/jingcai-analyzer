@@ -197,12 +197,20 @@ def _build_payload():
         logger.warning('[cache] daily_report 失败: %s', e)
         daily_report = None
 
+    try:
+        from edge_board import build_board
+        edge_board = build_board(analyzed)
+    except Exception as e:
+        logger.warning('[cache] edge_board 失败: %s', e)
+        edge_board = None
+
     return {
         'matches': analyzed,
         'recommendations': recommendations,
         'total_goals_recs': total_goals_recs,
         'value_recs': value_recs,
         'daily_report': daily_report,
+        'edge_board': edge_board,
         'history_stats': history_stats,
         'stats': {
             'total_matches': len(analyzed),
