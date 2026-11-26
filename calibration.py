@@ -90,8 +90,10 @@ def get_calibration(force=False):
         if v and not force and (_now() - v[0]) < _TTL:
             return v[1]
     data = _compute()
-    with _lock:
-        _cache['c'] = (_now(), data)
+    # 失败结果不缓存：否则一次缺少上下文的计算会让校准表连续 120s 显示错误
+    if not (isinstance(data, dict) and data.get('error')):
+        with _lock:
+            _cache['c'] = (_now(), data)
     return data
 
 

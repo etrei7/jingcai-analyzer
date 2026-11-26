@@ -267,11 +267,27 @@ def _build_payload_with_timeout(timeout=15):
     result = {'payload': None, 'done': False}
 
     def target():
+        # 构建线程不在 Flask 请求里，必须自己压入应用上下文：
+        # _build_payload 会走到 build_report -> calibration.get_calibration -> BtBet.query，
+        # 没有上下文会抛 "Working outside of application context"（表现为 /api/calibration 报错、
+        # 同类场次命中率全部为空）。失败不阻断构建，仅告警。
+        app_ctx = None
+        try:
+            from app import app as _app
+            app_ctx = _app.app_context()
+            app_ctx.push()
+        except Exception as _e:
+            logger.warning('[cache] 构建线程获取应用上下文失败: %s', _e)
         try:
             result['payload'] = _build_payload()
         except Exception as e:
             logger.warning('[cache] 构建失败: %s', e)
         finally:
+            if app_ctx is not None:
+                try:
+                    app_ctx.pop()
+                except Exception:
+                    pass
             result['done'] = True
 
     t = threading.Thread(target=target, daemon=True)

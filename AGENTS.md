@@ -33,6 +33,12 @@ node tools/check_edge_board_ui.js   # index.html 内联脚本可否解析 + rend
 
 > 这些检查源自真实事故：`api_football_client.py` 曾因"换行丢失 + 损坏字符"导致 `SyntaxError`，模块**始终无法导入**，API-Football 富化静默失效很久无人察觉。
 
+**改动缓存、校准、后台线程时**，另跑：
+
+```bash
+python tools/test_calibration_ctx.py   # 构建线程是否自带 app context + 校准失败结果是否被错误缓存
+```
+
 ## 部署
 
 - 线上：PythonAnywhere（`https://LS7.pythonanywhere.com`），源码在 `/home/LS7/jingcai-analyzer`。
