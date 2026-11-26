@@ -536,6 +536,41 @@ img,svg,table{max-width:100%}
   .db-items{flex-direction:column;gap:4px}
 }
 
+/* ===== Edge 差值榜（模型 vs 市场分歧 + 同类场次历史命中率） =====
+   数据来源：/api/analyze 返回的 data.edge_board（edge_board.build_board 生成）。
+   口径：edge = 模型概率 - 市场隐含概率（pp）；凯利为正、赔率 <= 8、概率 >= 10% 才算「可看」。
+   本面板只对既有字段排序展示，不新增任何预测；样本含 2026-11-23 之前数据，页脚固定提示前视风险。 */
+.edge-board{margin:0 0 14px;background:var(--card-bg);border:1px solid var(--border);border-left:4px solid var(--accent);border-radius:12px;box-shadow:var(--shadow);overflow:hidden}
+.eb-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;padding:11px 15px 9px;border-bottom:1px solid var(--border-light)}
+.eb-title{font-size:14px;font-weight:800;color:var(--text)}
+.eb-sub{font-size:12px;color:var(--text-muted)}
+.eb-meta{margin-left:auto;font-size:12px;color:var(--text-muted);font-variant-numeric:tabular-nums}
+.eb-list{display:flex;flex-direction:column}
+.eb-row{display:grid;grid-template-columns:52px minmax(0,1fr) 96px 96px 92px 132px;gap:10px;align-items:center;padding:9px 15px;border-bottom:1px solid var(--border-light);font-size:13px;cursor:pointer}
+.eb-row:last-child{border-bottom:none}
+.eb-row:hover{background:var(--card-stripe)}
+.eb-time{color:var(--text-muted);font-variant-numeric:tabular-nums;font-size:12px}
+.eb-teams{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700}
+.eb-teams .eb-lg{font-weight:500;color:var(--text-muted);font-size:11.5px;margin-left:6px}
+.eb-pick{font-weight:800;color:var(--primary-dark);white-space:nowrap}
+.eb-pick.watch{color:var(--text-muted)}
+.eb-badge{font-size:11px;font-weight:700;padding:1px 6px;border-radius:6px;background:var(--tag-bg);color:var(--text-muted);white-space:nowrap}
+.eb-badge.ok{background:var(--primary-soft);color:var(--primary-dark)}
+.eb-num{font-variant-numeric:tabular-nums;text-align:right;font-weight:700}
+.eb-num .k{display:block;font-size:11px;color:var(--text-muted);font-weight:500;white-space:nowrap}
+.eb-edge.pos{color:var(--high)}
+.eb-edge.neg{color:var(--low)}
+.eb-seg{font-size:11.5px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:right}
+.eb-seg.warn{color:var(--low);font-weight:700}
+.eb-foot{padding:8px 15px 10px;font-size:11.5px;line-height:1.6;color:var(--text-muted);background:var(--card-stripe)}
+.eb-empty{padding:14px 15px;font-size:12.5px;line-height:1.7;color:var(--text-muted)}
+@media(max-width:720px){
+  .eb-row{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;padding:10px 12px}
+  .eb-teams{flex:1 1 100%;white-space:normal;overflow:visible}
+  .eb-time{order:-1}
+  .eb-num,.eb-seg{text-align:left}
+}
+
 /* 决策条折叠按钮：默认隐藏（仅手机端显示，规则见下方手机媒体查询） */
 .db-fold-btn{display:none}
 
@@ -741,6 +776,17 @@ img,svg,table{max-width:100%}
 
     <!-- 推荐闸门说明：被历史评估移除的玩法在此列明，不做黑箱 -->
     <div class="policy-note" id="policyNote" style="display:none"></div>
+
+    <!-- Edge 差值榜：模型与市场分歧最大的几场，附同类场次历史命中率 -->
+    <div class="edge-board" id="edgeBoard" style="display:none">
+      <div class="eb-head">
+        <span class="eb-title">Edge 差值榜</span>
+        <span class="eb-sub">模型概率 - 市场隐含概率，按凯利分数排序</span>
+        <span class="eb-meta" id="edgeBoardMeta"></span>
+      </div>
+      <div class="eb-list" id="edgeBoardList"></div>
+      <div class="eb-foot" id="edgeBoardNote"></div>
+    </div>
 
     <!-- 筛选栏 -->
     <div class="filter-bar" id="filterBar">
@@ -2708,9 +2754,86 @@ function renderNoJingcai(msg){
   var tgt = document.getElementById('totalMatches'); if(tgt) tgt.textContent = '0';
   var ds = document.getElementById('dataSource'); if(ds) ds.textContent = '竞彩官方（无场次）';
   var pt = document.getElementById('priorityTag'); if(pt) pt.style.display = 'none';
+  var ebBox = document.getElementById('edgeBoard'); if(ebBox) ebBox.style.display = 'none';
   var sb = document.getElementById('sourceBanner'); if(sb) sb.style.display = 'none';
   renderDecisionWaiting();   // 无场次时决策条回到「等待今日数据」，不残留上一轮结论
   setConnStatus(false, '无竞彩官方场次');
+}
+
+// ===== Edge 差值榜：模型概率 vs 市场隐含概率的分歧排序 =====
+// 口径完全来自后端 edge_board.build_board（模型概率、市场概率、凯利、同类场次命中率），
+// 前端只负责排序后的展示与跳转，不重算任何概率，避免页面出现第二套口径。
+function ebFix(v, d){
+  var n = parseFloat(v);
+  if(!isFinite(n)) return '-';
+  return n.toFixed(d === undefined ? 1 : d);
+}
+function ebSigned(v, d){
+  var n = parseFloat(v);
+  if(!isFinite(n)) return '-';
+  return (n > 0 ? '+' : '') + n.toFixed(d === undefined ? 1 : d);
+}
+function renderEdgeBoard(board){
+  var box = document.getElementById('edgeBoard');
+  var list = document.getElementById('edgeBoardList');
+  var meta = document.getElementById('edgeBoardMeta');
+  var noteEl = document.getElementById('edgeBoardNote');
+  if(!box || !list) return;
+  if(!board){ box.style.display = 'none'; return; }
+  var rows = board.rows || [];
+  var s = board.summary || {};
+  if(meta){
+    var txt = '评估 ' + ebFix(s.evaluated, 0) + ' 场 · 可看 ' + ebFix(s.actionable, 0) + ' 场';
+    if(s.actionable){ txt += ' · 平均分歧 ' + ebSigned(s.avg_edge_pp, 1) + 'pp'; }
+    meta.textContent = txt;
+  }
+  if(noteEl){
+    var gate = '';
+    if(s.max_odds){
+      gate = ' 门槛：赔率 ≤ ' + ebFix(s.max_odds, 0) + '、概率 ≥ ' + ebFix(s.min_prob, 0) + '%、凯利 > '
+        + ebFix((s.min_kelly || 0) * 100, 0) + '%。';
+    }
+    noteEl.innerHTML = esc(board.note || '') + gate;
+  }
+  if(!rows.length){
+    list.innerHTML = '<div class="eb-empty">今日没有满足口径的场次：或已开赛，或模型与市场没有明显分歧。'
+      + '这是正常空态，不作为"数据缺失"处理。</div>';
+    box.style.display = '';
+    return;
+  }
+  var html = '';
+  rows.forEach(function(r){
+    var teams = esc(r.home_team || '') + ' vs ' + esc(r.away_team || '');
+    var lg = r.league ? '<span class="eb-lg">' + esc(r.league) + '</span>' : '';
+    var pick = '<span class="eb-pick' + (r.actionable ? '' : ' watch') + '">' + esc(r.option || '')
+      + ' <span class="eb-badge' + (r.actionable ? ' ok' : '') + '">' + (r.actionable ? '可看' : '仅观察') + '</span></span>';
+    var blocked = (r.blocked_reasons || []).join('；');
+    var seg = r.segment || null;
+    var segHtml;
+    if(seg && seg.n){
+      segHtml = '<span class="eb-seg' + (r.segment_warn ? ' warn' : '') + '" title="同类场次（胜平负 x 赔率 '
+        + esc(seg.bucket || '') + '）历史 ' + ebFix(seg.n, 0) + ' 注，命中 ' + ebFix(seg.hit_rate, 1)
+        + '%，盈亏平衡需 ' + ebFix(seg.required_rate, 1) + '%，差 ' + ebSigned(seg.edge, 1) + 'pp">同类 '
+        + ebFix(seg.hit_rate, 1) + '% / n=' + ebFix(seg.n, 0) + '</span>';
+    } else {
+      segHtml = '<span class="eb-seg">同类样本不足</span>';
+    }
+    var edgeCls = r.edge_pp > 0 ? ' pos' : (r.edge_pp < 0 ? ' neg' : '');
+    var tip = blocked ? ('不可下注：' + blocked) : '模型与市场分歧';
+    html += '<div class="eb-row" data-teams="' + esc((r.home_team || '') + ' vs ' + (r.away_team || ''))
+      + '" data-mid="' + esc(r.match_id || '') + '" title="' + esc(tip) + '" onclick="dbJump(this)">'
+      + '<span class="eb-time">' + esc(r.match_time || '--:--') + '</span>'
+      + '<span class="eb-teams">' + teams + lg + '</span>'
+      + pick
+      + '<span class="eb-num eb-edge' + edgeCls + '">' + ebSigned(r.edge_pp, 1)
+      + '<span class="k">概率 ' + ebFix(r.model_prob, 0) + ' / ' + ebFix(r.market_prob, 0) + '</span></span>'
+      + '<span class="eb-num">' + ebFix(r.odds, 2)
+      + '<span class="k">凯利 ' + ebSigned((r.kelly || 0) * 100, 1) + '%</span></span>'
+      + segHtml
+      + '</div>';
+  });
+  list.innerHTML = html;
+  box.style.display = '';
 }
 
 function showData(data){
@@ -2735,6 +2858,7 @@ function showData(data){
   // 首屏决策条：消费后端已生成的 daily_report（此前被丢弃），不产生新的计算口径
   renderDecisionBar(data.daily_report, data.recommendations);
   renderPolicyNote(data.policy);
+  renderEdgeBoard(data.edge_board);   // 首屏可见：今天哪几场模型与市场分歧最大
   loadValueStats();
   allTotalGoals = {};
   (data.total_goals_recs||[]).forEach(function(tg){ if(tg && tg.match_id) allTotalGoals[tg.match_id] = tg; });
@@ -2871,6 +2995,7 @@ function renderBacktestPanel(s){
       ${groupHtml}
       <div class="bt-note">模型 ${s.model_name||'—'} ｜ 更新 ${s.computed_at||'—'}</div>
       <div class="bt-note">命中率不等于盈利：只看命中率仍可能亏损；ROI（投入回报率）= 总盈亏 ÷ 总投入，&gt;0 才说明长期正期望。</div>
+      <div class="bt-note" style="color:var(--amber)">&#9888; 2026-11-23 之前的历史记录含前视风险（当时赔率未按开赛时点落库）：该时段样本只用于观察，不作为模型结论的依据。</div>
     </div>`;
 }
 

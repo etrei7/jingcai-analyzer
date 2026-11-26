@@ -24,6 +24,13 @@ python tools/test_logic.py
 
 覆盖：数学模型归一化（泊松/Dixon-Coles/去水/凯利）、各玩法结算（1X2/AH/CS/HTFT）、半全场赔率反推、串关组合、缺字段/None 不崩。必须 `RESULT: ALL OK`。
 
+**改动展示层（`/api/analyze` 聚合字段、首页面板）时**，另跑两条离线检查：
+
+```bash
+python tools/test_edge_board.py     # Edge 差值榜口径：已开赛剔除、赔率/概率/凯利门槛、排序、同类场次命中率注入
+node tools/check_edge_board_ui.js   # index.html 内联脚本可否解析 + renderEdgeBoard 渲染（stub DOM，不需要浏览器）
+```
+
 > 这些检查源自真实事故：`api_football_client.py` 曾因"换行丢失 + 损坏字符"导致 `SyntaxError`，模块**始终无法导入**，API-Football 富化静默失效很久无人察觉。
 
 ## 部署

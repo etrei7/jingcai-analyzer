@@ -320,6 +320,7 @@ def get_data():
         'total_goals_recs': total_goals_recs,
         'value_recs': value_recs,
         'daily_report': daily_report,
+        'edge_board': _edge_board_safe(analyzed),
         'history_stats': history_stats,
         'stats': {
             'total_matches': len(analyzed),
@@ -547,6 +548,16 @@ def _sanitize_match(m):
     return m
 
 
+def _edge_board_safe(matches, limit=8):
+    """Edge 差值榜：失败时返回 None，绝不因为展示层聚合而拖垮 /api/analyze。"""
+    try:
+        from edge_board import build_board
+        return build_board(matches, limit=limit)
+    except Exception as e:
+        logging.warning('[API] edge_board failed: %s', e)
+        return None
+
+
 @app.route('/api/analyze', methods=['POST'])
 def analyze_data():
     data = request.get_json(silent=True) or {}
@@ -754,6 +765,7 @@ def analyze_data():
             'matches': analyzed, 'recommendations': recommendations,
             'total_goals_recs': total_goals_recs, 'value_recs': value_recs,
             'daily_report': daily_report,
+            'edge_board': _edge_board_safe(analyzed),
             'history_stats': get_stats(),
             'stats': {'total_matches': len(analyzed),
                        'update_time': fetch_ts, 'source': source,
@@ -856,6 +868,7 @@ def analyze_data():
         'total_goals_recs': total_goals_recs,
         'value_recs': value_recs,
         'daily_report': daily_report,
+        'edge_board': _edge_board_safe(analyzed),
         'history_stats': history_stats,
         'stats': {
             'total_matches': len(analyzed),

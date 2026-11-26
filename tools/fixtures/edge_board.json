@@ -1,0 +1,85 @@
+{
+  "summary": {
+    "evaluated": 3,
+    "listed": 3,
+    "actionable": 1,
+    "avg_edge_pp": 7.5,
+    "min_prob": 10.0,
+    "max_odds": 8.0,
+    "min_kelly": 0.01
+  },
+  "note": "同类场次命中率含 2026-11-23 之前的样本，存在前视风险，仅作参考；榜单不含已开赛场次。",
+  "rows": [
+    {
+      "match_id": "周日001",
+      "home_team": "曼联",
+      "away_team": "曼城",
+      "league": "英超",
+      "match_time": "23:50",
+      "option": "胜",
+      "option_key": "win",
+      "model_prob": 58.0,
+      "market_prob": 50.5,
+      "edge_pp": 7.5,
+      "odds": 1.85,
+      "ev": 0.073,
+      "kelly": 0.0859,
+      "actionable": true,
+      "blocked_reasons": [],
+      "segment": {
+        "play": "1X2",
+        "bucket": "1.50-2.00",
+        "n": 120,
+        "hit_rate": 48.0,
+        "required_rate": 52.0,
+        "edge": -4.0
+      },
+      "segment_warn": true,
+      "confidence_level": "中"
+    },
+    {
+      "match_id": "周日002",
+      "home_team": "皇马",
+      "away_team": "巴萨",
+      "league": "西甲",
+      "match_time": "23:50",
+      "option": "负",
+      "option_key": "lose",
+      "model_prob": 12.0,
+      "market_prob": 10.0,
+      "edge_pp": 2.0,
+      "odds": 9.0,
+      "ev": 0.08,
+      "kelly": 0.01,
+      "actionable": false,
+      "blocked_reasons": [
+        "赔率超过 8 倍，分歧无法用实力解释"
+      ],
+      "segment": null,
+      "segment_warn": false,
+      "confidence_level": "低"
+    },
+    {
+      "match_id": "周日003",
+      "home_team": "拜仁",
+      "away_team": "多特",
+      "league": "德甲",
+      "match_time": "23:50",
+      "option": "平",
+      "option_key": "draw",
+      "model_prob": 18.0,
+      "market_prob": 16.5,
+      "edge_pp": 1.5,
+      "odds": 5.0,
+      "ev": -0.1,
+      "kelly": -0.025,
+      "actionable": false,
+      "blocked_reasons": [
+        "凯利分数 ≤ 1%，不值得占用资金"
+      ],
+      "segment": null,
+      "segment_warn": false,
+      "confidence_level": "低"
+    }
+  ]
+}
