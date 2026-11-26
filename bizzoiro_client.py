@@ -215,29 +215,52 @@ CST = timezone(timedelta(hours=8))
 DAY_NAMES = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
 
 
-def _format_time_cst(event_date_str):
+def _cst_dt(event_date_str):
+    """Bzzoiro 的 event_date（UTC ISO）→ 北京时间 datetime；解析失败返回 None。"""
     try:
-        dt = datetime.fromisoformat(event_date_str.replace('Z', '+00:00'))
-        cst_dt = dt.astimezone(CST)
-        return cst_dt.strftime('%H:%M')
+        dt = datetime.fromisoformat(str(event_date_str).replace('Z', '+00:00'))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(CST)
     except Exception:
-        return event_date_str
+        return None
+
+
+def _sales_day(cst_dt):
+    """竞彩销售日：凌晨 12 点前开赛的场次算前一天。"""
+    if cst_dt is None:
+        return ''
+    day = cst_dt.date() if cst_dt.hour >= 12 else (cst_dt - timedelta(days=1)).date()
+    return day.strftime('%Y-%m-%d')
+
+
+def _already_started(m, grace_hours=2):
+    """commence 早于 now-grace 则视为已开赛（上游 notstarted 状态会滞后）。"""
+    cst_dt = _cst_dt(m.get('commence') or '')
+    if cst_dt is None:
+        return False
+    return datetime.now(timezone.utc) - cst_dt > timedelta(hours=grace_hours)
+
+
+def _format_time_cst(event_date_str):
+    cst_dt = _cst_dt(event_date_str)
+    return cst_dt.strftime('%H:%M') if cst_dt is not None else event_date_str
 
 
 def _assign_match_ids(matches):
+    """按竞彩销售日分组编号（周四001 起），组内按开赛时间排序，保证编号稳定可读。"""
     grouped = OrderedDict()
     for m in matches:
         try:
-            dt = datetime.fromisoformat(m['_raw_date'].replace('Z', '+00:00'))
-            cst_dt = dt.astimezone(CST)
-            day_key = cst_dt.weekday()
+            day_key = datetime.strptime(m.get('date') or '', '%Y-%m-%d').weekday()
         except Exception:
             day_key = -1
         grouped.setdefault(day_key, []).append(m)
-    
+
     for day_key, group in grouped.items():
+        group.sort(key=lambda x: (x.get('commence') or '', x.get('match_time') or ''))
         for i, m in enumerate(group):
-            weekday_name = DAY_NAMES[day_key] if 0 <= day_key <= 6 else '周?'
+            weekday_name = DAY_NAMES[(day_key + 1) % 7] if 0 <= day_key <= 6 else '周?'
             m['match_id'] = f'{weekday_name}{i+1:03d}'
 
 
@@ -259,12 +282,15 @@ def _parse_event_to_match(event):
     away_cn = TEAM_NAME_CN.get(away_en, away_en)
     
     event_date = event.get('event_date', '')
+    cst_dt = _cst_dt(event_date)
 
     return {
         'match_id': '',                             # filled by _assign_match_ids after grouping
         'raw_event_id': str(event.get('id', '')),   # original Bzzoiro ID for prediction lookup
         '_raw_date': event_date,
         'event_date_raw': event_date,
+        'date': _sales_day(cst_dt),                 # 竞彩销售日（凌晨场次归前一天）
+        'commence': cst_dt.isoformat() if cst_dt is not None else '',
         'league': _map_league(league_name),
         'league_id': league_id,
         'match_time': _format_time_cst(event_date),
@@ -467,6 +493,8 @@ def fetch_events(date_from=None, date_to=None, limit=15):
                 continue
             m = _parse_event_to_match(e)
             if m['win_odds'] <= 0 and m['draw_odds'] <= 0:
+                continue
+            if _already_started(m):
                 continue
             matches.append(m)
 

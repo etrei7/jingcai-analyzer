@@ -39,6 +39,16 @@ node tools/check_edge_board_ui.js   # index.html 内联脚本可否解析 + rend
 python tools/test_calibration_ctx.py   # 构建线程是否自带 app context + 校准失败结果是否被错误缓存
 ```
 
+**改动数据源时间字段（Bzzoiro `event_date` 解析、场次编号、已开赛过滤）时**，另跑：
+
+```bash
+python tools/test_bzzoiro_time.py   # UTC->北京时间、竞彩销售日(date)、周四001 编号、started 一致性、已开赛过滤
+```
+
+> 时间字段口径：Bzzoiro 的 `event_date` 是 UTC ISO，必须落成 `date`（**竞彩销售日**：凌晨 12 点前开赛的场次归前一天）+ `commence`（带 +08:00 的真实开赛时刻）。
+> 只写 `match_time` 会让 `match_time_util.started()` 永远判“未开赛”，已开赛场次会被继续推荐（2026-11-26 事故）。
+> 编号按销售日分组 + `DAY_NAMES[(weekday+1)%7]`，否则会整体错一天（周四的场次被叫成“周三​001”）。
+
 ## 部署
 
 - 线上：PythonAnywhere（`https://LS7.pythonanywhere.com`），源码在 `/home/LS7/jingcai-analyzer`。
