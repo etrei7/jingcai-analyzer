@@ -66,12 +66,20 @@ def _stat(v):
     hit = (v['wins'] / n) if n else 0.0
     inv_n = v.get('inv_n') or 0
     req = (v['inv_sum'] / inv_n) if inv_n else 0.0
+    lo, hi = _wilson(v['wins'], n)
+    has_odds = bool(n and avg > 0)
+    # ROI 置信带：命中率区间经固定赔率（分层均值）线性放大，不再引入一层抽样假设
     return {
         'n': n, 'wins': v['wins'],
         'hit_rate': round(hit * 100, 1),
+        'ci_low': round(lo * 100, 1),
+        'ci_high': round(hi * 100, 1),
         'avg_odds': round(avg, 2),
         'required_rate': round(req * 100, 1),
         'edge': round((hit - req) * 100, 1),
+        'roi': round((hit * avg - 1.0) * 100, 1) if has_odds else 0.0,
+        'roi_low': round((lo * avg - 1.0) * 100, 1) if has_odds else 0.0,
+        'roi_high': round((hi * avg - 1.0) * 100, 1) if has_odds else 0.0,
     }
 
 
@@ -82,6 +90,19 @@ def _edge_se(hit_rate, n):
         return 0.0
     p = min(max(float(hit_rate or 0.0), 0.0), 1.0)
     return ((p * (1.0 - p) / n) ** 0.5) * 100.0
+
+
+def _wilson(wins, n, z=1.96):
+    """命中率的 Wilson 95% 置信区间（比例 0-1）。
+    小样本比正态近似稳：n=30、命中 50% 时 Wald 区间会越过 [0,1]，Wilson 不会。"""
+    if not n or n <= 0:
+        return (0.0, 0.0)
+    p = float(wins) / float(n)
+    z2 = z * z
+    denom = 1.0 + z2 / n
+    center = (p + z2 / (2.0 * n)) / denom
+    half = (z * ((p * (1.0 - p) / n + z2 / (4.0 * n * n)) ** 0.5)) / denom
+    return (max(0.0, center - half), min(1.0, center + half))
 
 
 def get_calibration(force=False):
@@ -147,7 +168,10 @@ def apply_calibration(matches):
         st = buckets.get(lv)
         if st and st.get('n', 0) >= n_min:
             m['calib'] = {'hit_rate': st['hit_rate'], 'required_rate': st['required_rate'],
-                          'n': st['n'], 'edge': st['edge']}
+                          'n': st['n'], 'edge': st['edge'],
+                          'ci_low': st.get('ci_low'), 'ci_high': st.get('ci_high'),
+                          'roi': st.get('roi'), 'roi_low': st.get('roi_low'),
+                          'roi_high': st.get('roi_high')}
         else:
             m['calib'] = None
 
@@ -162,7 +186,9 @@ def apply_calibration(matches):
         if seg and seg.get('n', 0) >= n_seg:
             m['segment'] = {'play': '1X2', 'bucket': bk, 'n': seg['n'],
                             'hit_rate': seg['hit_rate'], 'required_rate': seg['required_rate'],
-                            'edge': seg['edge']}
+                            'edge': seg['edge'], 'ci_low': seg.get('ci_low'),
+                            'ci_high': seg.get('ci_high'), 'roi': seg.get('roi'),
+                            'roi_low': seg.get('roi_low'), 'roi_high': seg.get('roi_high')}
             if seg['edge'] < _HARD_DOWN_PP and seg['edge'] < -_edge_se(seg['hit_rate'] / 100.0, seg['n']):
                 seg_bad = True
         lg = m.get('league')
@@ -173,7 +199,10 @@ def apply_calibration(matches):
             if m['segment'] is None:
                 m['segment'] = {'play': '联赛', 'bucket': lg, 'n': lst['n'],
                                 'hit_rate': lst['hit_rate'],
-                                'required_rate': lst['required_rate'], 'edge': lst['edge']}
+                                'required_rate': lst['required_rate'], 'edge': lst['edge'],
+                                'ci_low': lst.get('ci_low'), 'ci_high': lst.get('ci_high'),
+                                'roi': lst.get('roi'), 'roi_low': lst.get('roi_low'),
+                                'roi_high': lst.get('roi_high')}
         m['seg_bad'] = seg_bad
 
         lv_bad = bool(st and st.get('n', 0) >= n_min and st.get('edge', 0) < _HARD_DOWN_PP

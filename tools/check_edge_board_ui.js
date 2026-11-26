@@ -57,7 +57,10 @@ check('行数正确', (list.innerHTML.match(/class="eb-row"/g) || []).length ===
 check('可看行有 ok 徽标', /eb-badge ok/.test(list.innerHTML));
 check('仅观察行有 watch 样式', /eb-pick watch/.test(list.innerHTML));
 check('Edge 带正负号', /\+7\.5/.test(list.innerHTML));
-check('同类场次命中率已渲染', /同类 48\.0% \/ n=120/.test(list.innerHTML));
+check('同类命中率已渲染', /同类 48\.0%/.test(list.innerHTML), list.innerHTML.slice(0, 300));
+check('Wilson 95% 区间两行显示', /40-57% · n=120/.test(list.innerHTML), list.innerHTML.slice(0, 300));
+check('置信区间与 ROI 带写入 title', /95% 区间 39\.6-56\.5%/.test(list.innerHTML) && /ROI -7\.8%/.test(list.innerHTML), list.innerHTML.slice(0, 500));
+check('校准面板命中率列用 CI 区间', /d\.ci_low!=null&&d\.ci_high!=null/.test(html) && /Wilson 95%/.test(html));
 check('需下注门槛写入页脚', /赔率 ≤ 8/.test(note.innerHTML), note.innerHTML);
 check('前视风险提示写入页脚', /前视/.test(note.innerHTML));
 check('行可点击跳转（data-mid + dbJump）', /data-mid="周日001"/.test(list.innerHTML) && /onclick="dbJump\(this\)"/.test(list.innerHTML));

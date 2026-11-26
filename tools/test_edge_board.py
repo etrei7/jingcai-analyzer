@@ -22,9 +22,13 @@ FAIL = 0
 # ---- 训练/校准数据替身：不碰数据库 ------------------------------------------
 _SEGS = {
     '1X2|1.50-2.00': {'n': 120, 'wins': 58, 'hit_rate': 48.0,
-                      'avg_odds': 1.85, 'required_rate': 52.0, 'edge': -4.0},
+                      'avg_odds': 1.85, 'required_rate': 52.0, 'edge': -4.0,
+                      'ci_low': 39.6, 'ci_high': 57.2,
+                      'roi': -10.6, 'roi_low': -26.8, 'roi_high': 5.8},
     '1X2|5.00-10.0': {'n': 12, 'wins': 1, 'hit_rate': 8.0,
-                      'avg_odds': 6.5, 'required_rate': 15.0, 'edge': -7.0},
+                      'avg_odds': 6.5, 'required_rate': 15.0, 'edge': -7.0,
+                      'ci_low': 0.0, 'ci_high': 26.5,
+                      'roi': -48.0, 'roi_low': -100.0, 'roi_high': 72.3},
 }
 _real_get = calibration.get_calibration
 
@@ -83,6 +87,12 @@ def main():
         check('同类场次命中率注入（1.50-2.00）',
               r.get('segment', {}).get('bucket') == '1.50-2.00', r.get('segment'))
         check('历史不盈利 -> segment_warn', r.get('segment_warn') is True, r.get('segment'))
+        check('同类命中率置信区间透传到行',
+              r.get('segment', {}).get('ci_low') == 39.6
+              and r.get('segment', {}).get('ci_high') == 57.2, r.get('segment'))
+        check('同类 ROI 置信带透传到行',
+              r.get('segment', {}).get('roi') == -10.6
+              and r.get('segment', {}).get('roi_low') == -26.8, r.get('segment'))
         check('note 写明前视风险', '前视' in (board.get('note') or ''), board.get('note'))
 
         # 已开赛 / 模型概率缺失：一律不进榜

@@ -61,8 +61,13 @@ def _segment_for(odds):
             'bucket': bucket,
             'n': seg['n'],
             'hit_rate': seg['hit_rate'],
+            'ci_low': seg.get('ci_low'),
+            'ci_high': seg.get('ci_high'),
             'required_rate': seg['required_rate'],
             'edge': seg['edge'],
+            'roi': seg.get('roi'),
+            'roi_low': seg.get('roi_low'),
+            'roi_high': seg.get('roi_high'),
         }
     except Exception:
         return None

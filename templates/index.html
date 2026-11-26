@@ -561,6 +561,7 @@ img,svg,table{max-width:100%}
 .eb-edge.pos{color:var(--high)}
 .eb-edge.neg{color:var(--low)}
 .eb-seg{font-size:11.5px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:right}
+.eb-seg .k{display:block;font-size:10.5px;font-weight:500;white-space:nowrap}
 .eb-seg.warn{color:var(--low);font-weight:700}
 .eb-foot{padding:8px 15px 10px;font-size:11.5px;line-height:1.6;color:var(--text-muted);background:var(--card-stripe)}
 .eb-empty{padding:14px 15px;font-size:12.5px;line-height:1.7;color:var(--text-muted)}
@@ -2062,7 +2063,9 @@ async function loadCalibration(){
       var mo = moE(d.hit_rate||0, d.n||0);
       return '<tr><td data-label="分段">'+esc(name)+'</td>'
         + '<td data-label="样本 n" align="right">'+(d.n||0)+'</td>'
-        + '<td data-label="命中率" align="right">'+(d.hit_rate||0)+'%'+(mo!=null?'<span class="num-sub">±'+mo+'pp</span>':'')+'</td>'
+        + '<td data-label="命中率" align="right">'+(d.hit_rate||0)+'%'+(d.ci_low!=null&&d.ci_high!=null
+            ? '<span class="num-sub">'+(d.ci_low)+'-'+(d.ci_high)+'%</span>'
+            : (mo!=null?'<span class="num-sub">±'+mo+'pp</span>':''))+'</td>'
         + '<td data-label="盈亏线（1/平均赔率）" align="right">'+(d.required_rate||0)+'%</td>'
         + '<td data-label="优势（pp）" align="right" style="color:'+edgeColor+'">'+(d.edge>0?'+':'')+d.edge+'pp</td></tr>';
     }
@@ -2092,7 +2095,9 @@ async function loadCalibration(){
       return;
     }
     el.innerHTML = '<div class="backtest-card" style="margin-bottom:10px">'+ body
-      + '<div class="bt-note">命中率低于'+tip('breakeven','盈亏线')+'说明长期不盈利，系统会自动降级对应分段；总样本 '+(s.total||0)+'。命中率差异需大于 ±pp 抽样误差才可信。</div></div>';
+      + '<div class="bt-note">命中率列括号内为 Wilson 95% 置信区间（小样本下比±pp 更稳）；区间跨过'
+        + tip('breakeven','盈亏线') + '时，该分段的“优势”还不能当结论。命中率低于'+tip('breakeven','盈亏线')
+        + '说明长期不盈利，系统会自动降级对应分段；总样本 '+(s.total||0)+'。</div></div>';
   }catch(e){
     el.innerHTML = '<div class="bt-note warn">校准数据请求超时或网络异常。 <button class="link-btn" type="button" onclick="loadCalibration()">重试</button></div>';
   }
@@ -2811,10 +2816,18 @@ function renderEdgeBoard(board){
     var seg = r.segment || null;
     var segHtml;
     if(seg && seg.n){
+      var ciTxt = (seg.ci_low != null && seg.ci_high != null)
+        ? ('95% 区间 ' + ebFix(seg.ci_low, 1) + '-' + ebFix(seg.ci_high, 1) + '%') : '95% 区间未知';
+      var roiTxt = (seg.roi != null)
+        ? ('；ROI ' + ebSigned(seg.roi, 1) + '%（' + ebSigned(seg.roi_low, 1) + '~' + ebSigned(seg.roi_high, 1)
+           + '%，按命中率区间换算）') : '';
       segHtml = '<span class="eb-seg' + (r.segment_warn ? ' warn' : '') + '" title="同类场次（胜平负 x 赔率 '
         + esc(seg.bucket || '') + '）历史 ' + ebFix(seg.n, 0) + ' 注，命中 ' + ebFix(seg.hit_rate, 1)
-        + '%，盈亏平衡需 ' + ebFix(seg.required_rate, 1) + '%，差 ' + ebSigned(seg.edge, 1) + 'pp">同类 '
-        + ebFix(seg.hit_rate, 1) + '% / n=' + ebFix(seg.n, 0) + '</span>';
+        + '%（' + ciTxt + '），盈亏平衡需 ' + ebFix(seg.required_rate, 1) + '%，差 '
+        + ebSigned(seg.edge, 1) + 'pp' + roiTxt + '">同类 '
+        + ebFix(seg.hit_rate, 1) + '%'
+        + '<span class="k">' + (seg.ci_low != null ? ebFix(seg.ci_low, 0) + '-' + ebFix(seg.ci_high, 0) + '% · ' : '')
+        + 'n=' + ebFix(seg.n, 0) + '</span></span>';
     } else {
       segHtml = '<span class="eb-seg">同类样本不足</span>';
     }

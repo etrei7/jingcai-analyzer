@@ -31,8 +31,14 @@
         "bucket": "1.50-2.00",
         "n": 120,
         "hit_rate": 48.0,
+        "ci_low": 39.6,
+        "ci_high": 56.5,
+        "avg_odds": 1.92,
         "required_rate": 52.0,
-        "edge": -4.0
+        "edge": -4.0,
+        "roi": -7.8,
+        "roi_low": -24.0,
+        "roi_high": 8.5
       },
       "segment_warn": true,
       "confidence_level": "中"

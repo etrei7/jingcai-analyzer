@@ -28,8 +28,12 @@ python tools/test_logic.py
 
 ```bash
 python tools/test_edge_board.py     # Edge 差值榜口径：已开赛剔除、赔率/概率/凯利门槛、排序、同类场次命中率注入
+python tools/test_calibration_ci.py # 命中率 Wilson 95% 置信区间 + ROI 置信带：边界/单调性/降级透传
 node tools/check_edge_board_ui.js   # index.html 内联脚本可否解析 + renderEdgeBoard 渲染（stub DOM，不需要浏览器）
 ```
+
+> 置信区间用 Wilson 解析式而非 bootstrap：本机与 PA 免费版都没有 numpy，解析式无抽样假设、可直接算，
+> 且与 `segment.n` 一一对应。ROI 带由命中率区间经分层平均赔率线性换算，不额外引入第二层抽样。
 
 > 这些检查源自真实事故：`api_football_client.py` 曾因"换行丢失 + 损坏字符"导致 `SyntaxError`，模块**始终无法导入**，API-Football 富化静默失效很久无人察觉。
 
