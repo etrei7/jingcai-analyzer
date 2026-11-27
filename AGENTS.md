@@ -275,4 +275,5 @@ $env:PORT='5057'; $env:DATABASE_URL='sqlite:///<workspace>/tmp_test.db'   # 用�
 - 参数文件在 `instance/model_params.json`，由 `maintenance.py` 的 `MODEL_REFRESH` 标志触发重建；重建要联网拉比分，只能在 webapp 进程里跑（PA console 没有 BZZOIRO key）。
 - `MODEL_EVAL` 标志跑时间切分验证（`holdout_eval`），用验证选出的 reg 与 league_effects 重建线上参数，结果写 `instance/model_eval.json`。
 - 选题在 `analysis._pick_by_ev()`：按凯利分数排序，赔率 ≤8、概率 ≥10%、f>1% 才算正期望；不满足标 `no_bet`，只展示不推荐。
+- 模型验证分两级：`MODEL_EVAL`（单次 80/20 时间切分）与 `MODEL_WF`（滚动起点 4 折，写 `instance/model_wf.json`）。改了 `model_core.py` 的训练/评分逻辑后两者都要重跑，且 `model_wf.json` 的 `robust` 必须为 true 才算通过；基线一律用「每场所在联赛的基率」，不用全局基率（否则结论虚高）。
 - 不要退回"信心 = 1/最低赔率"：那是循环口径，已被审计否掉。
